@@ -14,6 +14,7 @@ import { DocGrid } from "@/components/doc/DocGrid";
 import { ArticleView } from "@/components/doc/ArticleView";
 import { TimelineTab } from "@/components/doc/TimelineTab";
 import { ProfileTab } from "@/components/doc/ProfileTab";
+import FaqTab from "@/components/doc/FaqTab";
 import { NewDocEditor } from "@/components/doc/NewDocEditor";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { resolveAvatar } from "@/lib/avatar";
@@ -45,6 +46,7 @@ export default function DocsPage() {
 
   // New doc editor
   const [showNewEditor, setShowNewEditor] = useState(false);
+  const [showFaqDialog, setShowFaqDialog] = useState(false);
 
   const loggedInCommentUser = user ? {
     username: user.username,
@@ -262,6 +264,8 @@ export default function DocsPage() {
     bodyContent = (
       <ProfileTab activeTab={activeTab} />
     );
+  } else if (activeTab === 3) {
+    bodyContent = <FaqTab showAddDialog={showFaqDialog} onAddDialogClosed={() => setShowFaqDialog(false)} />;
   } else {
     bodyContent = (
       <DocGrid
@@ -338,7 +342,7 @@ export default function DocsPage() {
           {!sel && (
             <div className="px-6 pt-4 pb-2 flex items-center border-b border-white/[0.02] transition-all duration-300">
               <div className="flex items-center gap-6 flex-1">
-                {["Docs", "Timeline", "Profile"].map((t, i) => (
+                {["Docs", "Timeline", "Profile", "FAQ"].map((t, i) => (
                 <button key={t} onClick={() => { setActiveTab(i); setShowNewEditor(false); }}
                   className={`text-[12px] font-medium pb-2.5 border-b-2 transition-all duration-300 ${activeTab === i ? "text-white border-blue-400" : "text-white/30 border-transparent hover:text-white/60"}`}>{t}</button>
               ))}
@@ -355,6 +359,27 @@ export default function DocsPage() {
                 >
                   <Plus size={13} />
                   New Doc
+                </button>
+              )}
+              {activeTab === 3 && (
+                <button
+                  onClick={() => setShowFaqDialog(true)}
+                  className="relative w-8 h-8 rounded-full grid place-items-center transition-all duration-300 hover:scale-110 active:scale-95 group/faqbtn"
+                  style={{
+                    background: "linear-gradient(135deg, rgba(76,201,240,0.22), rgba(123,47,247,0.18))",
+                    border: "1px solid rgba(76,201,240,0.3)",
+                    boxShadow: "0 0 14px rgba(76,201,240,0.1), 0 0 28px rgba(123,47,247,0.06)",
+                  }}
+                >
+                  {/* glow ring on hover */}
+                  <div
+                    className="absolute inset-0 rounded-full opacity-0 group-hover/faqbtn:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background: "transparent",
+                      boxShadow: "0 0 18px rgba(76,201,240,0.25), 0 0 36px rgba(123,47,247,0.12)",
+                    }}
+                  />
+                  <Plus size={14} style={{ color: "rgba(255,255,255,0.85)", position: "relative", zIndex: 1 }} />
                 </button>
               )}
             </div>
