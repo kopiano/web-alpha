@@ -79,6 +79,15 @@ const ChatPage = () => {
       const users: ChatUser[] = res.data?.data ?? [];
       const cs = users.filter(u=>u.id!==me?.id).map(u=>buildContact(u,"",""));
       setContacts(cs.length?cs:[{id:0,name:"No users",avatar:"??",lastMsg:"Register to start chatting",time:"",unread:0,online:false}]);
+      // 自动加载第一个联系人的消息
+      if (cs.length > 0) {
+        const my = meRef.current;
+        fetchChat({with_user:cs[0].id,limit:200}).then(res=>{
+          const d = res.data?.data??res.data;
+          const msgs: ChatMsg[] = d?.messages??[];
+          setMessages(msgs.map(m=>({id:++midRef.current,sender:m.username===my?"me":"them",type:(m.type as any)||"text",content:m.content,time:timeFmt(m.CreatedAt||""),fileName:m.file_name,fileData:m.file_url,username:m.username})));
+        }).catch(e=>console.error("Load messages failed:", e));
+      }
     }).catch(()=>setContacts([{id:0,name:"Server offline",avatar:"!!",lastMsg:"Backend not reachable",time:"",unread:0,online:false}])).finally(()=>setLoading(false));
   }, [me?.id]);
 
@@ -105,8 +114,12 @@ const ChatPage = () => {
     const c = contacts[activeIdx];
     const local: Message = {id:++midRef.current,sender:"me",type:type as any,content,time:timeFmt(new Date().toISOString()),fileName,fileData};
     setMessages(p=>[...p,local]);
-    sendChatMessage({user_id:me?.id||0,recipient_id:c?.id||0,username:meRef.current,avatar:meInit,type,content,file_name:fileName||"",file_url:fileData||""}).catch(()=>{});
-  }, [me?.id,meInit,contacts,activeIdx]);
+    let messageType = 1; // text
+    if (type==="emoji") messageType = 2;
+    else if (type==="image") messageType = 3;
+    else if (type==="file") messageType = 4;
+    sendChatMessage({recipient_id:c?.id||0,message_type:messageType,content,file_name:fileName||"",file_url:fileData||""}).catch(e=>console.error("Send failed:", e));
+  }, [contacts,activeIdx]);
 
   const sendText = () => { const v=input.trim(); if(!v) return; sendMsg(/^\p{Emoji}+$/u.test(v)?"emoji":"text",v); setInput(""); setShowEmoji(false); };
   const sendImg = () => { if(!previewImg) return; sendMsg("image",previewImg,"image.png",previewImg); setPreviewImg(null); };
@@ -195,28 +208,41 @@ const ChatPage = () => {
         <div className="flex-1 flex flex-col h-full min-w-0 rounded-r-[32px] overflow-hidden"
           style={{background:"rgba(255,255,255,0.02)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(255,255,255,0.06)",borderBottom:"1px solid rgba(255,255,255,0.06)",borderRight:"1px solid rgba(255,255,255,0.06)",boxShadow:"0 20px 60px -20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)"}}>
           <div className="px-5 py-3 flex items-center gap-3 shrink-0 border-b border-white/[0.03]" style={{background:"rgba(255,255,255,0.015)",backdropFilter:"blur(40px)"}}>
-            <div className="relative shrink-0">
-              <div className="w-9 h-9 rounded-full grid place-items-center text-[10px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden"
-                style={contact?.userData?.avatar?{}:{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)"}}>
-                {contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
-                <span className={contact?.userData?.avatar?"hidden":""}>{contact?.avatar||"??"}</span>
-              </div>
-              {contact&&online(contact)&&<span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]"/>}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-white/90">{contact?.name||"Select a conversation"}</p>
-              <p className="text-[10px] text-white/20">
-                {isTyping?<span className="text-violet-300/60">typing...</span>
-                :contact&&online(contact)?<span className="text-emerald-400/60">Online</span>
-                :contact?<span className="text-white/15 italic">offline</span>
-                :""}
-              </p>
-            </div>
+            {loading ? (
+              <>
+                <div className="w-9 h-9 rounded-full bg-white/[0.06] animate-pulse shrink-0"/>
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="h-3 w-24 rounded-full bg-white/[0.06] animate-pulse"/>
+                  <div className="h-2 w-16 rounded-full bg-white/[0.04] animate-pulse"/>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="relative shrink-0">
+                  <div className="w-9 h-9 rounded-full grid place-items-center text-[10px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden"
+                    style={contact?.userData?.avatar?{}:{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)"}}>
+                    {contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
+                    <span className={contact?.userData?.avatar?"hidden":""}>{contact?.avatar||"??"}</span>
+                  </div>
+                  {contact&&online(contact)&&<span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]"/>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-semibold text-white/90">{contact?.name||"Select a conversation"}</p>
+                  <p className="text-[10px] text-white/20">
+                    {isTyping?<span className="text-violet-300/60">typing...</span>
+                    :contact&&online(contact)?<span className="text-emerald-400/60">Online</span>
+                    :contact?<span className="text-white/15 italic">offline</span>
+                    :""}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto csb px-5 py-4 space-y-1.5">
-            {!contact||contact.id===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Select a contact to start chatting</p></div>
+            {loading?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/10 animate-pulse">Loading...</p></div>
+            :!contact||contact.id===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Select a contact to start chatting</p></div>
             :messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
             :messages.map((m,i)=>{
               const isMe=m.sender==="me";
@@ -227,10 +253,10 @@ const ChatPage = () => {
                 :(contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover"/>:<span>{contact?.avatar||"?"}</span>);
               return (
                 <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"}`} style={{animation:"slide-up 0.35s ease forwards",opacity:0}}>
-                  <div className="flex items-start gap-2.5 max-w-[72%]">
-                    {/* Message content — always on the left of avatar */}
+                  <div className={`flex items-start gap-2.5 max-w-[72%] ${isMe?"":"flex-row-reverse"}`}>
+                    {/* Message content — me: left of avatar / them: right of avatar */}
                     <div className={`flex flex-col ${isMe?"items-end":"items-start"} gap-0.5 min-w-0`}>
-                      {m.type==="text"||m.type==="emoji"&&m.content.length>2?<div className={`px-5 py-3 text-[13px] leading-relaxed rounded-[3rem] rounded-br-lg ${isMe?"text-white/95":"text-white/88"}`}
+                      {m.type==="text"||m.type==="emoji"&&m.content.length>2?<div className={`px-5 py-3 text-[13px] leading-relaxed rounded-[3rem] ${isMe?"rounded-br-lg text-white/95":"rounded-bl-lg text-white/88"}`}
                         style={isMe?{background:"linear-gradient(135deg, #7c3aed, #06b6d4)",boxShadow:"0 6px 20px -6px rgba(124,58,237,0.4), inset 0 1px 0 rgba(255,255,255,0.15)"}:{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.06)",boxShadow:"0 4px 12px -4px rgba(0,0,0,0.15)"}}>{m.content}</div>
                       :m.type==="emoji"?<div className="text-[40px] leading-none select-none">{m.content}</div>
                       :m.type==="image"?<img src={m.content} alt="" className="max-w-[280px] rounded-2xl object-cover cursor-pointer hover:scale-[1.02] transition-transform"/>
@@ -240,7 +266,7 @@ const ChatPage = () => {
                       </div>:null}
                       <span className="text-[9px] text-white/40 px-1">{m.time}</span>
                     </div>
-                    {/* Avatar + username — always on the right */}
+                    {/* Avatar + username — me: right side / them: left side */}
                     <div className="shrink-0 flex flex-col items-center gap-0.5">
                       {showAv?<div className={`w-7 h-7 rounded-full overflow-hidden grid place-items-center text-[9px] font-bold ring-1 ring-white/10 ${isMe?"":`bg-gradient-to-br ${grad(activeIdx)}`}`}
                         style={isMe&&!meAvatar?{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.18)"}:{}}>{avEl}</div>:<div className="w-7"/>}
@@ -251,7 +277,7 @@ const ChatPage = () => {
               );
             })}
             {isTyping&&<div className="flex justify-start" style={{animation:"slide-up 0.35s ease forwards",opacity:0}}>
-              <div className="flex items-start gap-2.5 max-w-[72%]">
+              <div className="flex flex-row-reverse items-start gap-2.5 max-w-[72%]">
                 <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
                   {[0,160,320].map(d=><span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce" style={{animationDelay:`${d}ms`,animationDuration:"0.8s"}}/>)}
                 </div>
