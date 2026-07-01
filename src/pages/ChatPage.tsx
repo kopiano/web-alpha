@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { resolveAvatar } from "@/lib/avatar";
 import { fetchChat, sendChatMessage } from "@/api/chat";
+import { getUsers } from "@/api/user";
 
 /* ─── Types ─── */
 interface ChatUser { id: number; username: string; email?: string; avatar?: string; status?: string; last_login_at?: string; }
@@ -74,18 +75,10 @@ const ChatPage = () => {
 
   /* ─── Load data ─── */
   const loadAll = useCallback(() => {
-    fetchChat({limit:200}).then(res=>{
-      const d = res.data?.data??res.data;
-      const users: ChatUser[] = d?.users??[];
-      const msgs: ChatMsg[] = d?.messages??[];
-      const cs = users.filter(u=>u.id!==me?.id).map(u=>{
-        const um = msgs.filter(m=>m.user_id===u.id||m.username===u.username);
-        const last = um[um.length-1];
-        return buildContact(u, last?.content?.slice(0,30)||"", last?.CreatedAt||"");
-      });
+    getUsers().then(res=>{
+      const users: ChatUser[] = res.data?.data ?? [];
+      const cs = users.filter(u=>u.id!==me?.id).map(u=>buildContact(u,"",""));
       setContacts(cs.length?cs:[{id:0,name:"No users",avatar:"??",lastMsg:"Register to start chatting",time:"",unread:0,online:false}]);
-      const my = meRef.current;
-      setMessages(msgs.map(m=>({id:++midRef.current,sender:m.username===my?"me":"them",type:(m.type as any)||"text",content:m.content,time:timeFmt(m.CreatedAt||""),fileName:m.file_name,fileData:m.file_url,username:m.username})));
     }).catch(()=>setContacts([{id:0,name:"Server offline",avatar:"!!",lastMsg:"Backend not reachable",time:"",unread:0,online:false}])).finally(()=>setLoading(false));
   }, [me?.id]);
 
@@ -271,25 +264,26 @@ const ChatPage = () => {
             <button onClick={sendImg} className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-violet-500 to-cyan-400 text-white">Send</button>
           </div>}
 
-          {contact&&contact.id>0&&<div className="px-4 pb-4 pt-2 shrink-0">
+          <div className="px-4 pb-4 pt-2 shrink-0">
             <div className="flex items-center gap-2 px-3 h-[56px] rounded-full"
               style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(30px)",border:"1px solid rgba(255,255,255,0.08)",boxShadow:"0 8px 32px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
               <div className="relative">
-                <button onClick={()=>setShowEmoji(!showEmoji)} className={`w-9 h-9 rounded-full grid place-items-center transition-all ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"}`}><Smile size={17}/></button>
+                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={!contact||contact.id===0} className={`w-9 h-9 rounded-full grid place-items-center transition-all ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${(!contact||contact.id===0)&&"opacity-30 cursor-not-allowed"}`}><Smile size={17}/></button>
                 {showEmoji&&<div className="absolute bottom-full left-0 mb-3 rounded-2xl p-3 w-[304px] z-50" style={{background:"rgba(18,16,30,0.97)",backdropFilter:"blur(60px)",border:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 20px 50px -10px rgba(0,0,0,0.7)"}}>
                   <div className="grid grid-cols-8 gap-1.5">{EMOJI_LIST.map(e=><button key={e} onClick={()=>{setInput(p=>p+e);setShowEmoji(false);}} className="w-8 h-8 rounded-lg grid place-items-center text-xl hover:bg-white/10 hover:scale-[1.15] active:scale-95">{e}</button>)}</div>
                 </div>}
               </div>
-              <button onClick={()=>imgRef.current?.click()} className="w-9 h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04]"><Image size={17}/></button>
+              <button onClick={()=>imgRef.current?.click()} disabled={!contact||contact.id===0} className={`w-9 h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all ${(!contact||contact.id===0)&&"opacity-30 cursor-not-allowed"}`}><Image size={17}/></button>
               <input ref={imgRef} type="file" accept="image/*" onChange={pickImg} className="hidden"/>
-              <button onClick={()=>fileRef.current?.click()} className="w-9 h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04]"><AlignJustify size={17}/></button>
+              <button onClick={()=>fileRef.current?.click()} disabled={!contact||contact.id===0} className={`w-9 h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all ${(!contact||contact.id===0)&&"opacity-30 cursor-not-allowed"}`}><AlignJustify size={17}/></button>
               <input ref={fileRef} type="file" onChange={pickFile} className="hidden"/>
-              <input type="text" placeholder="Message..." value={input} onChange={e=>setInput(e.target.value)}
+              <input type="text" placeholder={contact&&contact.id>0?"Message...":"Select a contact to chat"} value={input} onChange={e=>setInput(e.target.value)}
+                disabled={!contact||contact.id===0}
                 onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();sendText();}}}
-                className="flex-1 bg-transparent outline-none text-[13px] placeholder:text-white/15 px-2"/>
-              <button onClick={sendText} disabled={!input.trim()} className={`w-9 h-9 rounded-full grid place-items-center transition-all ${input.trim()?"bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100":"text-white/20 scale-95"}`}><Send size={14}/></button>
+                className="flex-1 bg-transparent outline-none text-[13px] placeholder:text-white/15 px-2 disabled:opacity-30"/>
+              <button onClick={sendText} disabled={!input.trim()||!contact||contact.id===0} className={`w-9 h-9 rounded-full grid place-items-center transition-all ${input.trim()&&contact&&contact.id>0?"bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100":"text-white/20 scale-95"}`}><Send size={14}/></button>
             </div>
-          </div>}
+          </div>
         </div>
       </div>
     </div>
