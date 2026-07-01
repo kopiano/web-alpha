@@ -24,6 +24,44 @@ const playerGlassStyle = {
   border: "1px solid hsl(0 0% 100% / .22)",
 };
 
+/* ─── Marquee text ─── */
+const MarqueeLine = ({ title, artist }: { title: string; artist: string }) => {
+  const spanRef = useRef<HTMLSpanElement>(null);
+  const text = `${title}  ·  ${artist}`;
+
+  return (
+    <div className="overflow-hidden whitespace-nowrap group/marquee" title={text}>
+      <style>{`
+        @keyframes marquee-scroll {
+          from { transform: translateX(0); }
+          to   { transform: translateX(var(--scroll-offset, -50%)); }
+        }
+      `}</style>
+      <span
+        ref={(el) => {
+          if (!el) return;
+          const parent = el.parentElement;
+          if (!parent) return;
+          requestAnimationFrame(() => {
+            const overflow = el.scrollWidth - parent.clientWidth;
+            if (overflow > 0) {
+              el.style.setProperty("--scroll-offset", `-${overflow + 16}px`);
+              el.style.setProperty("animation", "none");
+              el.classList.add("group-hover/marquee:[animation:marquee-scroll_4s_linear_infinite]");
+            }
+          });
+        }}
+        className="inline-block text-[11px] font-semibold leading-tight"
+        style={{ whiteSpace: "nowrap" }}
+      >
+        <span style={{ color: "rgba(255,255,255,0.9)" }}>{title}</span>
+        <span style={{ color: "rgba(255,255,255,0.2)", margin: "0 6px" }}>·</span>
+        <span style={{ color: "rgba(255,255,255,0.45)" }}>{artist}</span>
+      </span>
+    </div>
+  );
+};
+
 export const MusicPlayer = () => {
   const [playlist, setPlaylist] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,7 +219,7 @@ export const MusicPlayer = () => {
             transition: "all 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
           }}>
           <div className={playing ? "animate-spin-slow" : ""}>
-            <Music size={16} className="text-white/70" />
+            <Music size={20} className="text-white/70" />
           </div>
         </button>
       </div>
@@ -195,25 +233,26 @@ export const MusicPlayer = () => {
   if (!track) return null;
 
   return (
-    <div style={{ position: "fixed", left: "calc(50% - 230px)", top: "32px", zIndex: 40, transform: "scale(0.85)", transition: "all 0.5s cubic-bezier(0.22, 1, 0.36, 1)" }}>
+    <div style={{ position: "fixed", left: "calc(50% - 236px)", top: "32px", zIndex: 40, transform: "scale(0.85)", transition: "all 0.5s cubic-bezier(0.22, 1, 0.36, 1)" }}>
       <div
-        className="noise px-5 py-2.5 flex items-center gap-5 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.7)]"
+        className="noise px-5 py-2.5 flex items-center gap-4 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.7)]"
         style={{ ...playerGlassStyle, borderRadius: "3rem" }}
       >
-        {/* Album art — click to collapse */}
+        {/* Album art — click to collapse, larger */}
         <button onClick={() => setCollapsed(true)} className="shrink-0 focus:outline-none">
-          <div className="w-9 h-9 rounded-[50%]
-bg-gradient-to-br from-neon-purple via-neon-pink to-neon-cyan grid place-items-center shrink-0 shadow-[0_0_20px_-5px_hsl(var(--neon-purple)/0.5)] hover:opacity-80 transition-opacity">
+          <div className="w-11 h-11 rounded-[50%]
+	bg-gradient-to-br from-neon-purple via-neon-pink to-neon-cyan grid place-items-center shrink-0 shadow-[0_0_24px_-6px_hsl(var(--neon-purple)/0.55)] hover:opacity-80 transition-opacity">
             <div className={playing ? "animate-spin-slow" : ""}>
-              <Music size={15} className="text-white/90" />
+              <Music size={20} className="text-white/90" />
             </div>
           </div>
         </button>
 
         {/* Track info + progress */}
-        <div className="min-w-0 w-40 flex flex-col justify-center">
-          <p className="text-[11px] font-semibold truncate leading-tight">{track.title}</p>
-          <p className="text-[9px] text-white/35 truncate leading-tight">{track.artist}</p>
+        <div className="min-w-0 w-36 flex flex-col justify-center">
+          {/* Title · Artist on same line — marquee on hover */}
+          <MarqueeLine title={track.title} artist={track.artist} />
+
           <div
             className="mt-1 h-[4px] rounded-full bg-white/20 overflow-hidden cursor-pointer group/progress transition-all"
             onClick={seek}
@@ -234,7 +273,7 @@ bg-gradient-to-br from-neon-purple via-neon-pink to-neon-cyan grid place-items-c
           <button
             onClick={handlePrev}
             className="w-8 h-8 rounded-[50%]
-grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 transition-all duration-200"
+	grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 transition-all duration-200"
           >
             <SkipBack size={14} />
           </button>
@@ -257,7 +296,7 @@ grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 trans
           <button
             onClick={handleNext}
             className="w-8 h-8 rounded-[50%]
-grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 transition-all duration-200"
+	grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 transition-all duration-200"
           >
             <SkipForward size={14} />
           </button>
@@ -272,7 +311,7 @@ grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 trans
           <button
             onClick={() => setMuted(!muted)}
             className="w-8 h-8 rounded-[50%]
-grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 transition-all duration-200"
+	grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 transition-all duration-200"
           >
             {muted || volume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
           </button>
@@ -314,7 +353,7 @@ grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 trans
           <button
             onClick={() => setShowPlaylist(!showPlaylist)}
             className={`w-8 h-8 rounded-[50%]
-grid place-items-center transition-all duration-200 ${
+	grid place-items-center transition-all duration-200 ${
               showPlaylist
                 ? "text-neon-purple bg-neon-purple/10 shadow-[0_0_12px_-3px_hsl(var(--neon-purple)/0.3)]"
                 : "text-white/25 hover:text-white/60 hover:bg-white/5"
@@ -353,14 +392,14 @@ grid place-items-center transition-all duration-200 ${
                       setShowPlaylist(false);
                     }}
                     className={`w-full text-left px-3 py-2.5 rounded-xl
-flex items-center gap-3 transition-all duration-200 ${
+	flex items-center gap-3 transition-all duration-200 ${
                       i === trackIdx
                         ? "bg-white/[0.08]"
                         : "hover:bg-white/[0.05]"
                     }`}
                   >
                     <div className={`w-7 h-7 rounded-[50%]
-grid place-items-center shrink-0 text-[10px] font-bold transition-all duration-200 ${
+	grid place-items-center shrink-0 text-[10px] font-bold transition-all duration-200 ${
                       i === trackIdx
                         ? "bg-gradient-to-br from-violet-400 to-cyan-400 text-white"
                         : "text-white/40 bg-white/[0.08]"
