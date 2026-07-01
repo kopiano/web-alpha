@@ -74,8 +74,9 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         setAvatarPreview(null);
       }
     } catch (err: any) {
-      const message = err?.response?.data?.message || "Something went wrong";
+      const message = err?.response?.data?.message || err?.message || "Network error - please check your connection";
       toast.error(message);
+      console.error("Auth error:", err);
     } finally {
       setLoading(false);
     }

@@ -41,6 +41,7 @@ const ChatPage = () => {
   const wsRef = useRef<WebSocket|null>(null);
   const midRef = useRef(0);
   const meRef = useRef("Me");
+  const activeContactIdRef = useRef(0);
 
   const me = user;
   const meName = me?.username||"Me";
@@ -62,6 +63,8 @@ const ChatPage = () => {
           if(d.type==="message"&&d.content) {
             const isMe = d.username===meRef.current||d.sender_username===meRef.current;
             if(isMe) return;
+            // 只显示当前选中联系人的消息
+            if(activeContactIdRef.current>0&&d.sender_id!==activeContactIdRef.current) return;
             setMessages(p=>[...p,{id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username}]);
             setIsTyping(true); setTimeout(()=>setIsTyping(false),1500);
           }
@@ -83,7 +86,8 @@ const ChatPage = () => {
       if (cs.length > 0) {
         const my = meRef.current;
         fetchChat({with_user:cs[0].id,limit:200}).then(res=>{
-          const d = res.data?.data??res.data;
+          const d = res.data?.data;
+          if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return; }
           const msgs: ChatMsg[] = d?.messages??[];
           setMessages(msgs.map(m=>({id:++midRef.current,sender:m.username===my?"me":"them",type:(m.type as any)||"text",content:m.content,time:timeFmt(m.CreatedAt||""),fileName:m.file_name,fileData:m.file_url,username:m.username})));
         }).catch(e=>console.error("Load messages failed:", e));
@@ -93,20 +97,22 @@ const ChatPage = () => {
 
   const loadForUser = useCallback((userId: number) => {
     fetchChat({with_user:userId,limit:200}).then(res=>{
-      const d = res.data?.data??res.data;
+      const d = res.data?.data;
+      if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return; }
       const msgs: ChatMsg[] = d?.messages??[];
       const my = meRef.current;
       setMessages(msgs.map(m=>({id:++midRef.current,sender:m.username===my?"me":"them",type:(m.type as any)||"text",content:m.content,time:timeFmt(m.CreatedAt||""),fileName:m.file_name,fileData:m.file_url,username:m.username})));
-    }).catch(()=>{});
+    }).catch(e=>console.error("Load messages failed:", e));
   }, []);
 
   useEffect(()=>{if(!me)return;connectWS();loadAll();return()=>{const w=wsRef.current;if(w&&w.readyState!==WebSocket.CONNECTING)w.close(1000);};},[me]);
 
   /* ─── Switch contact → load private messages ─── */
-  const switchContact = (i: number) => {
-    setActiveIdx(i);
-    const c = contacts[i];
-    if(c&&c.id>0) loadForUser(c.id);
+  const switchContact = (contactId: number) => {
+    const idx = contacts.findIndex(c=>c.id===contactId);
+    if(idx<0) return;
+    setActiveIdx(idx);
+    loadForUser(contactId);
   };
 
   /* ─── Send ─── */
@@ -129,9 +135,13 @@ const ChatPage = () => {
   useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:"smooth"});},[messages.length]);
 
   const grad = (i: number) => AVATAR_GRADS[i%7];
-  const filtered = contacts.filter(c=>c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const contact = contacts[activeIdx];
   const online = (c: Contact) => onlineUsers.has(c.id)||String(c.userData?.status||"").toLowerCase()==="active";
+  const filtered = contacts
+    .filter(c=>c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a,b)=>(online(b)?1:0)-(online(a)?1:0));
+  const contact = contacts[activeIdx];
+
+  useEffect(()=>{activeContactIdRef.current=contact?.id||0;},[contact]);
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden"
@@ -164,10 +174,10 @@ const ChatPage = () => {
             {loading?<div className="space-y-3 px-3 py-4">{[1,2,3,4].map(i=><div key={i} className="h-16 rounded-2xl bg-white/[0.03] animate-pulse"/>)}</div>
             :filtered.length===0?<div className="text-center py-10 text-white/20 text-[12px]">{contacts.length===0?"Server offline":"No matches"}</div>
             :filtered.map((c,i)=>{
-              const isActive=i===activeIdx;
+              const isActive = c.id === contacts[activeIdx]?.id;
               const on=online(c);
               return (
-                <button key={c.id} onClick={()=>switchContact(i)}
+                <button key={c.id} onClick={()=>switchContact(c.id)}
                   className={`w-full text-left px-3 py-2.5 rounded-[2rem] flex items-center gap-3.5 transition-all duration-300 mb-0.5 ${isActive?"scale-[1.02]":"hover:bg-white/[0.02]"}`}
                   style={isActive?{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(24px) saturate(180%)",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 4px 20px -8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08)"}:{border:"1px solid transparent"}}>
                   <div className="relative shrink-0">

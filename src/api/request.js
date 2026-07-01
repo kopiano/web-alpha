@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: 5000,
+  timeout: 15000,
   withCredentials: true,
 })
 
@@ -14,5 +14,16 @@ request.interceptors.request.use((config) => {
   }
   return config
 })
+
+// Handle 401 responses globally
+request.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+    }
+    return Promise.reject(error)
+  }
+)
 
 export default request
