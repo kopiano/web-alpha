@@ -215,7 +215,7 @@ export const MusicPlayer = () => {
   // collapsed mode
   if (collapsed) {
     return (
-      <div style={{ position: "fixed", top: "32px", right: "150px", zIndex: 40, transform: "scale(0.9)", transition: "all 0.5s cubic-bezier(0.22, 1, 0.36, 1)" }}>
+      <div style={{ position: "fixed", top: "37px", right: "150px", zIndex: 40, transform: "scale(0.9)", transition: "all 0.5s cubic-bezier(0.22, 1, 0.36, 1)" }}>
         <button onClick={() => setCollapsed(false)}
           className="w-11 h-11 grid place-items-center"
           style={{
@@ -246,7 +246,7 @@ export const MusicPlayer = () => {
           100% { background-position: 100% 100%; }
         }
       `}</style>
-      <div style={{ position: "fixed", left: "calc(50% - 236px)", top: "32px", zIndex: 40, transform: "scale(0.85)", transition: "all 0.5s cubic-bezier(0.22, 1, 0.36, 1)" }}>
+      <div style={{ position: "fixed", left: "calc(50% - 236px)", top: "37px", zIndex: 40, transform: "scale(0.85)", transition: "all 0.5s cubic-bezier(0.22, 1, 0.36, 1)" }}>
         <div
           className="noise px-5 py-2.5 flex items-center gap-4 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.7)]"
           style={{ ...playerGlassStyle, borderRadius: "3rem" }}
