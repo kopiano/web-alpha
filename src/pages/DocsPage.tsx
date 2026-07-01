@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { useArticles, CATEGORIES, TAG_COLORS, TAG_ICONS, CAT_COLORS } from "@/hooks/useArticles";
 import type { Article } from "@/hooks/useArticles";
+import { useTimeline } from "@/hooks/useTimeline";
 import type { Comment } from "@/components/doc/docsData";
 import { fetchComments } from "@/api/comment";
 import { renderMarkdown } from "@/components/doc/DocRenderer";
@@ -22,6 +23,7 @@ import { resolveAvatar } from "@/lib/avatar";
 /* ─── Main ─── */
 export default function DocsPage() {
   const { articles, loading, refresh } = useArticles();
+  const { timelineGroups, availableYears, loading: timelineLoading } = useTimeline();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeCat, setActiveCat] = useState(0);
@@ -261,6 +263,9 @@ export default function DocsPage() {
         openArticle={openArticle}
         TAG_COLORS={TAG_COLORS}
         TAG_ICONS={TAG_ICONS}
+        timelineGroups={timelineGroups}
+        availableYears={availableYears}
+        loading={timelineLoading}
       />
     );
   } else if (activeTab === 2) {

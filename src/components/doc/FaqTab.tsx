@@ -13,20 +13,6 @@ interface FaqItem {
   created_at?: string;
 }
 
-/* ─── Category colors (matching doc page palette) ─── */
-const CAT_COLORS: Record<string, string> = {
-  Backend: "#22d3ee",
-  Frontend: "#a78bfa",
-  Database: "#60a5fa",
-  DevOps: "#f59e0b",
-  API: "#f472b6",
-  Resources: "#34d399",
-};
-
-function getCatColor(cat: string): string {
-  return CAT_COLORS[cat] || "#94a3b8";
-}
-
 /* ─── Fallback data ─── */
 const FALLBACK_FAQS: FaqItem[] = [
   {
@@ -432,13 +418,6 @@ export default function FaqTab({ showAddDialog, onAddDialogClosed, activeCat, on
                         style={{ color: isExpanded ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.75)" }}>
                         {item.title}
                       </span>
-                      {/* Category tag */}
-                      {item.category && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
-                          style={{ background: `${getCatColor(item.category)}15`, border: `1px solid ${getCatColor(item.category)}25`, color: getCatColor(item.category) }}>
-                          {item.category}
-                        </span>
-                      )}
                       {/* Difficulty */}
                       <span className="inline-flex items-center gap-1 whitespace-nowrap">
                         <span className={`inline-block w-[5px] h-[5px] rounded-full ${difficultyDot[item.difficulty]}`} />
