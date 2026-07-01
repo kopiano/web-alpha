@@ -26,33 +26,39 @@ const playerGlassStyle = {
 
 /* ─── Marquee text ─── */
 const MarqueeLine = ({ title, artist }: { title: string; artist: string }) => {
-  const spanRef = useRef<HTMLSpanElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
   const text = `${title}  ·  ${artist}`;
 
+  useEffect(() => {
+    const container = containerRef.current;
+    const span = container?.querySelector<HTMLSpanElement>(".marquee-text");
+    if (!container || !span) return;
+    const overflow = span.scrollWidth - container.clientWidth;
+    span.style.setProperty("--scroll-end", overflow > 0 ? `-${overflow + 24}px` : "-22%");
+  }, [title, artist]);
+
   return (
-    <div className="overflow-hidden whitespace-nowrap group/marquee" title={text}>
+    <div
+      ref={containerRef}
+      className="overflow-hidden whitespace-nowrap"
+      title={text}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <style>{`
         @keyframes marquee-scroll {
-          from { transform: translateX(0); }
-          to   { transform: translateX(var(--scroll-offset, -50%)); }
+          0%   { transform: translateX(0); }
+          15%  { transform: translateX(0); }
+          100% { transform: translateX(var(--scroll-end, -50%)); }
         }
       `}</style>
       <span
-        ref={(el) => {
-          if (!el) return;
-          const parent = el.parentElement;
-          if (!parent) return;
-          requestAnimationFrame(() => {
-            const overflow = el.scrollWidth - parent.clientWidth;
-            if (overflow > 0) {
-              el.style.setProperty("--scroll-offset", `-${overflow + 16}px`);
-              el.style.setProperty("animation", "none");
-              el.classList.add("group-hover/marquee:[animation:marquee-scroll_4s_linear_infinite]");
-            }
-          });
+        className="marquee-text inline-block text-[11px] font-semibold leading-tight"
+        style={{
+          whiteSpace: "nowrap",
+          animation: hovered ? "marquee-scroll 8s ease-in-out infinite" : "none",
         }}
-        className="inline-block text-[11px] font-semibold leading-tight"
-        style={{ whiteSpace: "nowrap" }}
       >
         <span style={{ color: "rgba(255,255,255,0.9)" }}>{title}</span>
         <span style={{ color: "rgba(255,255,255,0.2)", margin: "0 6px" }}>·</span>
@@ -233,15 +239,36 @@ export const MusicPlayer = () => {
   if (!track) return null;
 
   return (
-    <div style={{ position: "fixed", left: "calc(50% - 236px)", top: "32px", zIndex: 40, transform: "scale(0.85)", transition: "all 0.5s cubic-bezier(0.22, 1, 0.36, 1)" }}>
-      <div
-        className="noise px-5 py-2.5 flex items-center gap-4 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.7)]"
-        style={{ ...playerGlassStyle, borderRadius: "3rem" }}
-      >
+    <>
+      <style>{`
+        @keyframes logo-gradient-shift {
+          0%   { background-position: 0% 0%; }
+          100% { background-position: 100% 100%; }
+        }
+      `}</style>
+      <div style={{ position: "fixed", left: "calc(50% - 236px)", top: "32px", zIndex: 40, transform: "scale(0.85)", transition: "all 0.5s cubic-bezier(0.22, 1, 0.36, 1)" }}>
+        <div
+          className="noise px-5 py-2.5 flex items-center gap-4 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.7)]"
+          style={{ ...playerGlassStyle, borderRadius: "3rem" }}
+        >
         {/* Album art — click to collapse, larger */}
-        <button onClick={() => setCollapsed(true)} className="shrink-0 focus:outline-none">
-          <div className="w-11 h-11 rounded-[50%]
-	bg-gradient-to-br from-neon-purple via-neon-pink to-neon-cyan grid place-items-center shrink-0 shadow-[0_0_24px_-6px_hsl(var(--neon-purple)/0.55)] hover:opacity-80 transition-opacity">
+        <button onClick={() => setCollapsed(true)} className="shrink-0 focus:outline-none -ml-1.5">
+          <div className="w-11 h-11 rounded-[50%] grid place-items-center shrink-0 transition-all duration-500"
+            style={playing ? {
+              background: "linear-gradient(135deg, rgba(147,51,234,0.35), rgba(79,70,229,0.25), rgba(14,165,233,0.35), rgba(236,72,153,0.25), rgba(168,85,247,0.30))",
+              backgroundSize: "200% 200%",
+              animation: "logo-gradient-shift 3s ease-in-out infinite alternate",
+              backdropFilter: "blur(20px) saturate(180%)",
+              WebkitBackdropFilter: "blur(20px) saturate(180%)",
+              border: "1px solid rgba(255,255,255,0.22)",
+              boxShadow: "0 0 28px -6px rgba(147,51,234,0.25), 0 0 28px -6px rgba(14,165,233,0.20), inset 0 1px 0 rgba(255,255,255,0.15)",
+            } : {
+              background: "rgba(255,255,255,0.08)",
+              backdropFilter: "blur(20px) saturate(180%)",
+              WebkitBackdropFilter: "blur(20px) saturate(180%)",
+              border: "1px solid rgba(255,255,255,0.15)",
+              boxShadow: "0 4px 24px -8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)",
+            }}>
             <div className={playing ? "animate-spin-slow" : ""}>
               <Music size={20} className="text-white/90" />
             </div>
@@ -258,7 +285,7 @@ export const MusicPlayer = () => {
             onClick={seek}
           >
             <div
-              className="h-full rounded-full bg-gradient-to-r from-rose-400 to-amber-300 transition-[width] duration-300 ease-linear shadow-[0_0_6px_rgba(251,146,60,0.4)]"
+              className="h-full rounded-full bg-gradient-to-r from-white/50 to-white/25 transition-[width] duration-300 ease-linear shadow-[0_0_6px_rgba(255,255,255,0.15)]"
               style={{ width: `${progress * 100}%` }}
             />
           </div>
@@ -272,22 +299,56 @@ export const MusicPlayer = () => {
         <div className="flex items-center gap-1">
           <button
             onClick={handlePrev}
-            className="w-8 h-8 rounded-[50%]
-	grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 transition-all duration-200"
+            className="w-8 h-8 rounded-[50%] grid place-items-center transition-all duration-200"
+            style={{
+              background: "transparent",
+              color: "rgba(255,255,255,0.30)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+              e.currentTarget.style.backdropFilter = "blur(12px) saturate(180%)";
+              e.currentTarget.style.border = "1px solid rgba(255,255,255,0.10)";
+              e.currentTarget.style.color = "rgba(255,255,255,0.65)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.backdropFilter = "none";
+              e.currentTarget.style.border = "none";
+              e.currentTarget.style.color = "rgba(255,255,255,0.30)";
+            }}
           >
             <SkipBack size={14} />
           </button>
 
           <button
             onClick={togglePlay}
-            className="w-9 h-9 rounded-full grid place-items-center transition-all duration-200 hover:scale-105 active:scale-95 ring-1 ring-white/10"
+            className="w-9 h-9 rounded-full grid place-items-center transition-all duration-300 hover:scale-105 active:scale-95"
             style={{
               background: playing
-                ? "linear-gradient(135deg, #7c3aed, #6366f1)"
-                : "rgba(255,255,255,0.12)",
+                ? "rgba(0,0,0,0.55)"
+                : "rgba(255,255,255,0.06)",
+              backdropFilter: "blur(20px) saturate(180%)",
+              WebkitBackdropFilter: "blur(20px) saturate(180%)",
+              border: playing
+                ? "1px solid rgba(255,255,255,0.15)"
+                : "1px solid rgba(255,255,255,0.08)",
               boxShadow: playing
-                ? "0 0 25px -5px rgba(124,58,237,0.5)"
-                : "none",
+                ? "0 8px 32px -8px rgba(0,0,0,0.50), 0 0 0 1px rgba(0,0,0,0.30) inset, 0 1px 0 rgba(255,255,255,0.08) inset"
+                : "0 2px 8px -4px rgba(0,0,0,0.15)",
+            }}
+            onMouseEnter={(e) => {
+              if (!playing) {
+                e.currentTarget.style.background = "rgba(0,0,0,0.40)";
+                e.currentTarget.style.border = "1px solid rgba(255,255,255,0.14)";
+                e.currentTarget.style.boxShadow = "0 6px 24px -6px rgba(0,0,0,0.40), 0 0 0 1px rgba(0,0,0,0.20) inset, 0 1px 0 rgba(255,255,255,0.08) inset";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!playing) {
+                e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                e.currentTarget.style.border = "1px solid rgba(255,255,255,0.08)";
+                e.currentTarget.style.boxShadow = "0 2px 8px -4px rgba(0,0,0,0.15)";
+              }
             }}
           >
             {playing ? <Pause size={14} fill="white" /> : <Play size={14} fill="white" className="ml-0.5" />}
@@ -295,8 +356,23 @@ export const MusicPlayer = () => {
 
           <button
             onClick={handleNext}
-            className="w-8 h-8 rounded-[50%]
-	grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 transition-all duration-200"
+            className="w-8 h-8 rounded-[50%] grid place-items-center transition-all duration-200"
+            style={{
+              background: "transparent",
+              color: "rgba(255,255,255,0.30)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+              e.currentTarget.style.backdropFilter = "blur(12px) saturate(180%)";
+              e.currentTarget.style.border = "1px solid rgba(255,255,255,0.10)";
+              e.currentTarget.style.color = "rgba(255,255,255,0.65)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.backdropFilter = "none";
+              e.currentTarget.style.border = "none";
+              e.currentTarget.style.color = "rgba(255,255,255,0.30)";
+            }}
           >
             <SkipForward size={14} />
           </button>
@@ -310,8 +386,23 @@ export const MusicPlayer = () => {
         >
           <button
             onClick={() => setMuted(!muted)}
-            className="w-8 h-8 rounded-[50%]
-	grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/5 transition-all duration-200"
+            className="w-8 h-8 rounded-[50%] grid place-items-center transition-all duration-200"
+            style={{
+              background: "transparent",
+              color: "rgba(255,255,255,0.30)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+              e.currentTarget.style.backdropFilter = "blur(12px) saturate(180%)";
+              e.currentTarget.style.border = "1px solid rgba(255,255,255,0.10)";
+              e.currentTarget.style.color = "rgba(255,255,255,0.65)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.backdropFilter = "none";
+              e.currentTarget.style.border = "none";
+              e.currentTarget.style.color = "rgba(255,255,255,0.30)";
+            }}
           >
             {muted || volume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
           </button>
@@ -338,11 +429,11 @@ export const MusicPlayer = () => {
                 [&::-webkit-slider-thumb]:h-3
                 [&::-webkit-slider-thumb]:rounded-full
                 [&::-webkit-slider-thumb]:bg-white
-                [&::-webkit-slider-thumb]:shadow-[0_0_10px_hsl(var(--neon-purple)/0.6)]
+                [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(255,255,255,0.25)]
                 [&::-webkit-slider-thumb]:cursor-pointer
                 [&::-webkit-slider-runnable-track]:rounded-full"
               style={{
-                background: `linear-gradient(to right, hsl(270, 95%, 65%) ${(muted ? 0 : volume) * 100}%, rgba(255,255,255,0.08) ${(muted ? 0 : volume) * 100}%)`,
+                background: `linear-gradient(to right, rgba(255,255,255,0.45) ${(muted ? 0 : volume) * 100}%, rgba(255,255,255,0.08) ${(muted ? 0 : volume) * 100}%)`,
               }}
             />
           </div>
@@ -352,19 +443,45 @@ export const MusicPlayer = () => {
         <div className="relative">
           <button
             onClick={() => setShowPlaylist(!showPlaylist)}
-            className={`w-8 h-8 rounded-[50%]
-	grid place-items-center transition-all duration-200 ${
-              showPlaylist
-                ? "text-neon-purple bg-neon-purple/10 shadow-[0_0_12px_-3px_hsl(var(--neon-purple)/0.3)]"
-                : "text-white/25 hover:text-white/60 hover:bg-white/5"
-            }`}
+            className="w-8 h-8 rounded-[50%] grid place-items-center transition-all duration-200"
+            style={{
+              background: showPlaylist
+                ? "rgba(255,255,255,0.14)"
+                : "transparent",
+              backdropFilter: showPlaylist ? "blur(12px) saturate(180%)" : "none",
+              border: showPlaylist
+                ? "1px solid rgba(255,255,255,0.18)"
+                : "none",
+              color: showPlaylist
+                ? "rgba(255,255,255,0.80)"
+                : "rgba(255,255,255,0.30)",
+              boxShadow: showPlaylist
+                ? "0 0 14px -4px rgba(255,255,255,0.10)"
+                : "none",
+            }}
+            onMouseEnter={(e) => {
+              if (!showPlaylist) {
+                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                e.currentTarget.style.backdropFilter = "blur(12px) saturate(180%)";
+                e.currentTarget.style.border = "1px solid rgba(255,255,255,0.10)";
+                e.currentTarget.style.color = "rgba(255,255,255,0.65)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!showPlaylist) {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.backdropFilter = "none";
+                e.currentTarget.style.border = "none";
+                e.currentTarget.style.color = "rgba(255,255,255,0.30)";
+              }
+            }}
           >
             <ListMusic size={14} />
           </button>
 
           {showPlaylist && (
             <div
-              className="absolute top-full right-0 mt-2 w-64 rounded-2xl overflow-hidden z-50"
+              className="absolute top-full right-0 mt-5 w-64 rounded-2xl overflow-hidden z-50"
               style={{
                 background: "linear-gradient(135deg, rgba(10,10,15,0.75), rgba(10,10,15,0.50))",
                 backdropFilter: "blur(48px) saturate(200%)",
@@ -401,7 +518,7 @@ export const MusicPlayer = () => {
                     <div className={`w-7 h-7 rounded-[50%]
 	grid place-items-center shrink-0 text-[10px] font-bold transition-all duration-200 ${
                       i === trackIdx
-                        ? "bg-gradient-to-br from-violet-400 to-cyan-400 text-white"
+                        ? "bg-white/20 text-white"
                         : "text-white/40 bg-white/[0.08]"
                     }`}>
                       {i === trackIdx && playing ? (
@@ -423,7 +540,7 @@ export const MusicPlayer = () => {
                       <p className="text-[9px] text-white/40 truncate mt-0.5">{t.artist}</p>
                     </div>
                     {i === trackIdx && (
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#22d3ee", boxShadow: "0 0 8px rgba(6,182,212,0.6)" }} />
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "rgba(255,255,255,0.55)", boxShadow: "0 0 6px rgba(255,255,255,0.2)" }} />
                     )}
                   </button>
                 ))}
@@ -431,7 +548,8 @@ export const MusicPlayer = () => {
             </div>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
