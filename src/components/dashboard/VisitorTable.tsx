@@ -30,14 +30,8 @@ const unwrapList = (input: any): Visitor[] => {
   if (Array.isArray(input)) return input;
   if (!input || typeof input !== "object") return [];
   const candidates = [
-    input.list,
-    input.items,
-    input.rows,
-    input.records,
-    input.data,
-    input.result,
-    input.visitors,
-    input.payload,
+    input.list, input.items, input.rows, input.records,
+    input.data, input.result, input.visitors, input.payload,
   ];
   for (const candidate of candidates) {
     const list = unwrapList(candidate);
@@ -47,19 +41,13 @@ const unwrapList = (input: any): Visitor[] => {
 };
 
 const readTotal = (input: any): number | undefined =>
-  input?.total ??
-  input?.total_count ??
-  input?.count ??
-  input?.totalItems ??
-  input?.totalItemsCount ??
-  input?.pagination?.total ??
-  input?.pageInfo?.total;
+  input?.total ?? input?.total_count ?? input?.count ??
+  input?.totalItems ?? input?.totalItemsCount ??
+  input?.pagination?.total ?? input?.pageInfo?.total;
 
 const avatarGradients = [
-  "from-violet-400 to-cyan-400",
-  "from-pink-400 to-violet-400",
-  "from-emerald-400 to-cyan-400",
-  "from-amber-400 to-rose-400",
+  "from-violet-400 to-cyan-400", "from-pink-400 to-violet-400",
+  "from-emerald-400 to-cyan-400", "from-amber-400 to-rose-400",
   "from-blue-400 to-indigo-400",
 ];
 
@@ -75,16 +63,14 @@ const formatDuration = (value: unknown) => {
     const hms = compact.match(/^(\d+):(\d{2}):(\d{2})$/);
     if (hms) {
       const [, h, m, s] = hms;
-      const total = Number(h) * 3600 + Number(m) * 60 + Number(s);
-      return formatDuration(total);
+      return formatDuration(Number(h) * 3600 + Number(m) * 60 + Number(s));
     }
     const textual = compact.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i);
     if (textual) {
       const h = Number(textual[1] || 0);
       const m = Number(textual[2] || 0);
       const s = Number(textual[3] || 0);
-      const total = h * 3600 + m * 60 + s;
-      if (total > 0) return formatDuration(total);
+      if (h + m + s > 0) return formatDuration(h * 3600 + m * 60 + s);
     }
   }
   const seconds = Number(value);
@@ -92,11 +78,7 @@ const formatDuration = (value: unknown) => {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
-  return [
-    h ? `${h}h` : "",
-    m ? `${m}m` : "",
-    s || (!h && !m) ? `${s}s` : "",
-  ].join("");
+  return [h ? `${h}h` : "", m ? `${m}m` : "", s || (!h && !m) ? `${s}s` : ""].join("");
 };
 
 const formatLastSeen = (value: unknown) => {
@@ -160,15 +142,9 @@ export const VisitorTable = ({ className = "" }: VisitorTableProps) => {
     const load = async () => {
       try {
         const res = await getVisitors({
-          page,
-          pageNum: page,
-          current: page,
-          page_size: PAGE_SIZE,
-          pageSize: PAGE_SIZE,
-          limit: PAGE_SIZE,
-          per_page: PAGE_SIZE,
-          size: PAGE_SIZE,
-          offset: (page - 1) * PAGE_SIZE,
+          page, pageNum: page, current: page,
+          page_size: PAGE_SIZE, pageSize: PAGE_SIZE, limit: PAGE_SIZE,
+          per_page: PAGE_SIZE, size: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
         });
         const payload = res.data?.data ?? res.data ?? {};
         const list = unwrapList(payload);
@@ -187,7 +163,6 @@ export const VisitorTable = ({ className = "" }: VisitorTableProps) => {
         setLoading(false);
       }
     };
-
     load();
   }, [page]);
 
@@ -209,25 +184,25 @@ export const VisitorTable = ({ className = "" }: VisitorTableProps) => {
         <Badge variant="outline" className="border-white/10 bg-white/5 text-white/60">{items.length} total</Badge>
       </div>
 
-      <div className="overflow-x-auto scrollbar-none">
-        {loading ? (
-          <div className="space-y-3 py-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 rounded-xl bg-white/5 animate-pulse" />)}</div>
-        ) : error ? (
-          <div className="flex flex-col items-center gap-3 py-10 text-white/30">
-            <Globe2 size={24} />
-            <p className="text-xs">Failed to load visitor list</p>
-          </div>
-        ) : current.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-10 text-white/30">
-            <Globe2 size={24} />
-            <p className="text-xs">Visitor list is empty</p>
-          </div>
-        ) : (
-          <>
+      {loading ? (
+        <div className="space-y-3 py-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 rounded-xl bg-white/5 animate-pulse" />)}</div>
+      ) : error ? (
+        <div className="flex flex-col items-center gap-3 py-10 text-white/30">
+          <Globe2 size={24} />
+          <p className="text-xs">Failed to load visitor list</p>
+        </div>
+      ) : current.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-10 text-white/30">
+          <Globe2 size={24} />
+          <p className="text-xs">Visitor list is empty</p>
+        </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto scrollbar-thin">
             <div className="grid min-w-[980px] grid-cols-[1.2fr_0.8fr_1fr_1.25fr_1.2fr_0.8fr_0.9fr_0.8fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
               <div>User</div><div className="text-center">Visitor ID</div><div className="text-center">IP</div><div className="text-center">Location</div><div className="text-center">Device · Browser</div><div className="text-center">Duration</div><div className="text-center">Last Seen</div><div className="text-center">Status</div>
             </div>
-            <div className="overflow-hidden rounded-[1.75rem] border border-white/[0.08]">
+            <div className="overflow-hidden rounded-[1.75rem] border border-white/[0.08] min-w-[980px]">
               {current.map((v, i) => (
                 <div
                   key={v.id ?? `${v.ip}-${i}`}
@@ -267,44 +242,36 @@ export const VisitorTable = ({ className = "" }: VisitorTableProps) => {
                 </div>
               ))}
             </div>
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-xs text-white/30">
-                Page {serverPaging?.page ?? page} of {totalPages} {serverPaging?.total ? `· ${serverPaging.total} items` : ""}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="h-8 w-8 rounded-full grid place-items-center transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed"
-                  style={{
-                    background: "rgba(255,255,255,0.08)",
-                    backdropFilter: "blur(12px)",
-                    WebkitBackdropFilter: "blur(12px)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    boxShadow: "0 2px 8px rgba(255,255,255,0.06)",
-                  }}
-                  disabled={page === 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.14)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}
-                ><ChevronLeft className="h-4 w-4" style={{ color: page === 1 ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)" }} /></button>
-                <button
-                  className="h-8 w-8 rounded-full grid place-items-center transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed"
-                  style={{
-                    background: "rgba(255,255,255,0.08)",
-                    backdropFilter: "blur(12px)",
-                    WebkitBackdropFilter: "blur(12px)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    boxShadow: "0 2px 8px rgba(255,255,255,0.06)",
-                  }}
-                  disabled={page === totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.14)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}
-                ><ChevronRight className="h-4 w-4" style={{ color: page === totalPages ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)" }} /></button>
-              </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-xs text-white/30">
+              Page {serverPaging?.page ?? page} of {totalPages} {serverPaging?.total ? `· ${serverPaging.total} items` : ""}
             </div>
-          </>
-        )}
-      </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="h-8 w-8 rounded-full grid place-items-center transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed"
+                style={{
+                  background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.06)",
+                  boxShadow: "0 2px 8px rgba(255,255,255,0.06)",
+                }}
+                disabled={page === 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+              ><ChevronLeft className="h-4 w-4" style={{ color: page === 1 ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)" }} /></button>
+              <button
+                className="h-8 w-8 rounded-full grid place-items-center transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed"
+                style={{
+                  background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.06)",
+                  boxShadow: "0 2px 8px rgba(255,255,255,0.06)",
+                }}
+                disabled={page === totalPages}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              ><ChevronRight className="h-4 w-4" style={{ color: page === totalPages ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)" }} /></button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

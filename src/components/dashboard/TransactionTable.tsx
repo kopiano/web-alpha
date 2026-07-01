@@ -124,8 +124,7 @@ export const TransactionTable = ({ className = "" }: { className?: string }) => 
             );
           })}
         </div>
-
-        {/* Pagination */}
+      </div>
         <div className="mt-4 flex items-center justify-between">
           <div className="text-xs text-white/30">
             Page {page} of {totalPages} · {sorted.length} records
@@ -155,7 +154,6 @@ export const TransactionTable = ({ className = "" }: { className?: string }) => 
             ><ChevronRight className="h-4 w-4" style={{ color: page === totalPages ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)" }} /></button>
           </div>
         </div>
-      </div>
     </div>
   );
 };
