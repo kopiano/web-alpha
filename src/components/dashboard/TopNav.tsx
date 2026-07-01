@@ -90,33 +90,35 @@ export const TopNav = () => {
 
   return (
     <>
-    <header className="flex items-center gap-4 mb-8 animate-fade-in">
-      <div>
-        <p className="text-xs text-white/40 font-medium tracking-widest uppercase">
-          {new Date().toLocaleDateString("en-US", { weekday: "long" })} ·{" "}
+    <header className="flex items-center gap-2 md:gap-4 mb-3 md:mb-8 animate-fade-in">
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] md:text-xs text-white/35 font-medium tracking-[0.15em] uppercase truncate">
+          {new Date().toLocaleDateString("en-US", { weekday: "short" })} ·{" "}
           {new Date().toLocaleDateString("en-US", {
-            month: "long",
+            month: "short",
             day: "numeric",
           })}
         </p>
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+        <h1 className="text-base sm:text-lg md:text-3xl font-semibold tracking-tight truncate mt-0.5">
           Welcome back, <span className="gradient-text">{user?.username || "Alex"}</span>
         </h1>
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
-        <VisitorCounter />
+      <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+        <div className="hidden sm:block">
+          <VisitorCounter />
+        </div>
 
         {/* Notification Bell */}
         <button
           ref={bellRef}
-          className="w-11 h-11 rounded-[50%] grid place-items-center relative active:scale-[0.95] transition-transform"
-          style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(32px)", border: "none" }}
+          className="w-10 h-10 md:w-11 md:h-11 rounded-full grid place-items-center relative active:scale-90 transition-all duration-200"
+          style={{ background: "rgba(195,195,210,0.12)", backdropFilter: "blur(50px) saturate(180%)", WebkitBackdropFilter: "blur(50px) saturate(180%)", border: "0.5px solid rgba(255,255,255,0.15)" }}
           onClick={() => setNotifOpen(!notifOpen)}
         >
-          <Bell size={16} className="text-white/70" />
+          <Bell size={15} className="text-white/65" />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-neon-cyan text-[10px] font-bold text-black grid place-items-center px-1 shadow-[0_0_10px_hsl(var(--neon-cyan))]">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] rounded-full bg-neon-cyan text-[9px] font-bold text-black grid place-items-center px-0.5 shadow-[0_0_10px_hsl(var(--neon-cyan))]">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
@@ -125,44 +127,44 @@ export const TopNav = () => {
         {/* User profile pill */}
         <button
           ref={avatarRef}
-          className="group flex items-center gap-3 px-2 h-12 rounded-full transition-all duration-300 ease-out cursor-pointer overflow-hidden select-none"
+          className="group flex items-center gap-2 md:gap-3 px-1.5 md:px-2 h-10 md:h-12 rounded-full transition-all duration-300 ease-out cursor-pointer overflow-hidden select-none"
           style={{
-            background: "rgba(255,255,255,0.1)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            border: "1px solid rgba(255,255,255,0.15)",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.12)",
+            background: "rgba(195,195,210,0.12)",
+            backdropFilter: "blur(50px) saturate(180%)",
+            WebkitBackdropFilter: "blur(50px) saturate(180%)",
+            border: "0.5px solid rgba(255,255,255,0.15)",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
           }}
           onClick={() => setProfileOpen(!profileOpen)}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.16)";
+            e.currentTarget.style.background = "rgba(195,195,210,0.18)";
             e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+            e.currentTarget.style.background = "rgba(195,195,210,0.12)";
             e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
           }}
         >
           {isLoading ? null : (
             <>
               {/* Avatar */}
-              <div className="w-8 h-8 rounded-full shrink-0 overflow-hidden" style={{ background: "rgba(255,255,255,0.12)", backdropFilter: "blur(8px)" }}>
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-full shrink-0 overflow-hidden" style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
                 {avatarUrl ? (
                   <img src={avatarUrl} alt={user?.username} className="w-full h-full object-cover" onError={() => setAvatarErr(true)} />
                 ) : (
-                  <div className="w-full h-full grid place-items-center text-xs font-semibold text-white/80 bg-gradient-to-br from-violet-500 to-indigo-500">
+                  <div className="w-full h-full grid place-items-center text-[10px] md:text-xs font-semibold text-white/80 bg-gradient-to-br from-violet-500 to-indigo-500">
                     {(user?.username || "?").charAt(0).toUpperCase()}
                   </div>
                 )}
               </div>
-              {/* Username */}
-              <span className="text-[13px] font-medium truncate max-w-[100px]" style={{ color: "rgba(255,255,255,0.9)" }}>
+              {/* Username — hide on small screens */}
+              <span className="hidden sm:inline text-[13px] font-medium truncate max-w-[100px]" style={{ color: "rgba(255,255,255,0.9)" }}>
                 {user?.username || "Guest"}
               </span>
-              {/* Chevron */}
+              {/* Chevron — hide on small screens */}
               <ChevronDown
                 size={12}
-                className="shrink-0 transition-transform duration-300"
+                className="hidden sm:block shrink-0 transition-transform duration-300"
                 style={{ color: "rgba(255,255,255,0.5)", transform: profileOpen ? "rotate(180deg)" : "rotate(0deg)" }}
               />
             </>

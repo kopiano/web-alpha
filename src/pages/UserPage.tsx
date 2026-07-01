@@ -17,7 +17,7 @@ export default function UserPage() {
         <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full blur-[100px] animate-ambient-glow" style={{ background: "radial-gradient(circle, hsla(190, 100%, 50%, 0.1), transparent 70%)", animationDelay: "3s" }} />
       </div>
       <Sidebar />
-      <main className="relative z-10 lg:pl-32 pr-6 pl-6 py-8 max-w-[1600px] mx-auto">
+      <main className="relative z-10 lg:pl-32 px-4 sm:px-6 py-4 sm:py-8 pb-20 lg:pb-8 max-w-[1600px] mx-auto">
         <TopNav />
         <div className="flex flex-col gap-6">
           <UserTable key={`user-${user?.id ?? "guest"}`} />

@@ -77,7 +77,7 @@ export const DailyVisitorTable = ({ className = "" }: { className?: string }) =>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-[0.8fr_1fr_1fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
+            <div className="grid grid-cols-[0.8fr_1fr_1fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30 min-w-[360px]">
               <div>Date</div>
               <div className="text-center">PV</div>
               <div className="text-center">UV</div>
@@ -86,7 +86,7 @@ export const DailyVisitorTable = ({ className = "" }: { className?: string }) =>
               {current.map((r) => (
                 <div
                   key={r.id ?? r.date}
-                  className="grid grid-cols-[0.8fr_1fr_1fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors bg-white/[0.025] hover:bg-white/[0.04]"
+                  className="grid grid-cols-[0.8fr_1fr_1fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors bg-white/[0.025] hover:bg-white/[0.04] min-w-[360px]"
                 >
                   <div className="flex items-center gap-2.5 min-w-0 self-center">
                     <Calendar size={14} className="text-white/30 shrink-0" />

@@ -35,6 +35,7 @@ const ChatPage = () => {
   const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
   const [previewImg, setPreviewImg] = useState<string|null>(null);
   const [loading, setLoading] = useState(true);
+  const [showMobileContacts, setShowMobileContacts] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
@@ -113,6 +114,7 @@ const ChatPage = () => {
     if(idx<0) return;
     setActiveIdx(idx);
     loadForUser(contactId);
+    if (window.innerWidth < 768) setShowMobileContacts(false);
   };
 
   /* ─── Send ─── */
@@ -145,29 +147,28 @@ const ChatPage = () => {
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden"
-      style={{background:"radial-gradient(circle at 30% 20%, rgba(138,92,246,0.15), transparent 35%), radial-gradient(circle at 70% 80%, rgba(0,212,255,0.1), transparent 30%), #070707",padding:"36px"}}>
-      <div className="pointer-events-none fixed inset-0 z-0" style={{background:"radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%)"}}/>
-      <style>{`.csb::-webkit-scrollbar{width:4px}.csb::-webkit-scrollbar-track{background:transparent}.csb::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:10px}.csb::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}`}</style>
+      style={{background:"radial-gradient(circle at 30% 20%, rgba(138,92,246,0.15), transparent 35%), radial-gradient(circle at 70% 80%, rgba(0,212,255,0.1), transparent 30%), #070707",padding:"10px"}}>
+      <style>{`.csb{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.08) transparent}.csb::-webkit-scrollbar{width:4px}.csb::-webkit-scrollbar-track{background:transparent}.csb::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:10px}.csb::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}`}</style>
       <Sidebar/>
-      <div className="relative z-10 w-full max-w-[1600px] h-[calc(100vh-72px)] flex gap-0 ml-24">
+      <div className="relative z-10 w-full max-w-[1600px] h-[calc(100vh-72px)] flex flex-col md:flex-row gap-0 ml-0 lg:ml-24 pb-16 lg:pb-0">
 
-        {/* LEFT */}
-        <div className="w-[320px] shrink-0 flex flex-col h-full rounded-l-[32px] overflow-hidden"
+        {/* LEFT — hidden on mobile when chat is active */}
+        <div className={`w-full md:w-[320px] shrink-0 flex flex-col h-full ${showMobileContacts ? "flex" : "hidden"} md:flex rounded-l-[32px] overflow-hidden md:rounded-l-[32px]`}
           style={{background:"rgba(255,255,255,0.03)",backdropFilter:"blur(30px) saturate(180%)",borderTop:"1px solid rgba(255,255,255,0.07)",borderBottom:"1px solid rgba(255,255,255,0.07)",borderLeft:"1px solid rgba(255,255,255,0.07)",borderRight:"1px solid rgba(255,255,255,0.04)",boxShadow:"0 20px 60px -20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
-          <div className="px-5 pt-5 pb-3">
-            <div className="flex items-end justify-between mb-4">
+          <div className="px-4 md:px-5 pt-4 md:pt-5 pb-3">
+            <div className="flex items-end justify-between mb-3">
               <div>
-                <p className="text-[10px] font-semibold text-violet-400/40 uppercase tracking-[0.3em] mb-1">Inbox</p>
-                <h2 className="text-[22px] font-bold tracking-tight" style={{background:"linear-gradient(to right, #fff, #c4b5fd 70%, #67e8f9)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Chat</h2>
+                <p className="text-[9px] md:text-[10px] font-semibold text-violet-400/40 uppercase tracking-[0.3em] mb-1">Inbox</p>
+                <h2 className="text-lg md:text-[22px] font-bold tracking-tight" style={{background:"linear-gradient(to right, #fff, #c4b5fd 70%, #67e8f9)",WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent"}}>Chat</h2>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-medium text-white/20 bg-white/[0.04] px-2.5 py-1 rounded-full">{contacts.filter(c=>c.id!==0).length} total</span>
-                <span className="text-[10px] font-bold text-emerald-400/80 bg-emerald-500/8 px-2.5 py-1 rounded-full">{onlineUsers.size} online</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-medium text-white/20 bg-white/[0.04] px-2 py-0.5 md:px-2.5 md:py-1 rounded-full">{contacts.filter(c=>c.id!==0).length}</span>
+                <span className="text-[9px] font-bold text-emerald-400/80 bg-emerald-500/8 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full">{onlineUsers.size}</span>
               </div>
             </div>
             <div className="relative">
-              <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/15"/>
-              <input placeholder="Search..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className="w-full rounded-[1.25rem] pl-9 pr-4 py-2.5 text-[11px] outline-none placeholder:text-white/10 border border-white/[0.04]" style={{background:"rgba(255,255,255,0.03)"}}/>
+              <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/15"/>
+              <input placeholder="Search..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className="w-full rounded-[1.25rem] pl-8 pr-3 py-2 text-[10px] md:text-[11px] outline-none placeholder:text-white/10 border border-white/[0.04]" style={{background:"rgba(255,255,255,0.03)"}}/>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto csb px-3 pb-3">
@@ -178,10 +179,10 @@ const ChatPage = () => {
               const on=online(c);
               return (
                 <button key={c.id} onClick={()=>switchContact(c.id)}
-                  className={`w-full text-left px-3 py-2.5 rounded-[2rem] flex items-center gap-3.5 transition-all duration-300 mb-0.5 ${isActive?"scale-[1.02]":"hover:bg-white/[0.02]"}`}
+                  className={`w-full text-left px-2.5 md:px-3 py-2 md:py-2.5 rounded-[1.5rem] md:rounded-[2rem] flex items-center gap-3 md:gap-3.5 transition-all duration-300 mb-0.5 ${isActive?"scale-[1.01]":"hover:bg-white/[0.02]"}`}
                   style={isActive?{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(24px) saturate(180%)",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 4px 20px -8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08)"}:{border:"1px solid transparent"}}>
                   <div className="relative shrink-0">
-                    <div className="w-11 h-11 rounded-full grid place-items-center text-[11px] font-bold overflow-hidden shadow-lg"
+                    <div className="w-10 h-10 md:w-11 md:h-11 rounded-full grid place-items-center text-[10px] md:text-[11px] font-bold overflow-hidden shadow-lg"
                       style={c.userData?.avatar?{}:{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px) saturate(180%)",border:"1px solid rgba(255,255,255,0.18)",boxShadow:"0 4px 24px -8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.12)"}}>
                       {c.userData?.avatar?<img src={c.userData.avatar.startsWith('http')?c.userData.avatar:resolveAvatar(c.userData.avatar)} alt="" className="w-full h-full object-cover" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
                       <span className={c.userData?.avatar?"hidden":""}>{c.avatar}</span>
@@ -190,34 +191,40 @@ const ChatPage = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline">
-                      <p className={`text-[13px] font-semibold truncate ${isActive?"text-white":"text-white/80"}`}>{c.name}</p>
-                      <span className="text-[9px] text-white/25 ml-1.5 shrink-0 font-mono">{c.time}</span>
+                      <p className={`text-[12px] md:text-[13px] font-semibold truncate ${isActive?"text-white":"text-white/80"}`}>{c.name}</p>
+                      <span className="text-[8px] md:text-[9px] text-white/25 ml-1.5 shrink-0 font-mono">{c.time}</span>
                     </div>
                     <div className="flex justify-between items-center mt-0.5">
-                      <p className={`text-[10px] truncate ${isActive?"text-white/30":"text-white/18"}`}>{c.lastMsg||(on?"Say hi 👋":"")}</p>
-                      {c.unread>0&&!isActive&&<span className="text-[9px] font-bold bg-emerald-400 text-white min-w-[18px] h-[18px] rounded-full grid place-items-center leading-none ml-1.5 shrink-0">{c.unread>99?"99+":c.unread}</span>}
+                      <p className={`text-[9px] md:text-[10px] truncate ${isActive?"text-white/30":"text-white/18"}`}>{c.lastMsg||(on?"Say hi 👋":"")}</p>
+                      {c.unread>0&&!isActive&&<span className="text-[8px] font-bold bg-emerald-400 text-white min-w-[16px] h-[16px] rounded-full grid place-items-center leading-none ml-1.5 shrink-0">{c.unread>99?"99+":c.unread}</span>}
                     </div>
                   </div>
                 </button>
               );
             })}
           </div>
-          <div className="p-4 border-t border-white/[0.03]">
-            <div className="flex items-center gap-3 px-2.5 py-2 rounded-2xl">
-              <div className="w-10 h-10 rounded-full grid place-items-center text-[10px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden"
+          <div className="p-3 md:p-4 border-t border-white/[0.03]">
+            <div className="flex items-center gap-2.5 px-2 py-1.5 md:px-2.5 md:py-2 rounded-xl md:rounded-2xl">
+              <div className="w-9 h-9 md:w-10 md:h-10 rounded-full grid place-items-center text-[9px] md:text-[10px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden"
                 style={meAvatar?{}:{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px) saturate(180%)",border:"1px solid rgba(255,255,255,0.18)"}}>
                 {meAvatar?<img src={meAvatar} alt="" className="w-full h-full object-cover"/>:meInit}
               </div>
-              <div className="flex-1 min-w-0"><p className="text-[12px] font-semibold text-white/80">{meName}</p><p className="text-[10px] text-emerald-300/50">Online</p></div>
-              <ChevronDown size={14} className="text-white/10"/>
+              <div className="flex-1 min-w-0"><p className="text-[11px] md:text-[12px] font-semibold text-white/80">{meName}</p><p className="text-[9px] md:text-[10px] text-emerald-300/50">Online</p></div>
+              <ChevronDown size={12} className="text-white/10"/>
             </div>
           </div>
         </div>
 
-        {/* CENTER */}
-        <div className="flex-1 flex flex-col h-full min-w-0 rounded-r-[32px] overflow-hidden"
+        {/* CENTER — hidden on mobile when contacts list is showing */}
+        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"} rounded-[20px] md:rounded-r-[32px]`}
           style={{background:"rgba(255,255,255,0.02)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(255,255,255,0.06)",borderBottom:"1px solid rgba(255,255,255,0.06)",borderRight:"1px solid rgba(255,255,255,0.06)",boxShadow:"0 20px 60px -20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)"}}>
-          <div className="px-5 py-3 flex items-center gap-3 shrink-0 border-b border-white/[0.03]" style={{background:"rgba(255,255,255,0.015)",backdropFilter:"blur(40px)"}}>
+          <div className="px-2 md:px-5 py-2 md:py-3 flex items-center gap-2 md:gap-3 shrink-0 border-b border-white/[0.03]" style={{background:"rgba(255,255,255,0.015)",backdropFilter:"blur(40px)"}}>
+            {/* Mobile back to contacts button */}
+            {!showMobileContacts && (
+              <button onClick={()=>setShowMobileContacts(true)} className="md:hidden w-8 h-8 rounded-full grid place-items-center text-white/40 hover:text-white hover:bg-white/[0.08] shrink-0 active:scale-90 transition-all duration-200">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+              </button>
+            )}
             {loading ? (
               <>
                 <div className="w-9 h-9 rounded-full bg-white/[0.06] animate-pulse shrink-0"/>
@@ -307,24 +314,24 @@ const ChatPage = () => {
             <button onClick={sendImg} className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-violet-500 to-cyan-400 text-white">Send</button>
           </div>}
 
-          <div className="px-4 pb-4 pt-2 shrink-0">
-            <div className="flex items-center gap-2 px-3 h-[56px] rounded-full"
+          <div className="px-3 md:px-4 pb-3 md:pb-4 pt-2 shrink-0">
+            <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 h-[50px] md:h-[56px] rounded-full"
               style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(30px)",border:"1px solid rgba(255,255,255,0.08)",boxShadow:"0 8px 32px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
               <div className="relative">
-                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={!contact||contact.id===0} className={`w-9 h-9 rounded-full grid place-items-center transition-all ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${(!contact||contact.id===0)&&"opacity-30 cursor-not-allowed"}`}><Smile size={17}/></button>
-                {showEmoji&&<div className="absolute bottom-full left-0 mb-3 rounded-2xl p-3 w-[304px] z-50" style={{background:"rgba(18,16,30,0.97)",backdropFilter:"blur(60px)",border:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 20px 50px -10px rgba(0,0,0,0.7)"}}>
-                  <div className="grid grid-cols-8 gap-1.5">{EMOJI_LIST.map(e=><button key={e} onClick={()=>{setInput(p=>p+e);setShowEmoji(false);}} className="w-8 h-8 rounded-lg grid place-items-center text-xl hover:bg-white/10 hover:scale-[1.15] active:scale-95">{e}</button>)}</div>
+                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={!contact||contact.id===0} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center transition-all active:scale-90 ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${(!contact||contact.id===0)&&"opacity-20 cursor-not-allowed"}`}><Smile size={15}/></button>
+                {showEmoji&&<div className="absolute bottom-full left-0 mb-3 rounded-2xl p-3 w-[280px] md:w-[304px] z-50" style={{background:"rgba(18,16,30,0.97)",backdropFilter:"blur(60px)",border:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 20px 50px -10px rgba(0,0,0,0.7)"}}>
+                  <div className="grid grid-cols-8 gap-1.5">{EMOJI_LIST.map(e=><button key={e} onClick={()=>{setInput(p=>p+e);setShowEmoji(false);}} className="w-7 h-7 md:w-8 md:h-8 rounded-lg grid place-items-center text-lg md:text-xl hover:bg-white/10 hover:scale-[1.15] active:scale-95">{e}</button>)}</div>
                 </div>}
               </div>
-              <button onClick={()=>imgRef.current?.click()} disabled={!contact||contact.id===0} className={`w-9 h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all ${(!contact||contact.id===0)&&"opacity-30 cursor-not-allowed"}`}><Image size={17}/></button>
+              <button onClick={()=>imgRef.current?.click()} disabled={!contact||contact.id===0} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&"opacity-20 cursor-not-allowed"}`}><Image size={15}/></button>
               <input ref={imgRef} type="file" accept="image/*" onChange={pickImg} className="hidden"/>
-              <button onClick={()=>fileRef.current?.click()} disabled={!contact||contact.id===0} className={`w-9 h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all ${(!contact||contact.id===0)&&"opacity-30 cursor-not-allowed"}`}><AlignJustify size={17}/></button>
+              <button onClick={()=>fileRef.current?.click()} disabled={!contact||contact.id===0} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&"opacity-20 cursor-not-allowed"}`}><AlignJustify size={15}/></button>
               <input ref={fileRef} type="file" onChange={pickFile} className="hidden"/>
               <input type="text" placeholder={contact&&contact.id>0?"Message...":"Select a contact to chat"} value={input} onChange={e=>setInput(e.target.value)}
                 disabled={!contact||contact.id===0}
                 onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();sendText();}}}
-                className="flex-1 bg-transparent outline-none text-[13px] placeholder:text-white/15 px-2 disabled:opacity-30"/>
-              <button onClick={sendText} disabled={!input.trim()||!contact||contact.id===0} className={`w-9 h-9 rounded-full grid place-items-center transition-all ${input.trim()&&contact&&contact.id>0?"bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100":"text-white/20 scale-95"}`}><Send size={14}/></button>
+                className="flex-1 bg-transparent outline-none text-[12px] md:text-[13px] placeholder:text-white/15 px-1.5 md:px-2 disabled:opacity-20"/>
+              <button onClick={sendText} disabled={!input.trim()||!contact||contact.id===0} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center transition-all active:scale-90 ${input.trim()&&contact&&contact.id>0?"bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100":"text-white/20 scale-95"}`}><Send size={13}/></button>
             </div>
           </div>
         </div>

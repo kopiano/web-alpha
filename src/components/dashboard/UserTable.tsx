@@ -76,7 +76,7 @@ export const UserTable = ({ className = "" }: UserTableProps) => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-[1.2fr_1.25fr_1fr_0.8fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
+            <div className="grid grid-cols-[1.2fr_1.25fr_1fr_0.8fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30 min-w-[500px]">
               <div>Name</div>
               <div className="text-center">Email</div>
               <div className="text-center">Website</div>
@@ -86,7 +86,7 @@ export const UserTable = ({ className = "" }: UserTableProps) => {
               {current.map((u, i) => (
                 <div
                   key={u.email || i}
-                  className={`grid grid-cols-[1.2fr_1.25fr_1fr_0.8fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors ${String(u.status || "").toLowerCase() === "active" ? "bg-emerald-400/10 hover:bg-emerald-400/14" : "bg-white/[0.025] hover:bg-white/[0.04]"}`}
+                  className={`grid grid-cols-[1.2fr_1.25fr_1fr_0.8fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors min-w-[500px] ${String(u.status || "").toLowerCase() === "active" ? "bg-emerald-400/10 hover:bg-emerald-400/14" : "bg-white/[0.025] hover:bg-white/[0.04]"}`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-full shrink-0 bg-gradient-to-br from-neon-pink via-neon-purple to-neon-blue grid place-items-center text-[10px] font-bold overflow-hidden">

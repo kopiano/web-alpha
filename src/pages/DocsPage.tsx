@@ -303,9 +303,9 @@ export default function DocsPage() {
       <div className="pointer-events-none fixed top-1/3 right-1/4 w-[400px] h-[400px] rounded-full blur-[120px] opacity-30 z-0" style={{ background: "radial-gradient(circle, rgba(76,201,240,0.15), transparent 60%)" }} />
       <div className="pointer-events-none fixed bottom-1/4 left-1/3 w-[300px] h-[300px] rounded-full blur-[100px] opacity-25 z-0" style={{ background: "radial-gradient(circle, rgba(123,47,247,0.12), transparent 60%)" }} />
       <Sidebar />
-      <div className="relative z-10 w-full max-w-[1600px] h-[calc(100vh-72px)] flex ml-24">
-        {/* ═══ Left Nav ═══ */}
-        <div className={`w-[220px] shrink-0 flex flex-col h-full rounded-l-[28px] overflow-hidden ${pc}`} style={{ borderRight: "1px solid rgba(255,255,255,0.04)" }}>
+      <div className="relative z-10 w-full max-w-[1600px] h-[calc(100vh-72px)] lg:ml-24 md:ml-4 flex flex-col md:flex-row gap-0 pb-16 lg:pb-0 px-3 sm:px-4 md:px-0 pt-3 sm:pt-0">
+        {/* ═══ Left Nav — hidden on small screens ═══ */}
+        <div className={`hidden md:flex w-[220px] shrink-0 flex-col h-full rounded-l-[28px] overflow-hidden ${pc}`} style={{ borderRight: "1px solid rgba(255,255,255,0.04)" }}>
           <div className="p-5 border-b border-white/[0.04]">
             <p className="text-[9px] font-semibold text-blue-400/60 uppercase tracking-[0.3em]">Browse</p>
             <h3 className="text-sm font-bold tracking-tight mt-1.5 text-white/90">Docs Hub</h3>
@@ -322,8 +322,8 @@ export default function DocsPage() {
         </div>
 
         {/* ═══ Center ═══ */}
-        <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden"
-          style={{ background: "rgba(255,255,255,0.02)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)", borderRight: "1px solid rgba(255,255,255,0.04)", boxShadow: "0 10px 40px -12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+        <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden rounded-[28px] md:rounded-none md:rounded-r-[28px]"
+          style={{ background: "rgba(255,255,255,0.02)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.05)", boxShadow: "0 10px 40px -12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)" }}>
           {/* Header — no search bar */}
           <div className="px-6 py-4 border-b border-white/[0.03] flex items-center gap-4 shrink-0" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.02), transparent)" }}>
             {sel && (
@@ -363,18 +363,20 @@ export default function DocsPage() {
                     ? "linear-gradient(135deg, #fff 0%, #60a5fa 45%, #818cf8 100%)"
                     : "linear-gradient(135deg, #fff 0%, #4CC9F0 45%, #7B2FF7 100%)",
                   WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
                   WebkitTextFillColor: "transparent",
+                  color: "transparent",
                 }}>
                 {sel ? sel.title : activeTab === 3 ? "Frequently Asked Questions" : activeTab === 1 ? "Timeline" : activeTab === 2 ? "Profile" : "Docs Hub"}
               </h1>
             </div>
           </div>
           {!sel && (
-            <div className="px-6 pt-4 pb-2 flex items-center border-b border-white/[0.02] transition-all duration-300">
-              <div className="flex items-center gap-6 flex-1">
+            <div className="px-3 md:px-6 pt-3 md:pt-4 pb-2 flex items-center border-b border-white/[0.02] transition-all duration-300">
+              <div className="flex items-center gap-3 md:gap-6 flex-1 overflow-x-auto scrollbar-none -mb-[1px]">
                 {["Docs", "Timeline", "Profile", "FAQ"].map((t, i) => (
                 <button key={t} onClick={() => { setActiveTab(i); setShowNewEditor(false); }}
-                  className={`text-[12px] font-medium pb-2.5 border-b-2 transition-all duration-300 ${activeTab === i ? "text-white border-blue-400" : "text-white/30 border-transparent hover:text-white/60"}`}>{t}</button>
+                  className={`shrink-0 text-[11px] md:text-[12px] font-medium pb-2.5 border-b-2 transition-all duration-300 ${activeTab === i ? "text-white border-blue-400" : "text-white/30 border-transparent hover:text-white/60"}`}>{t}</button>
               ))}
               </div>
               {activeTab === 0 && (
