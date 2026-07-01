@@ -171,7 +171,7 @@ const ChatPage = () => {
                       <span className="text-[9px] text-white/25 ml-1.5 shrink-0 font-mono">{c.time}</span>
                     </div>
                     <div className="flex justify-between items-center mt-0.5">
-                      <p className={`text-[10px] truncate ${isActive?"text-white/30":"text-white/18"}`}>{on?c.lastMsg||"Say hi 👋":<span className="opacity-60">last seen {ago(c.lastSeen||"")||"—"}</span>}</p>
+                      <p className={`text-[10px] truncate ${isActive?"text-white/30":"text-white/18"}`}>{c.lastMsg||(on?"Say hi 👋":"")}</p>
                       {c.unread>0&&!isActive&&<span className="text-[9px] font-bold bg-emerald-400 text-white min-w-[18px] h-[18px] rounded-full grid place-items-center leading-none ml-1.5 shrink-0">{c.unread>99?"99+":c.unread}</span>}
                     </div>
                   </div>
@@ -208,7 +208,7 @@ const ChatPage = () => {
               <p className="text-[10px] text-white/20">
                 {isTyping?<span className="text-violet-300/60">typing...</span>
                 :contact&&online(contact)?<span className="text-emerald-400/60">Online</span>
-                :contact?<span className="text-white/15 italic">last seen {ago(contact.lastSeen||"")||"—"}</span>
+                :contact?<span className="text-white/15 italic">offline</span>
                 :""}
               </p>
             </div>
@@ -227,14 +227,10 @@ const ChatPage = () => {
                 :(contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover"/>:<span>{contact?.avatar||"?"}</span>);
               return (
                 <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"}`} style={{animation:"slide-up 0.35s ease forwards",opacity:0}}>
-                  <div className={`flex ${isMe?"flex-row-reverse":""} gap-2.5 max-w-[68%]`}>
-                    <div className="shrink-0 mt-1">
-                      {showAv?<div className={`w-7 h-7 rounded-full overflow-hidden grid place-items-center text-[9px] font-bold ring-1 ring-white/10 ${isMe?"":`bg-gradient-to-br ${grad(activeIdx)}`}`}
-                        style={isMe&&!meAvatar?{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.18)"}:{}}>{avEl}</div>:<div className="w-7"/>}
-                    </div>
-                    <div className={`flex flex-col ${isMe?"items-end":"items-start"} gap-0.5`}>
-                      {showAv&&<span className="text-[9px] text-white/20 px-1">{isMe?meName:m.username}</span>}
-                      {m.type==="text"||m.type==="emoji"&&m.content.length>2?<div className={`px-5 py-3 text-[13px] leading-relaxed ${isMe?"rounded-[2.5rem] rounded-br-lg text-white/95":"rounded-[2.5rem] rounded-bl-lg text-white/88"}`}
+                  <div className="flex items-start gap-2.5 max-w-[72%]">
+                    {/* Message content — always on the left of avatar */}
+                    <div className={`flex flex-col ${isMe?"items-end":"items-start"} gap-0.5 min-w-0`}>
+                      {m.type==="text"||m.type==="emoji"&&m.content.length>2?<div className={`px-5 py-3 text-[13px] leading-relaxed rounded-[3rem] rounded-br-lg ${isMe?"text-white/95":"text-white/88"}`}
                         style={isMe?{background:"linear-gradient(135deg, #7c3aed, #06b6d4)",boxShadow:"0 6px 20px -6px rgba(124,58,237,0.4), inset 0 1px 0 rgba(255,255,255,0.15)"}:{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.06)",boxShadow:"0 4px 12px -4px rgba(0,0,0,0.15)"}}>{m.content}</div>
                       :m.type==="emoji"?<div className="text-[40px] leading-none select-none">{m.content}</div>
                       :m.type==="image"?<img src={m.content} alt="" className="max-w-[280px] rounded-2xl object-cover cursor-pointer hover:scale-[1.02] transition-transform"/>
@@ -242,16 +238,27 @@ const ChatPage = () => {
                         <FileText size={16} className="text-violet-400 shrink-0"/><div className="flex-1 min-w-0"><p className="text-[11px] font-medium truncate">{m.fileName}</p></div>
                         {m.fileData&&<a href={m.fileData} download={m.fileName} className="w-7 h-7 rounded-lg grid place-items-center hover:bg-white/10"><Download size={12} className="text-white/30 hover:text-white/60"/></a>}
                       </div>:null}
-                      <span className="text-[9px] text-white/50 px-1">{m.time}</span>
+                      <span className="text-[9px] text-white/40 px-1">{m.time}</span>
+                    </div>
+                    {/* Avatar + username — always on the right */}
+                    <div className="shrink-0 flex flex-col items-center gap-0.5">
+                      {showAv?<div className={`w-7 h-7 rounded-full overflow-hidden grid place-items-center text-[9px] font-bold ring-1 ring-white/10 ${isMe?"":`bg-gradient-to-br ${grad(activeIdx)}`}`}
+                        style={isMe&&!meAvatar?{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.18)"}:{}}>{avEl}</div>:<div className="w-7"/>}
+                      {showAv&&<span className="text-[9px] text-white font-medium px-0.5 whitespace-nowrap">{isMe?meName:m.username}</span>}
                     </div>
                   </div>
                 </div>
               );
             })}
-            {isTyping&&<div className="flex gap-2.5" style={{animation:"slide-up 0.35s ease forwards",opacity:0}}>
-              <div className="w-7 h-7 rounded-full bg-white/[0.06] grid place-items-center text-[9px] font-bold shrink-0 mt-1">{contact?.avatar||"?"}</div>
-              <div className="px-4 py-3 rounded-[20px] rounded-bl-sm flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
-                {[0,160,320].map(d=><span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce" style={{animationDelay:`${d}ms`,animationDuration:"0.8s"}}/>)}
+            {isTyping&&<div className="flex justify-start" style={{animation:"slide-up 0.35s ease forwards",opacity:0}}>
+              <div className="flex items-start gap-2.5 max-w-[72%]">
+                <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
+                  {[0,160,320].map(d=><span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce" style={{animationDelay:`${d}ms`,animationDuration:"0.8s"}}/>)}
+                </div>
+                <div className="shrink-0 flex flex-col items-center gap-0.5">
+                  <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${grad(activeIdx)} grid place-items-center text-[9px] font-bold`}>{contact?.avatar||"?"}</div>
+                  <span className="text-[9px] text-white font-medium whitespace-nowrap">{contact?.name||"?"}</span>
+                </div>
               </div>
             </div>}
             <div ref={chatEndRef}/>
