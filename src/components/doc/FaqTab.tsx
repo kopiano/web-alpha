@@ -13,6 +13,20 @@ interface FaqItem {
   created_at?: string;
 }
 
+/* ─── Category accent colors ─── */
+const CAT_ACCENT: Record<string, string> = {
+  Backend: "#22d3ee",
+  Frontend: "#a78bfa",
+  Database: "#60a5fa",
+  DevOps: "#f59e0b",
+  API: "#f472b6",
+  Resources: "#34d399",
+};
+
+function getAccentColor(cat: string): string {
+  return CAT_ACCENT[cat] || "#94a3b8";
+}
+
 /* ─── Fallback data ─── */
 const FALLBACK_FAQS: FaqItem[] = [
   {
@@ -284,9 +298,8 @@ export default function FaqTab({ showAddDialog, onAddDialogClosed, activeCat, on
   const [newAnswer, setNewAnswer] = useState("");
   const [newDifficulty, setNewDifficulty] = useState<FaqItem["difficulty"]>("easy");
   const [newCategory, setNewCategory] = useState("");
-  const fetchedRef = useRef(false);
 
-  // Load FAQs
+  // Load FAQs — always fetch on mount
   const loadFaqs = useCallback(async () => {
     try {
       setLoading(true);
@@ -305,7 +318,7 @@ export default function FaqTab({ showAddDialog, onAddDialogClosed, activeCat, on
   }, []);
 
   useEffect(() => {
-    if (!fetchedRef.current) { fetchedRef.current = true; loadFaqs(); }
+    loadFaqs();
   }, [loadFaqs]);
 
   // Report categories to parent
@@ -368,14 +381,25 @@ export default function FaqTab({ showAddDialog, onAddDialogClosed, activeCat, on
   };
 
   return (
-    <div className="max-w-[820px] mx-auto pt-8 pb-20">
-      {/* Header */}
-      <div className="flex flex-col items-center mb-16">
-        <div className="w-16 h-[2px] rounded-full mb-8" style={{ background: "linear-gradient(90deg, transparent, rgba(76,201,240,0.5), rgba(123,47,247,0.5), transparent)" }} />
-        <p className="text-[10px] font-semibold text-blue-400/40 uppercase tracking-[0.35em] mb-4">Frequently Asked Questions</p>
-        <h2 className="font-serif text-[36px] font-bold leading-none tracking-tight" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.65) 50%, rgba(76,201,240,0.45) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          Golang FAQ
-        </h2>
+    <div className="max-w-[820px] mx-auto pt-4 pb-20">
+      {/* Header — compact */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3 min-w-0">
+          <h2 className="text-[16px] font-bold tracking-tight truncate"
+            style={{
+              background: activeCat === "All"
+                ? "linear-gradient(135deg, #fff 0%, #4CC9F0 100%)"
+                : `linear-gradient(135deg, #fff 0%, ${getAccentColor(activeCat)} 100%)`,
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}>
+            {activeCat === "All" ? "All Questions" : activeCat}
+          </h2>
+          <span className="text-[10px] text-white/20 bg-white/[0.04] px-2 py-0.5 rounded-full shrink-0">
+            {filteredFaqs.length} Q&A
+          </span>
+        </div>
+        <span className="text-[9px] text-white/15 uppercase tracking-[0.2em] shrink-0 hidden sm:inline">FAQ</span>
       </div>
 
       {/* Loading */}
@@ -391,47 +415,39 @@ export default function FaqTab({ showAddDialog, onAddDialogClosed, activeCat, on
             const num = String(idx + 1).padStart(2, "0");
 
             return (
-              <div key={item.id} className="group/row relative" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", transition: "border-color 350ms ease" }}>
-                {/* Left accent */}
-                <div
-                  className="absolute left-0 top-0 bottom-0 w-[2px] rounded-full transition-all"
-                  style={{
-                    background: isExpanded ? "linear-gradient(180deg, rgba(76,201,240,0.5), rgba(123,47,247,0.4))" : "transparent",
-                    opacity: isExpanded ? 1 : 0, transform: "translateX(-12px)", transitionDuration: "400ms",
-                  }}
-                />
+              <div key={item.id} className="group/row relative" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                 {/* Row */}
                 <button
                   onClick={() => toggleExpand(item.id)}
-                  className="w-full flex items-center justify-between py-[22px] text-left transition-all duration-300 active:scale-[0.995]"
-                  style={{ paddingLeft: "0px", paddingRight: "0px" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.paddingLeft = "8px"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.paddingLeft = "0px"; }}
+                  className="w-full flex items-center gap-4 py-4 text-left transition-all duration-300 hover:bg-white/[0.02] rounded-lg"
+                  style={{ paddingLeft: "4px", paddingRight: "4px" }}
                 >
-                  <div className="flex items-center gap-5 flex-1 min-w-0">
-                    <span className="text-[20px] font-[450] tabular-nums leading-none select-none shrink-0"
-                      style={{ color: isExpanded ? "rgba(76,201,240,0.4)" : "rgba(255,255,255,0.18)", transition: "color 350ms ease", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", width: "2ch", textAlign: "right" }}>
-                      {num}
+                  {/* Number */}
+                  <span className="text-[13px] font-mono tabular-nums leading-none select-none shrink-0 w-[28px] text-right"
+                    style={{ color: isExpanded ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.18)", transition: "color 350ms ease" }}>
+                    {num}
+                  </span>
+                  {/* Title + difficulty */}
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                    <span className="text-[14px] font-medium leading-snug truncate transition-colors duration-300"
+                      style={{ color: isExpanded ? "rgba(255,255,255,0.90)" : "rgba(255,255,255,0.70)" }}>
+                      {item.title}
                     </span>
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                      <span className="text-[20px] font-medium leading-snug transition-colors duration-300"
-                        style={{ color: isExpanded ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.75)" }}>
-                        {item.title}
+                    <span className="inline-flex items-center gap-1 shrink-0">
+                      <span className={`inline-block w-[4px] h-[4px] rounded-full ${difficultyDot[item.difficulty]}`} />
+                      <span className={`text-[10px] font-medium ${difficultyColor[item.difficulty]}`}>
+                        {difficultyLabel[item.difficulty]}
                       </span>
-                      {/* Difficulty */}
-                      <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                        <span className={`inline-block w-[5px] h-[5px] rounded-full ${difficultyDot[item.difficulty]}`} />
-                        <span className={`text-[11px] font-medium tracking-wider ${difficultyColor[item.difficulty]}`}>
-                          {difficultyLabel[item.difficulty]}
-                        </span>
-                      </span>
-                    </div>
+                    </span>
                   </div>
                   {/* Toggle */}
-                  <div className="shrink-0 ml-5 w-[30px] h-[30px] rounded-full grid place-items-center transition-all"
-                    style={{ border: isExpanded ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.1)", background: isExpanded ? "rgba(255,255,255,0.05)" : "transparent", boxShadow: isExpanded ? "0 0 10px rgba(76,201,240,0.08)" : "none", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transitionDuration: "350ms" }}>
-                    <svg width="12" height="12" viewBox="0 0 12 12" style={{ opacity: isExpanded ? 0.7 : 0.4, transitionDuration: "350ms" }}>
-                      <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" style={{ color: "rgba(255,255,255,0.7)" }} />
+                  <div className="shrink-0 w-6 h-6 rounded-full grid place-items-center transition-all duration-300"
+                    style={{
+                      opacity: isExpanded ? 0.7 : 0.3,
+                      transform: isExpanded ? "rotate(45deg)" : "rotate(0deg)",
+                    }}>
+                    <svg width="10" height="10" viewBox="0 0 12 12">
+                      <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ color: "rgba(255,255,255,0.6)" }} />
                     </svg>
                   </div>
                 </button>

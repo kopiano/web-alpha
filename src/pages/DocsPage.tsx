@@ -53,6 +53,12 @@ export default function DocsPage() {
   const [faqCategories, setFaqCategories] = useState<string[]>([]);
   const [faqCatOpen, setFaqCatOpen] = useState(false);
 
+  const FAQ_CAT_COLORS: Record<string, string> = {
+    Backend: "#22d3ee", Frontend: "#a78bfa", Database: "#60a5fa",
+    DevOps: "#f59e0b", API: "#f472b6", Resources: "#34d399",
+  };
+  const faqAccent = FAQ_CAT_COLORS[faqActiveCat] || "#94a3b8";
+
   const loggedInCommentUser = user ? {
     username: user.username,
     email: user.email,
@@ -273,7 +279,7 @@ export default function DocsPage() {
       <ProfileTab activeTab={activeTab} />
     );
   } else if (activeTab === 3) {
-    bodyContent = <FaqTab showAddDialog={showFaqDialog} onAddDialogClosed={() => setShowFaqDialog(false)} activeCat={faqActiveCat} onCategoriesChange={setFaqCategories} />;
+    bodyContent = <FaqTab key={`faq-${activeTab}`} showAddDialog={showFaqDialog} onAddDialogClosed={() => setShowFaqDialog(false)} activeCat={faqActiveCat} onCategoriesChange={setFaqCategories} />;
   } else {
     bodyContent = (
       <DocGrid
@@ -341,9 +347,25 @@ export default function DocsPage() {
               </button>
             )}
             <div className="flex-1">
-              <p className="text-[9px] font-semibold text-blue-400/50 uppercase tracking-[0.25em]">Knowledge Base</p>
-              <h1 className="text-[24px] font-bold tracking-tight mt-1" style={{ background: "linear-gradient(to right, #fff 20%, #4CC9F0 70%, #7B2FF7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                {sel ? sel.title : "Docs Hub"}
+              <p className="text-[9px] font-semibold uppercase tracking-[0.25em]"
+                style={{ color: activeTab === 3 ? "rgba(34,211,238,0.5)" : activeTab === 1 ? "rgba(167,139,250,0.5)" : activeTab === 2 ? "rgba(96,165,250,0.5)" : "rgba(76,201,240,0.5)" }}>
+                {sel ? "Knowledge Base" : activeTab === 3 ? "Q & A" : activeTab === 1 ? "History" : activeTab === 2 ? "Profile" : "Knowledge Base"}
+              </p>
+              <h1 className="text-[24px] font-bold tracking-tight mt-1"
+                style={{
+                  background: sel
+                    ? "linear-gradient(to right, #fff 20%, #4CC9F0 70%, #7B2FF7)"
+                    : activeTab === 3
+                    ? "linear-gradient(135deg, #fff 0%, #22d3ee 45%, #a78bfa 100%)"
+                    : activeTab === 1
+                    ? "linear-gradient(135deg, #fff 0%, #a78bfa 45%, #c084fc 100%)"
+                    : activeTab === 2
+                    ? "linear-gradient(135deg, #fff 0%, #60a5fa 45%, #818cf8 100%)"
+                    : "linear-gradient(135deg, #fff 0%, #4CC9F0 45%, #7B2FF7 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}>
+                {sel ? sel.title : activeTab === 3 ? "Frequently Asked Questions" : activeTab === 1 ? "Timeline" : activeTab === 2 ? "Profile" : "Docs Hub"}
               </h1>
             </div>
           </div>
@@ -378,20 +400,13 @@ export default function DocsPage() {
                         onClick={() => setFaqCatOpen(!faqCatOpen)}
                         className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-all duration-200"
                         style={{
-                          background: faqActiveCat !== "All" ? `${(() => {
-                            const colors: Record<string,string> = {Backend:"#22d3ee",Frontend:"#a78bfa",Database:"#60a5fa",DevOps:"#f59e0b",API:"#f472b6",Resources:"#34d399"};
-                            return colors[faqActiveCat] || "#94a3b8";
-                          })()}18` : "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          color: "rgba(255,255,255,0.6)",
+                          background: faqActiveCat !== "All" ? `${faqAccent}18` : "rgba(255,255,255,0.05)",
+                          border: `1px solid ${faqActiveCat !== "All" ? faqAccent + "30" : "rgba(255,255,255,0.10)"}`,
+                          color: faqActiveCat !== "All" ? faqAccent : "rgba(255,255,255,0.55)",
                         }}
                       >
-                        <span className="w-[4px] h-[4px] rounded-full" style={{
-                          background: faqActiveCat !== "All" ? (() => {
-                            const colors: Record<string,string> = {Backend:"#22d3ee",Frontend:"#a78bfa",Database:"#60a5fa",DevOps:"#f59e0b",API:"#f472b6",Resources:"#34d399"};
-                            return colors[faqActiveCat] || "#94a3b8";
-                          })() : "rgba(255,255,255,0.4)"
-                        }} />
+                        <span className="w-[4px] h-[4px] rounded-full"
+                          style={{ background: faqActiveCat !== "All" ? faqAccent : "rgba(255,255,255,0.4)" }} />
                         {faqActiveCat}
                         <svg width="8" height="5" viewBox="0 0 8 5" style={{ opacity: 0.5 }}>
                           <path d="M1 1l3 3 3-3" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
@@ -400,19 +415,27 @@ export default function DocsPage() {
                       {faqCatOpen && (
                         <>
                           <div className="fixed inset-0 z-40" onClick={() => setFaqCatOpen(false)} />
-                          <div className="absolute right-0 top-full mt-1.5 z-50 w-36 py-1 rounded-xl"
-                            style={{ background: "rgba(22,18,38,0.96)", backdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
-                            {faqCategories.map((cat) => (
-                              <button
-                                key={cat}
-                                onClick={() => { setFaqActiveCat(cat); setFaqCatOpen(false); }}
-                                className="w-full text-left px-3 py-1.5 text-[11px] font-medium transition-all duration-150 hover:bg-white/[0.05] flex items-center gap-2"
-                                style={{ color: cat !== "All" ? (() => { const colors: Record<string,string> = {Backend:"#22d3ee",Frontend:"#a78bfa",Database:"#60a5fa",DevOps:"#f59e0b",API:"#f472b6",Resources:"#34d399"}; return colors[cat] || "#94a3b8"; })() : "rgba(255,255,255,0.5)" }}
-                              >
-                                {cat !== "All" && <span className="w-[4px] h-[4px] rounded-full" style={{ background: (() => { const colors: Record<string,string> = {Backend:"#22d3ee",Frontend:"#a78bfa",Database:"#60a5fa",DevOps:"#f59e0b",API:"#f472b6",Resources:"#34d399"}; return colors[cat] || "#94a3b8"; })() }} />}
-                                {cat}
-                              </button>
-                            ))}
+                          <div className="absolute right-0 top-full mt-1.5 z-50 w-32 py-1 rounded-xl"
+                            style={{ background: "rgba(18,16,30,0.96)", backdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.06)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
+                            {faqCategories.map((cat) => {
+                              const c = FAQ_CAT_COLORS[cat] || "#94a3b8";
+                              const active = cat === faqActiveCat;
+                              return (
+                                <button
+                                  key={cat}
+                                  onClick={() => { setFaqActiveCat(cat); setFaqCatOpen(false); }}
+                                  className="w-full text-left px-3 py-1.5 text-[11px] font-medium transition-all duration-150 flex items-center gap-2"
+                                  style={{
+                                    color: cat !== "All" ? c : "rgba(255,255,255,0.45)",
+                                    background: active ? "rgba(255,255,255,0.04)" : "transparent",
+                                  }}
+                                >
+                                  <span className="w-[4px] h-[4px] rounded-full shrink-0"
+                                    style={{ background: cat !== "All" ? c : "rgba(255,255,255,0.25)" }} />
+                                  {cat}
+                                </button>
+                              );
+                            })}
                           </div>
                         </>
                       )}
