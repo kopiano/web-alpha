@@ -16,6 +16,6 @@ git init
 git add -A
 git commit -m 'deploy alpha'
 
-git push -f git@github.com/coulsonzero/alpha.git HEAD:gh-pages
+git push -f git@github.com/kopiano/web-alpha.git HEAD:gh-pages
 
 cd -
