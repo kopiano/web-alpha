@@ -47,6 +47,9 @@ export default function DocsPage() {
   // New doc editor
   const [showNewEditor, setShowNewEditor] = useState(false);
   const [showFaqDialog, setShowFaqDialog] = useState(false);
+  const [faqActiveCat, setFaqActiveCat] = useState("All");
+  const [faqCategories, setFaqCategories] = useState<string[]>([]);
+  const [faqCatOpen, setFaqCatOpen] = useState(false);
 
   const loggedInCommentUser = user ? {
     username: user.username,
@@ -265,7 +268,7 @@ export default function DocsPage() {
       <ProfileTab activeTab={activeTab} />
     );
   } else if (activeTab === 3) {
-    bodyContent = <FaqTab showAddDialog={showFaqDialog} onAddDialogClosed={() => setShowFaqDialog(false)} />;
+    bodyContent = <FaqTab showAddDialog={showFaqDialog} onAddDialogClosed={() => setShowFaqDialog(false)} activeCat={faqActiveCat} onCategoriesChange={setFaqCategories} />;
   } else {
     bodyContent = (
       <DocGrid
@@ -362,25 +365,69 @@ export default function DocsPage() {
                 </button>
               )}
               {activeTab === 3 && (
-                <button
-                  onClick={() => setShowFaqDialog(true)}
-                  className="relative w-8 h-8 rounded-full grid place-items-center transition-all duration-300 hover:scale-110 active:scale-95 group/faqbtn"
-                  style={{
-                    background: "linear-gradient(135deg, rgba(76,201,240,0.22), rgba(123,47,247,0.18))",
-                    border: "1px solid rgba(76,201,240,0.3)",
-                    boxShadow: "0 0 14px rgba(76,201,240,0.1), 0 0 28px rgba(123,47,247,0.06)",
-                  }}
-                >
-                  {/* glow ring on hover */}
-                  <div
-                    className="absolute inset-0 rounded-full opacity-0 group-hover/faqbtn:opacity-100 transition-opacity duration-300"
+                <div className="flex items-center gap-2">
+                  {/* Category filter dropdown */}
+                  {faqCategories.length > 1 && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setFaqCatOpen(!faqCatOpen)}
+                        className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-all duration-200"
+                        style={{
+                          background: faqActiveCat !== "All" ? `${(() => {
+                            const colors: Record<string,string> = {Backend:"#22d3ee",Frontend:"#a78bfa",Database:"#60a5fa",DevOps:"#f59e0b",API:"#f472b6",Resources:"#34d399"};
+                            return colors[faqActiveCat] || "#94a3b8";
+                          })()}18` : "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          color: "rgba(255,255,255,0.6)",
+                        }}
+                      >
+                        <span className="w-[4px] h-[4px] rounded-full" style={{
+                          background: faqActiveCat !== "All" ? (() => {
+                            const colors: Record<string,string> = {Backend:"#22d3ee",Frontend:"#a78bfa",Database:"#60a5fa",DevOps:"#f59e0b",API:"#f472b6",Resources:"#34d399"};
+                            return colors[faqActiveCat] || "#94a3b8";
+                          })() : "rgba(255,255,255,0.4)"
+                        }} />
+                        {faqActiveCat}
+                        <svg width="8" height="5" viewBox="0 0 8 5" style={{ opacity: 0.5 }}>
+                          <path d="M1 1l3 3 3-3" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+                        </svg>
+                      </button>
+                      {faqCatOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setFaqCatOpen(false)} />
+                          <div className="absolute right-0 top-full mt-1.5 z-50 w-36 py-1 rounded-xl"
+                            style={{ background: "rgba(22,18,38,0.96)", backdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
+                            {faqCategories.map((cat) => (
+                              <button
+                                key={cat}
+                                onClick={() => { setFaqActiveCat(cat); setFaqCatOpen(false); }}
+                                className="w-full text-left px-3 py-1.5 text-[11px] font-medium transition-all duration-150 hover:bg-white/[0.05] flex items-center gap-2"
+                                style={{ color: cat !== "All" ? (() => { const colors: Record<string,string> = {Backend:"#22d3ee",Frontend:"#a78bfa",Database:"#60a5fa",DevOps:"#f59e0b",API:"#f472b6",Resources:"#34d399"}; return colors[cat] || "#94a3b8"; })() : "rgba(255,255,255,0.5)" }}
+                              >
+                                {cat !== "All" && <span className="w-[4px] h-[4px] rounded-full" style={{ background: (() => { const colors: Record<string,string> = {Backend:"#22d3ee",Frontend:"#a78bfa",Database:"#60a5fa",DevOps:"#f59e0b",API:"#f472b6",Resources:"#34d399"}; return colors[cat] || "#94a3b8"; })() }} />}
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {/* Add button */}
+                  <button
+                    onClick={() => setShowFaqDialog(true)}
+                    className="relative w-8 h-8 rounded-full grid place-items-center transition-all duration-300 hover:scale-110 active:scale-95 group/faqbtn"
                     style={{
-                      background: "transparent",
-                      boxShadow: "0 0 18px rgba(76,201,240,0.25), 0 0 36px rgba(123,47,247,0.12)",
+                      background: "linear-gradient(135deg, rgba(76,201,240,0.22), rgba(123,47,247,0.18))",
+                      border: "1px solid rgba(76,201,240,0.3)",
+                      boxShadow: "0 0 14px rgba(76,201,240,0.1), 0 0 28px rgba(123,47,247,0.06)",
                     }}
-                  />
-                  <Plus size={14} style={{ color: "rgba(255,255,255,0.85)", position: "relative", zIndex: 1 }} />
-                </button>
+                  >
+                    <div className="absolute inset-0 rounded-full opacity-0 group-hover/faqbtn:opacity-100 transition-opacity duration-300"
+                      style={{ background: "transparent", boxShadow: "0 0 18px rgba(76,201,240,0.25), 0 0 36px rgba(123,47,247,0.12)" }} />
+                    <Plus size={14} style={{ color: "rgba(255,255,255,0.85)", position: "relative", zIndex: 1 }} />
+                  </button>
+                </div>
               )}
             </div>
           )}
