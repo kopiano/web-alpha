@@ -4,66 +4,39 @@ import {
   FileText, Download, AlignJustify,
 } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
+import { useAuth } from "@/components/dashboard/AuthProvider";
+import { resolveAvatar } from "@/lib/avatar";
+import { fetchChat, sendChatMessage } from "@/api/chat";
 
 /* ─── Types ─── */
+interface ChatUser {
+  ID: number; username: string; email: string; avatar: string; status: string;
+  last_login_at?: string;
+}
+interface ChatMessage {
+  id?: number; user_id: number; username: string; avatar: string;
+  type: string; content: string; file_name?: string; file_url?: string; CreatedAt?: string;
+}
 interface Contact {
   id: number; name: string; avatar: string; lastMsg: string;
   time: string; unread: number; online: boolean; typing?: boolean;
+  userData?: ChatUser;
+  lastSeen?: string; // ISO time string from LastLoginAt
 }
 interface Message {
   id: number; sender: "me" | "them";
   type: "text" | "emoji" | "image" | "file";
   content: string; time: string;
   fileName?: string; fileSize?: string; fileData?: string;
+  username?: string;
 }
 
-/* ─── Data ─── */
-const CONTACTS: Contact[] = [
-  { id: 1, name: "Sarah Chen", avatar: "SC", lastMsg: "Sure, sending the deck now", time: "2:41 PM", unread: 3, online: true, typing: true },
-  { id: 2, name: "Alex Morgan", avatar: "AM", lastMsg: "You: Sounds great!", time: "1:22 PM", unread: 0, online: true },
-  { id: 3, name: "Marcus Webb", avatar: "MW", lastMsg: "The build passed all tests ✅", time: "11:05 AM", unread: 1, online: false },
-  { id: 4, name: "Priya Kapoor", avatar: "PK", lastMsg: "Can we sync at 3?", time: "Yesterday", unread: 0, online: true },
-  { id: 5, name: "James Liu", avatar: "JL", lastMsg: "Updated the Figma file", time: "Yesterday", unread: 0, online: false },
-  { id: 6, name: "Elena Rossi", avatar: "ER", lastMsg: "Coffee run? ☕", time: "Mon", unread: 2, online: true, typing: true },
-  { id: 7, name: "Dev Team", avatar: "DT", lastMsg: "Sprint review at 4pm", time: "Mon", unread: 5, online: false },
+const AVATAR_GRADS = [
+  "from-violet-500 to-cyan-400", "from-pink-500 to-violet-500",
+  "from-cyan-400 to-blue-500", "from-emerald-400 to-cyan-400",
+  "from-fuchsia-500 to-pink-500", "from-violet-500 to-fuchsia-500",
+  "from-blue-400 to-cyan-400",
 ];
-
-interface ChatData { messages: Message[]; pinned?: string; }
-const CHATS: Record<number, ChatData> = {
-  1: {
-    pinned: "📌 Sprint planning at 3pm — don't miss it!",
-    messages: [
-      { id: 1, sender: "them", type: "text", content: "Hey! Are you free today?", time: "2:30 PM" },
-      { id: 2, sender: "me", type: "text", content: "Yes! Just wrapped up the design review", time: "2:31 PM" },
-      { id: 3, sender: "them", type: "emoji", content: "😄", time: "2:31 PM" },
-      { id: 4, sender: "them", type: "text", content: "Let's jump into the meeting in 10 mins", time: "2:32 PM" },
-      { id: 5, sender: "me", type: "text", content: "Perfect, I'll set up the Zoom link", time: "2:33 PM" },
-      { id: 6, sender: "them", type: "text", content: "Also, can you share the latest mockups?", time: "2:34 PM" },
-      { id: 7, sender: "me", type: "image", content: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&h=350&fit=crop", time: "2:35 PM" },
-      { id: 8, sender: "them", type: "text", content: "Looks amazing! The gradients are 👌", time: "2:36 PM" },
-      { id: 9, sender: "them", type: "text", content: "Great, meeting link received. Joining now 🚀", time: "2:40 PM" },
-    ],
-  },
-  2: {
-    messages: [
-      { id: 1, sender: "them", type: "text", content: "How's the new dashboard coming along?", time: "1:00 PM" },
-      { id: 2, sender: "me", type: "text", content: "Really good! Almost done with the animations", time: "1:05 PM" },
-      { id: 3, sender: "them", type: "text", content: "Can I see a preview?", time: "1:10 PM" },
-      { id: 4, sender: "me", type: "text", content: "Sure! Here's a sneak peek 👀", time: "1:15 PM" },
-      { id: 5, sender: "me", type: "image", content: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=500&h=350&fit=crop", time: "1:16 PM" },
-      { id: 6, sender: "them", type: "emoji", content: "🔥", time: "1:18 PM" },
-      { id: 7, sender: "them", type: "text", content: "That looks incredible! The glass effects are on point", time: "1:20 PM" },
-      { id: 8, sender: "me", type: "text", content: "Thanks! Still tweaking the holographic feel", time: "1:22 PM" },
-    ],
-  },
-};
-
-function defaultMessages(): Message[] {
-  return [
-    { id: 1, sender: "them", type: "text", content: "Hey! How's it going?", time: "10:00 AM" },
-    { id: 2, sender: "me", type: "text", content: "All good! Working on the new features", time: "10:05 AM" },
-  ];
-}
 
 const EMOJI_LIST = [
   "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇",
@@ -72,65 +45,223 @@ const EMOJI_LIST = [
   "🌩️", "🌨️", "🌧️", "🌦️", "🌥️", "🌤️", "⛈️", "⛅", "☁️", "🌍",
   "🥉","🥈","🥇","🏅","🥬","🍇","🍉"
 ];
-const AVATAR_GRADS = [
-  "from-violet-500 to-cyan-400", "from-pink-500 to-violet-500",
-  "from-cyan-400 to-blue-500", "from-emerald-400 to-cyan-400",
-  "from-fuchsia-500 to-pink-500", "from-violet-500 to-fuchsia-500",
-  "from-blue-400 to-cyan-400",
-];
+
+function getInitials(name: string): string {
+  return name?.slice(0, 2).toUpperCase() || "??";
+}
+
+function timeLabel(ts: string): string {
+  if (!ts) return "";
+  try {
+    const d = new Date(ts);
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  } catch {
+    return ts;
+  }
+}
+
+function relativeTime(iso: string): string {
+  if (!iso) return "";
+  const diff = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return "";
+}
+
+function buildContact(u: ChatUser, lastMsg?: string, lastTime?: string): Contact {
+  return {
+    id: u.ID,
+    name: u.username,
+    avatar: getInitials(u.username),
+    lastMsg: lastMsg || "",
+    time: timeLabel(lastTime || ""),
+    unread: 0,
+    online: false,
+    userData: u,
+    lastSeen: (u as any).last_login_at || (u as any).LastLoginAt || "",
+  };
+}
 
 /* ─── Main Chat Page ─── */
 const ChatPage = () => {
+  const { user } = useAuth();
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [activeContact, setActiveContact] = useState(0);
-  const [chatData, setChatData] = useState<Record<number, ChatData>>(CHATS);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [transitioning, setTransitioning] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const msgIdCounter = useRef(0);
 
-  const contact = CONTACTS[activeContact];
-  const currentChat = chatData[contact.id] || { messages: defaultMessages() };
-  const messages = currentChat.messages;
+  const currentUser = user;
+  const meName = currentUser?.username || "Me";
+  const meInitials = getInitials(meName);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length, activeContact]);
+  // ─── WebSocket connection ───
+  const connectWS = useCallback(() => {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.host;
+    const name = meNameRef.current;
+    const wsURL = `${proto}//${host}/api/v1/chat/ws?username=${encodeURIComponent(name)}&avatar=${encodeURIComponent(meInitials)}`;
 
+    const ws = new WebSocket(wsURL);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("[WS] connected as", meNameRef.current);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as {
+          type: string; user_id?: number; username?: string; avatar?: string;
+          msg_type?: string; content?: string; file_name?: string; file_url?: string;
+          time?: string; users?: { user_id: number; username: string }[];
+        };
+
+        if (data.type === "online" && data.users) {
+          setOnlineUsers(new Set(data.users.map(u => u.user_id)));
+        } else if (data.type === "message") {
+          const isMe = data.username === meNameRef.current;
+          if (isMe) return;
+          setMessages(prev => [...prev, {
+            id: ++msgIdCounter.current,
+            sender: "them",
+            type: (data.msg_type as Message["type"]) || "text",
+            content: data.content || "",
+            time: data.time || timeLabel(new Date().toISOString()),
+            fileName: data.file_name,
+            fileData: data.file_url,
+            username: data.username,
+          }]);
+          setIsTyping(true);
+          setTimeout(() => setIsTyping(false), 1500);
+        }
+      } catch { /* ignore invalid JSON */ }
+    };
+
+    ws.onclose = () => {
+      console.log("[WS] disconnected, reconnecting in 3s");
+      setTimeout(connectWS, 3000);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }, [meInitials]);
+
+  // Keep meName in a ref so WS handler always uses latest value
+  const meNameRef = useRef(meName);
+  meNameRef.current = meName;
+
+  // ─── Initial data load ───
   useEffect(() => {
-    if (contact.typing) { setIsTyping(true); const t = setTimeout(() => setIsTyping(false), 2200); return () => clearTimeout(t); }
-    else setIsTyping(false);
-  }, [activeContact]);
+    if (!currentUser) return; // wait until user is loaded
+    connectWS();
+    setLoading(true);
+    fetchChat(200)
+      .then((res) => {
+        const data = res.data?.data ?? res.data;
+        const users: ChatUser[] = data?.users ?? [];
+        const msgs: ChatMessage[] = data?.messages ?? [];
 
-  const switchContact = useCallback((i: number) => {
-    if (i === activeContact) return;
-    setTransitioning(true); setActiveContact(i);
-    setTimeout(() => setTransitioning(false), 300);
-  }, [activeContact]);
+        // Build contacts from MySQL user table (all users)
+        const cs: Contact[] = users.map((u, i) => {
+          const userMsgs = msgs.filter(m => m.user_id === u.ID || m.username === u.username);
+          const last = userMsgs[userMsgs.length - 1];
+          return buildContact(u, last?.content?.slice(0, 30) || "", last?.CreatedAt || "");
+        });
+        if (cs.length === 0) {
+          cs.push({ id: 0, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", unread: 0, online: false });
+        }
+        setContacts(cs);
 
-  const addMessage = (msg: Message) => {
-    setChatData(prev => ({
-      ...prev,
-      [contact.id]: { ...prev[contact.id], messages: [...(prev[contact.id]?.messages || defaultMessages()), msg] },
-    }));
-  };
+        // Build messages from DB
+        const myName = meNameRef.current;
+        const serverMsgs: Message[] = msgs.map(m => ({
+          id: ++msgIdCounter.current,
+          sender: m.username === myName ? "me" : "them",
+          type: (m.type as Message["type"]) || "text",
+          content: m.content,
+          time: timeLabel(m.CreatedAt || ""),
+          fileName: m.file_name,
+          fileData: m.file_url,
+          username: m.username,
+        }));
+        setMessages(serverMsgs);
+      })
+      .catch(() => {
+        setContacts([{ id: 0, name: "Server offline", avatar: "!!", lastMsg: "Backend not reachable — check your connection", time: "", unread: 0, online: false }]);
+      })
+      .finally(() => setLoading(false));
+
+    return () => {
+      wsRef.current?.close();
+    };
+  }, [currentUser]);
+
+  // ─── Auto-scroll ───
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  // ─── Send via WebSocket ───
+  // ─── Send via POST /chat (持久化到数据库) ───
+  const sendViaAPI = useCallback((msgType: string, content: string, fileName?: string, fileData?: string) => {
+    const localMsg: Message = {
+      id: ++msgIdCounter.current,
+      sender: "me",
+      type: msgType as Message["type"],
+      content,
+      time: timeLabel(new Date().toISOString()),
+      fileName,
+      fileData,
+    };
+    // 立即添加到本地（乐观更新）
+    setMessages(prev => [...prev, localMsg]);
+
+    const username = meNameRef.current;
+    sendChatMessage({
+      user_id: currentUser?.id || 0,
+      username,
+      avatar: meInitials,
+      type: msgType,
+      content,
+      file_name: fileName || "",
+      file_url: fileData || "",
+    }).catch(() => {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: "message", username, avatar: meInitials,
+          msg_type: msgType, content, file_name: fileName, file_url: fileData,
+        }));
+      }
+    });
+  }, [meInitials, currentUser]);
 
   const sendMessage = () => {
     const content = input.trim();
     if (!content) return;
     const isEmoji = /^\p{Emoji}+$/u.test(content);
-    addMessage({
-      id: Date.now(), sender: "me", type: isEmoji ? "emoji" : "text", content,
-      time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
-    });
-    setInput(""); setShowEmoji(false);
-    setIsTyping(true); setTimeout(() => setIsTyping(false), 2500);
+    sendViaAPI(isEmoji ? "emoji" : "text", content);
+    setInput("");
+    setShowEmoji(false);
   };
 
   const handleImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = () => setPreviewImg(reader.result as string);
     reader.readAsDataURL(file);
@@ -139,32 +270,29 @@ const ChatPage = () => {
 
   const sendImage = () => {
     if (!previewImg) return;
-    addMessage({
-      id: Date.now(), sender: "me", type: "image", content: previewImg,
-      time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
-    });
+    sendViaAPI("image", previewImg, "image.png", previewImg);
     setPreviewImg(null);
   };
 
   const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      addMessage({
-        id: Date.now(), sender: "me", type: "file", content: file.name,
-        fileName: file.name,
-        fileSize: `${(file.size / 1024).toFixed(1)} KB`,
-        fileData: reader.result as string,
-        time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
-      });
+      sendViaAPI("file", file.name, file.name, reader.result as string);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
   };
 
-  const filteredContacts = CONTACTS.filter(c =>
+  const contact = contacts[activeContact];
+  const filteredContacts = contacts.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // ─── Contact avatar gradient ───
+  const contactGrad = (i: number) => AVATAR_GRADS[i % 7];
+  const userAvatarUrl = currentUser?.avatar ? resolveAvatar(currentUser.avatar) : null;
 
   return (
     <div
@@ -174,11 +302,11 @@ const ChatPage = () => {
         padding: "36px",
       }}
     >
-      {/* Vignette overlay */}
+      {/* Vignette */}
       <div className="pointer-events-none fixed inset-0 z-0"
         style={{ background: "radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%)" }} />
 
-      {/* Floating micro particles */}
+      {/* Particles */}
       <div className="pointer-events-none fixed inset-0 z-0">
         {Array.from({ length: 18 }).map((_, i) => (
           <span key={i} className="absolute rounded-full"
@@ -213,9 +341,9 @@ const ChatPage = () => {
                 <p className="text-[10px] font-semibold text-violet-400/40 uppercase tracking-[0.3em] mb-1">Inbox</p>
                 <h2 className="text-[22px] font-bold tracking-tight" style={{ background: "linear-gradient(to right, #fff, #c4b5fd 70%, #67e8f9)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Messages</h2>
               </div>
-              {CONTACTS.reduce((s, c) => s + c.unread, 0) > 0 && (
-                <span className="text-[10px] font-bold text-violet-300 bg-violet-500/10 px-2.5 py-1 rounded-full border border-violet-400/15 animate-pulse-glow">
-                  {CONTACTS.reduce((s, c) => s + c.unread, 0)}
+              {onlineUsers.size > 0 && (
+                <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-400/15">
+                  {onlineUsers.size} online
                 </span>
               )}
             </div>
@@ -228,47 +356,92 @@ const ChatPage = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto scrollbar-none px-3 pb-3">
-            {filteredContacts.map((c, i) => {
-              const isActive = i === activeContact;
-              return (
-                <button key={c.id} onClick={() => switchContact(i)}
-                  className={`w-full text-left px-3 py-2.5 rounded-2xl flex items-center gap-3.5 transition-all duration-300 group relative mb-0.5 ${
-                    isActive
-                      ? "scale-[1.02]"
-                      : "hover:bg-white/[0.02]"
-                  }`}
-                  style={isActive ? {
-                    background: "linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.08))",
-                    border: "1px solid rgba(139,92,246,0.2)",
-                    boxShadow: "0 4px 20px -8px rgba(139,92,246,0.25), inset 0 1px 0 rgba(255,255,255,0.05)",
-                  } : { border: "1px solid transparent" }}>
-                  <div className="relative shrink-0">
-                    <div className={`w-11 h-11 rounded-full grid place-items-center text-[11px] font-bold bg-gradient-to-br ${AVATAR_GRADS[i%7]} shadow-lg transition-shadow duration-500 ${
-                      isActive ? "shadow-[0_0_25px_-3px_rgba(139,92,246,0.5)] ring-2 ring-violet-400/25" : ""
-                    }`}>{c.avatar}</div>
-                    {c.online && <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-baseline">
-                      <p className={`text-[13px] font-semibold truncate ${isActive ? "text-white" : "text-white/80"}`}>{c.name}</p>
-                      <span className="text-[10px] text-white/15 ml-1.5 shrink-0">{c.time}</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-0.5">
-                      <p className={`text-[11px] truncate ${isActive ? "text-white/35" : "text-white/20"}`}>{c.lastMsg}</p>
-                      {c.unread > 0 && !isActive && (
-                        <span className="text-[10px] font-bold bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white min-w-[20px] h-[20px] rounded-full grid place-items-center leading-none ml-1.5 shrink-0 shadow-[0_0_14px_rgba(139,92,246,0.5)] animate-pulse" style={{ animationDuration: "2s" }}>{c.unread}</span>
+            {loading ? (
+              <div className="space-y-3 px-3 py-4">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="h-16 rounded-2xl bg-white/[0.03] animate-pulse" />
+                ))}
+              </div>
+            ) : filteredContacts.length === 0 ? (
+              <div className="text-center py-10 text-white/20 text-[12px]">No contacts found</div>
+            ) : (
+              filteredContacts.map((c, i) => {
+                const isActive = i === activeContact;
+                // 在线判断：WebSocket 已连接 或 数据库 status 为 active
+                const online = onlineUsers.has(c.id) || String(c.userData?.status || "").toLowerCase() === "active";
+                const lastSeenText = relativeTime(c.lastSeen || "");
+                return (
+                  <button key={c.id} onClick={() => setActiveContact(i)}
+                    className={`w-full text-left px-3 py-2.5 rounded-2xl flex items-center gap-3.5 transition-all duration-300 group relative mb-0.5 ${
+                      isActive ? "scale-[1.02]" : "hover:bg-white/[0.02]"
+                    }`}
+                    style={isActive ? {
+                      background: "linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.08))",
+                      border: "1px solid rgba(139,92,246,0.2)",
+                      boxShadow: "0 4px 20px -8px rgba(139,92,246,0.25), inset 0 1px 0 rgba(255,255,255,0.05)",
+                    } : { border: "1px solid transparent" }}>
+                    <div className="relative shrink-0">
+                      <div className={`w-11 h-11 rounded-full grid place-items-center text-[11px] font-bold overflow-hidden shadow-lg transition-shadow duration-500 ${
+                        isActive ? "shadow-[0_0_25px_-3px_rgba(139,92,246,0.5)] ring-2 ring-violet-400/25" : ""
+                      }`}
+                      style={c.userData?.avatar ? {} : {
+                        background: "rgba(255,255,255,0.10)",
+                        backdropFilter: "blur(20px) saturate(180%)",
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        boxShadow: "0 4px 24px -8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.12)",
+                      }}>
+                        {c.userData?.avatar ? (
+                          <img src={c.userData.avatar.startsWith('http') ? c.userData.avatar : resolveAvatar(c.userData.avatar)}
+                            alt="" className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : null}
+                        <span className={c.userData?.avatar ? "hidden" : ""}>{c.avatar}</span>
+                      </div>
+                      {/* Online indicator */}
+                      {online && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]" />
                       )}
                     </div>
-                  </div>
-                </button>
-              );
-            })}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-baseline">
+                        <p className={`text-[13px] font-semibold truncate ${isActive ? "text-white" : "text-white/80"}`}>{c.name}</p>
+                        <span className="text-[10px] text-white/15 ml-1.5 shrink-0">{c.time}</span>
+                      </div>
+                      <div className="flex justify-between items-center mt-0.5">
+                        <p className={`text-[11px] truncate ${isActive ? "text-white/35" : "text-white/20"}`}>
+                          {online ? c.lastMsg : <span className="text-white/15 italic">last seen {relativeTime(c.lastSeen || "") || "—"}</span>}
+                        </p>
+                        {c.unread > 0 && !isActive && (
+                          <span className="text-[10px] font-bold bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white min-w-[20px] h-[20px] rounded-full grid place-items-center leading-none ml-1.5 shrink-0 shadow-[0_0_14px_rgba(139,92,246,0.5)] animate-pulse" style={{ animationDuration: "2s" }}>{c.unread}</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
 
+          {/* Current user info */}
           <div className="p-4 border-t border-white/[0.03]">
             <div className="flex items-center gap-3 px-2.5 py-2 rounded-2xl hover:bg-white/[0.02] transition-all cursor-pointer">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 via-violet-500 to-cyan-400 grid place-items-center text-[10px] font-bold shadow-lg ring-1 ring-white/10">YO</div>
-              <div className="flex-1 min-w-0"><p className="text-[12px] font-semibold">You</p><p className="text-[10px] text-emerald-300/50">Online</p></div>
+              <div className="w-10 h-10 rounded-full grid place-items-center text-[10px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden"
+                style={userAvatarUrl ? {} : {
+                  background: "rgba(255,255,255,0.10)",
+                  backdropFilter: "blur(20px) saturate(180%)",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  boxShadow: "0 4px 24px -8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.12)",
+                }}>
+                {userAvatarUrl ? (
+                  <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  meInitials
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold text-white/80">{meName}</p>
+                <p className="text-[10px] text-emerald-300/50">Online</p>
+              </div>
               <ChevronDown size={14} className="text-white/10" />
             </div>
           </div>
@@ -289,100 +462,123 @@ const ChatPage = () => {
           <div className="px-5 py-3 flex items-center gap-3 shrink-0 border-b border-white/[0.03]"
             style={{ background: "rgba(255,255,255,0.015)", backdropFilter: "blur(40px)" }}>
             <div className="relative shrink-0">
-              <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${AVATAR_GRADS[activeContact%7]} grid place-items-center text-[10px] font-bold shadow-lg ring-1 ring-white/10`}>{contact.avatar}</div>
-              {contact.online && <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-[3px] border-[#0a0a14] shadow-[0_0_10px_rgba(52,211,153,0.6)]" />}
+              <div className="w-9 h-9 rounded-full grid place-items-center text-[10px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden"
+                style={contact?.userData?.avatar ? {} : {
+                  background: "linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05))",
+                  backdropFilter: "blur(20px) saturate(180%)",
+                }}>
+                {contact?.userData?.avatar ? (
+                  <img src={contact.userData.avatar.startsWith('http') ? contact.userData.avatar : resolveAvatar(contact.userData.avatar)}
+                    alt="" className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                ) : null}
+                <span className={contact?.userData?.avatar ? "hidden" : ""}>{contact?.avatar || "??"}</span>
+              </div>
+              {contact && (onlineUsers.has(contact.id) || String(contact.userData?.status || "").toLowerCase() === "active") && (
+                <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]" />
+              )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-white/90">{contact.name}</p>
+              <p className="text-[13px] font-semibold text-white/90">{contact?.name || "Chat"}</p>
               <p className="text-[10px] text-white/20">
-                {isTyping ? <span className="text-violet-300/60">typing...</span> : contact.online ? "Online" : "Last seen recently"}
+                {isTyping ? (
+                  <span className="text-violet-300/60">typing...</span>
+                ) : contact && (onlineUsers.has(contact.id) || String(contact.userData?.status || "").toLowerCase() === "active") ? (
+                  <span className="text-emerald-400/60">Online</span>
+                ) : (
+                  <span className="text-white/15 italic">last seen {relativeTime(contact?.lastSeen || "") || "—"}</span>
+                )}
               </p>
             </div>
           </div>
 
-          {/* Pinned */}
-          {currentChat.pinned && (
-            <div className="mx-4 mt-3 px-4 py-2.5 rounded-2xl flex items-center gap-3 text-[11px] animate-slide-up"
-              style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.12)" }}>
-              <span className="text-violet-400">📌</span>
-              <span className="text-white/50 flex-1 truncate">{currentChat.pinned}</span>
-            </div>
-          )}
-
           {/* Messages */}
-          <div className={`flex-1 overflow-y-auto scrollbar-none px-5 py-4 space-y-1.5 transition-opacity duration-300 ${transitioning ? "opacity-50" : "opacity-100"}`}>
-            {messages.map((m, i) => {
-              const showAvatar = m.sender === "them" && (i === 0 || messages[i-1]?.sender !== "them");
-              return (
-                <div key={m.id} className={`flex ${m.sender === "me" ? "justify-end" : "justify-start"}`}
-                  style={{ animation: "slide-up 0.35s ease forwards", animationDelay: `${Math.min(i * 20, 200)}ms`, opacity: 0 }}>
-                  <div className={`flex ${m.sender === "me" ? "flex-row-reverse" : ""} gap-2.5 max-w-[68%]`}>
-                    {m.sender === "them" && (
-                      <div className="shrink-0 mt-1">
-                        {showAvatar ? (
-                          <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${AVATAR_GRADS[activeContact%7]} grid place-items-center text-[9px] font-bold ring-1 ring-white/10`}>{contact.avatar}</div>
-                        ) : <div className="w-7" />}
-                      </div>
-                    )}
-                    <div className={`flex flex-col ${m.sender === "me" ? "items-end" : "items-start"} gap-0.5`}>
-                      {m.type === "text" && (
-                        <div className={`px-4 py-2.5 text-[13px] leading-relaxed ${
-                          m.sender === "me"
-                            ? "rounded-[20px] rounded-br-sm text-white/95"
-                            : "rounded-[20px] rounded-bl-sm text-white/88"
-                        }`}
-                        style={m.sender === "me" ? {
-                          background: "linear-gradient(135deg, #7c3aed, #06b6d4)",
-                          boxShadow: "0 6px 20px -6px rgba(124,58,237,0.4), inset 0 1px 0 rgba(255,255,255,0.15)",
-                        } : {
-                          background: "rgba(255,255,255,0.06)", backdropFilter: "blur(20px)",
-                          border: "1px solid rgba(255,255,255,0.06)",
-                          boxShadow: "0 4px 12px -4px rgba(0,0,0,0.15)",
-                        }}>{m.content}</div>
-                      )}
-                      {m.type === "emoji" && (
-                        <div className="text-[44px] leading-none select-none">{m.content}</div>
-                      )}
-                      {m.type === "image" && (
-                        <div className="rounded-2xl overflow-hidden shadow-xl ring-1 ring-white/[0.06] max-w-[300px] group/img cursor-pointer hover:scale-[1.02] transition-transform">
-                          <img src={m.content} alt="shared" className="w-full object-cover" />
+          <div className="flex-1 overflow-y-auto scrollbar-none px-5 py-4 space-y-1.5">
+            {messages.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-[13px] text-white/20">Send a message to start the conversation</p>
+              </div>
+            ) : (
+              messages.map((m, i) => {
+                const showAvatar = m.sender === "them" && (i === 0 || messages[i - 1]?.sender !== "them");
+                return (
+                  <div key={m.id} className={`flex ${m.sender === "me" ? "justify-end" : "justify-start"}`}
+                    style={{ animation: "slide-up 0.35s ease forwards", animationDelay: `${Math.min(i * 20, 200)}ms`, opacity: 0 }}>
+                    <div className={`flex ${m.sender === "me" ? "flex-row-reverse" : ""} gap-2.5 max-w-[68%]`}>
+                      {m.sender === "them" && (
+                        <div className="shrink-0 mt-1">
+                          {showAvatar ? (
+                            <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${contactGrad(activeContact)} grid place-items-center text-[9px] font-bold ring-1 ring-white/10`}>
+                              {contact?.avatar || m.username?.[0]?.toUpperCase() || "?"}
+                            </div>
+                          ) : <div className="w-7" />}
                         </div>
                       )}
-                      {m.type === "file" && (
-                        <div className="flex items-center gap-3 px-4 py-3 rounded-[20px] max-w-[280px]"
-                          style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                          <div className="w-9 h-9 rounded-xl bg-white/[0.06] grid place-items-center shrink-0"><FileText size={16} className="text-violet-400" /></div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] font-medium truncate">{m.fileName}</p>
-                            <p className="text-[9px] text-white/20">{m.fileSize}</p>
+                      <div className={`flex flex-col ${m.sender === "me" ? "items-end" : "items-start"} gap-0.5`}>
+                        {m.type === "text" && (
+                          <div className={`px-4 py-2.5 text-[13px] leading-relaxed ${
+                            m.sender === "me"
+                              ? "rounded-[20px] rounded-br-sm text-white/95"
+                              : "rounded-[20px] rounded-bl-sm text-white/88"
+                          }`}
+                          style={m.sender === "me" ? {
+                            background: "linear-gradient(135deg, #7c3aed, #06b6d4)",
+                            boxShadow: "0 6px 20px -6px rgba(124,58,237,0.4), inset 0 1px 0 rgba(255,255,255,0.15)",
+                          } : {
+                            background: "rgba(255,255,255,0.06)", backdropFilter: "blur(20px)",
+                            border: "1px solid rgba(255,255,255,0.06)",
+                            boxShadow: "0 4px 12px -4px rgba(0,0,0,0.15)",
+                          }}>{m.content}</div>
+                        )}
+                        {m.type === "emoji" && (
+                          <div className="text-[44px] leading-none select-none">{m.content}</div>
+                        )}
+                        {m.type === "image" && (
+                          <div className="rounded-2xl overflow-hidden shadow-xl ring-1 ring-white/[0.06] max-w-[300px] group/img cursor-pointer hover:scale-[1.02] transition-transform">
+                            <img src={m.content} alt="shared" className="w-full object-cover" />
                           </div>
-                          {m.fileData ? (
-                            <a
-                              href={m.fileData}
-                              download={m.fileName}
-                              className="w-7 h-7 rounded-lg grid place-items-center hover:bg-white/10 transition-all"
-                            >
-                              <Download size={12} className="text-white/30 hover:text-white/60" />
-                            </a>
-                          ) : (
-                            <button className="w-7 h-7 rounded-lg grid place-items-center hover:bg-white/10 transition-all">
-                              <Download size={12} className="text-white/30" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      <span className="text-[9px] text-white/10 px-1">{m.time}</span>
+                        )}
+                        {m.type === "file" && (
+                          <div className="flex items-center gap-3 px-4 py-3 rounded-[20px] max-w-[280px]"
+                            style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <div className="w-9 h-9 rounded-xl bg-white/[0.06] grid place-items-center shrink-0"><FileText size={16} className="text-violet-400" /></div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-medium truncate">{m.fileName}</p>
+                              <p className="text-[9px] text-white/20">{m.fileSize}</p>
+                            </div>
+                            {m.fileData ? (
+                              <a href={m.fileData} download={m.fileName}
+                                className="w-7 h-7 rounded-lg grid place-items-center hover:bg-white/10 transition-all">
+                                <Download size={12} className="text-white/30 hover:text-white/60" />
+                              </a>
+                            ) : (
+                              <button className="w-7 h-7 rounded-lg grid place-items-center hover:bg-white/10 transition-all">
+                                <Download size={12} className="text-white/30" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        {m.username && m.sender === "them" && (
+                          <span className="text-[9px] text-white/15 px-1">{m.username}</span>
+                        )}
+                        <span className="text-[9px] text-white/10 px-1">{m.time}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
             {isTyping && (
               <div className="flex gap-2.5" style={{ animation: "slide-up 0.35s ease forwards", opacity: 0 }}>
-                <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${AVATAR_GRADS[activeContact%7]} grid place-items-center text-[9px] font-bold shrink-0 mt-1`}>{contact.avatar}</div>
+                <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${contactGrad(activeContact)} grid place-items-center text-[9px] font-bold shrink-0 mt-1`}>
+                  {contact?.avatar || "?"}
+                </div>
                 <div className="px-4 py-3 rounded-[20px] rounded-bl-sm flex items-center gap-1"
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.04)" }}>
-                  {[0,160,320].map(d => <span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce" style={{ animationDelay: `${d}ms`, animationDuration: "0.8s" }} />)}
+                  {[0, 160, 320].map(d => (
+                    <span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce"
+                      style={{ animationDelay: `${d}ms`, animationDuration: "0.8s" }} />
+                  ))}
                 </div>
               </div>
             )}
@@ -443,15 +639,11 @@ const ChatPage = () => {
               <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImagePick} className="hidden" />
               <input type="text" placeholder="Message..." value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); sendMessage(); } }}
                 className="flex-1 bg-transparent outline-none text-[13px] placeholder:text-white/15 px-2" />
               <button onClick={sendMessage} disabled={!input.trim()}
-                className={`w-10 h-10 rounded-full grid place-items-center transition-all duration-300 ${
-                  input.trim()
-                    ? "bg-gradient-to-br from-violet-500 to-cyan-400 shadow-[0_0_30px_-6px_rgba(139,92,246,0.6)] hover:scale-105 active:scale-95"
-                    : "bg-white/[0.03] text-white/8 cursor-not-allowed"
-                }`}>
-                <Send size={15} /></button>
+                className={`w-9 h-9 rounded-full grid place-items-center transition-all duration-200 ${input.trim() ? "bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100" : "text-white/20 scale-95"}`}>
+                <Send size={14} /></button>
             </div>
           </div>
         </div>
