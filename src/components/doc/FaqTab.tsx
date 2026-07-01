@@ -118,7 +118,7 @@ const FaqDialog = ({
 
   if (!open) return null;
 
-  const isValid = title.trim().length > 0 && answer.trim().length > 0;
+  const isValid = title.trim().length > 0 && answer.trim().length > 0 && category.trim().length > 0;
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
@@ -172,7 +172,7 @@ const FaqDialog = ({
               type="text"
               value={title}
               onChange={(e) => onTitleChange(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && isValid && !loading) handleConfirmClick(e as unknown as React.MouseEvent<HTMLButtonElement>); }}
+              onKeyDown={(e) => { if (e.nativeEvent.isComposing || e.key !== "Enter" || !isValid || loading) return; handleConfirmClick(e as unknown as React.MouseEvent<HTMLButtonElement>); }}
               placeholder="e.g. What is a goroutine?"
               className="w-full h-11 px-4 rounded-[14px] text-[13px] text-white/85 outline-none transition-all duration-200 placeholder:text-white/12"
               style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)", fontFamily: "'Inter', system-ui, sans-serif" }}
@@ -183,7 +183,7 @@ const FaqDialog = ({
 
           {/* Category + Difficulty */}
           <div>
-            <label className="text-[10px] font-semibold text-white/30 uppercase tracking-[0.25em] mb-3 block">Category & Difficulty</label>
+            <label className="text-[10px] font-semibold text-white/30 uppercase tracking-[0.25em] mb-3 block">Category <span className="text-rose-400/70">*</span> & Difficulty</label>
             <div className="flex gap-2.5">
               <div className="relative flex-1">
                 <Tag size={12} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.2)" }} />

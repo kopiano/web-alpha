@@ -23,6 +23,7 @@ export const Sidebar = () => {
   const location = useLocation();
 
   const getActiveFromPath = () => {
+    if (location.pathname === "/analytics") return 1; // Analytics
     if (location.pathname === "/chat") return 5; // Messages
     if (location.pathname === "/docs") return 2; // Docs
     if (location.pathname === "/user") return 3; // User
@@ -37,7 +38,9 @@ export const Sidebar = () => {
 
   const handleClick = (index: number, label: string) => {
     setActive(index);
-    if (label === "Chat") {
+    if (label === "Analytics") {
+      navigate("/analytics");
+    } else if (label === "Chat") {
       navigate("/chat");
     } else if (label === "Docs") {
       navigate("/docs");

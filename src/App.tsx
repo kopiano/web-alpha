@@ -11,6 +11,7 @@ import Index from "./pages/Index.tsx";
 import ChatPage from "./pages/ChatPage.tsx";
 import DocsPage from "./pages/DocsPage.tsx";
 import UserPage from "./pages/UserPage.tsx";
+import AnalyticsPage from "./pages/AnalyticsPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/docs" element={<DocsPage />} />
               <Route path="/user" element={<UserPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
