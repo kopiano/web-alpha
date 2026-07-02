@@ -7,6 +7,7 @@ import {
   Users,
   Sparkles,
   MessageSquare,
+  Map,
 } from "lucide-react";
 
 const items = [
@@ -16,6 +17,7 @@ const items = [
   { icon: Users, label: "User", path: "/user" },
   { icon: Sparkles, label: "AI Insights", path: "/" },
   { icon: MessageSquare, label: "Chat", path: "/chat" },
+  { icon: Map, label: "Map", path: "/map" },
 ];
 
 export const Sidebar = () => {
@@ -24,6 +26,7 @@ export const Sidebar = () => {
 
   const getActiveFromPath = () => {
     if (location.pathname === "/analytics") return 1;
+    if (location.pathname === "/map") return 6;
     if (location.pathname === "/chat") return 5;
     if (location.pathname === "/docs") return 2;
     if (location.pathname === "/user") return 3;
