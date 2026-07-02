@@ -7,6 +7,7 @@ import { Particles } from "@/components/dashboard/Particles";
 import { MapPin, Train, Navigation, Search, X, Locate, Layers, Eye, EyeOff, ArrowRight, Star } from "lucide-react";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { FeatureCollection, Feature, LineString } from "geojson";
 
 /* ─── Types ─── */
 interface Station { id: string; name: string; lat: number; lng: number; line: string; lineColor: string; }
@@ -76,7 +77,7 @@ export default function MapPage() {
   useAuth();
   const [center, setCenter] = useState<[number, number]>([39.904, 116.407]);
   const [userLocation, setUserLocation] = useState("");
-  const [metroVisible, setMetroVisible] = useState(false);
+  const [metroVisible, setMetroVisible] = useState(true);
   const [routeMode, setRouteMode] = useState(false);
   const [startQuery, setStartQuery] = useState("");
   const [endQuery, setEndQuery] = useState("");
@@ -99,6 +100,25 @@ export default function MapPage() {
         }
       })
       .catch(() => {});
+  }, []);
+
+  /* ─── Metro GeoJSON data ─── */
+  const [metroGeoJson, setMetroGeoJson] = useState<FeatureCollection | null>(null);
+  const [stationsGeoJson, setStationsGeoJson] = useState<FeatureCollection | null>(null);
+  const [metroStats, setMetroStats] = useState<{ cities: number; lines: number }>({ cities: 0, lines: 0 });
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/china_metro.json").then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+      fetch("/china_metro_stations.json").then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+    ])
+      .then(([linesData, stationsData]: [FeatureCollection, FeatureCollection]) => {
+        setMetroGeoJson(linesData);
+        setStationsGeoJson(stationsData);
+        const cities = new Set(linesData.features.map(f => f.properties?.city).filter(Boolean));
+        setMetroStats({ cities: cities.size, lines: linesData.features.length });
+      })
+      .catch(err => console.error("Metro data failed to load:", err));
   }, []);
 
   const requestLocation = useCallback(() => {
@@ -144,6 +164,19 @@ export default function MapPage() {
     setStartQuery(""); setEndQuery("");
     setRouteMode(false);
   }, []);
+
+  /* ─── City line counts from GeoJSON ─── */
+  const cityLines = useMemo(() => {
+    if (!metroGeoJson) return [];
+    const counts = new Map<string, number>();
+    metroGeoJson.features.forEach(f => {
+      const city = f.properties?.city;
+      if (city) counts.set(city, (counts.get(city) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([city, count]) => ({ city, count }));
+  }, [metroGeoJson]);
 
   /* ─── Map refs ─── */
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -257,35 +290,60 @@ export default function MapPage() {
     });
     overlaysRef.current.push({ layer: "user-circle-fill", source: "user-circle" });
 
-    // ── metro lines & stations ──
-    if (metroVisible) {
-      METRO_LINES.forEach(line => {
-        const sid = `line-${line.id}`;
-        const lid = `line-${line.id}-layer`;
-        const pts = getLinePath(line.id).map(ll);
-
-        map.addSource(sid, {
-          type: "geojson",
-          data: { type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: {} },
-        });
-        map.addLayer({
-          id: lid,
-          type: "line",
-          source: sid,
-          paint: { "line-color": line.color, "line-width": 4, "line-opacity": 0.8 },
-        });
-        overlaysRef.current.push({ layer: lid, source: sid });
+    // ── metro lines (from GeoJSON) ──
+    if (metroVisible && metroGeoJson) {
+      map.addSource("metro-lines", {
+        type: "geojson",
+        data: metroGeoJson,
       });
-
-      STATIONS.filter(s => !routeLineStations.find(r => r.id === s.id)).forEach(s => {
-        const el = document.createElement("div");
-        el.style.cssText = `width:12px;height:12px;background:${s.lineColor};border:2px solid white;border-radius:50%;box-shadow:0 0 8px rgba(0,0,0,0.4)`;
-        const marker = new maplibregl.Marker({ element: el })
-          .setLngLat([s.lng, s.lat])
-          .setPopup(new maplibregl.Popup().setHTML(`<div class="text-xs font-semibold">${s.name}</div>`))
-          .addTo(map);
-        markersRef.current.push(marker);
+      // Glow layer (wider, transparent)
+      map.addLayer({
+        id: "metro-lines-glow",
+        type: "line",
+        source: "metro-lines",
+        paint: {
+          "line-color": ["get", "colour"],
+          "line-width": 8,
+          "line-opacity": 0.2,
+          "line-blur": 3,
+        },
       });
+      // Main line layer
+      map.addLayer({
+        id: "metro-lines-layer",
+        type: "line",
+        source: "metro-lines",
+        paint: {
+          "line-color": ["get", "colour"],
+          "line-width": 4,
+          "line-opacity": 0.85,
+        },
+      });
+      overlaysRef.current.push(
+        { layer: "metro-lines-glow", source: "metro-lines" },
+        { layer: "metro-lines-layer", source: "metro-lines" },
+      );
+    }
+
+    // ── metro station markers ──
+    if (metroVisible && stationsGeoJson) {
+      map.addSource("metro-stations", {
+        type: "geojson",
+        data: stationsGeoJson,
+      });
+      map.addLayer({
+        id: "metro-stations-layer",
+        type: "circle",
+        source: "metro-stations",
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "#fff",
+          "circle-stroke-color": "#22d3ee",
+          "circle-stroke-width": 2,
+          "circle-opacity": 0.9,
+        },
+      });
+      overlaysRef.current.push({ layer: "metro-stations-layer", source: "metro-stations" });
     }
 
     // ── route line ──
@@ -308,7 +366,7 @@ export default function MapPage() {
       });
       overlaysRef.current.push({ layer: "route-line-layer", source: "route-line" });
     }
-  }, [center, metroVisible, routePath, routeLineStations, mapReady]);
+  }, [center, metroVisible, routePath, routeLineStations, mapReady, metroGeoJson, stationsGeoJson]);
 
   /* ─── Render ─── */
   return (
@@ -405,12 +463,13 @@ export default function MapPage() {
                   {metroVisible ? "Hide" : "Show"}
                 </button>
               </div>
-              <div className="space-y-1.5">
-                {METRO_LINES.map(line => (
-                  <div key={line.id} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-sm shrink-0" style={{ background: line.color }} />
-                    <span className="text-[11px] text-white/50">{line.name}</span>
-                    <span className="text-[9px] text-white/20 ml-auto">{line.stations.length} stations</span>
+              <div className="space-y-1 overflow-y-auto max-h-[120px] pr-1"
+                style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(160,160,160,0.4) transparent" }}>
+                {cityLines.map(({ city, count }) => (
+                  <div key={city} className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#22d3ee" }} />
+                    <span className="text-[11px] text-white/50">{city}</span>
+                    <span className="text-[9px] text-white/20 ml-auto">{count} lines</span>
                   </div>
                 ))}
               </div>
@@ -493,8 +552,8 @@ export default function MapPage() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { label: "Metro Lines", value: METRO_LINES.length.toString() },
-                  { label: "Stations", value: STATIONS.length.toString() },
+                  { label: "Metro Cities", value: metroStats.cities.toString() || "—" },
+                  { label: "Metro Lines", value: metroStats.lines.toString() || "—" },
                   { label: "Zoom", value: "13" },
                   { label: "Coords", value: `${center[0].toFixed(2)}, ${center[1].toFixed(2)}` },
                 ].map(s => (
