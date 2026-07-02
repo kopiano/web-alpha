@@ -247,8 +247,7 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
 
   /* ─── Stat Cards ─── */
   const statCards = useMemo(() => {
-    if (!displaySummary) return [];
-    const s = displaySummary;
+    const s = displaySummary || { income_count: 0, income_amount: 0, expense_count: 0, expense_amount: 0, neutral_count: 0, neutral_amount: 0 };
     return [
       {
         label: "收入",
@@ -294,8 +293,7 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
       )}
 
       {/* ═══ Stat Cards ═══ */}
-      {displaySummary && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-in" style={{ animationDelay: "0.1s" }}>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {statCards.map((s, i) => {
             const Icon = s.icon;
             return (
@@ -318,7 +316,6 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
             );
           })}
         </div>
-      )}
 
       {/* ═══ Transaction Table ═══ */}
       <div className="glass glass-hover noise rounded-[2rem] p-6 overflow-hidden animate-fade-in">

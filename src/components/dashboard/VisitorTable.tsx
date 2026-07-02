@@ -14,6 +14,7 @@ interface Visitor {
   device?: string;
   browser?: string;
   duration?: string | number;
+  visit_count?: number;
   last_seen?: string;
   status?: string;
   user_name?: string;
@@ -123,6 +124,7 @@ const normalizeVisitor = (item: any): Visitor => ({
   device: item?.device ?? item?.device_type ?? item?.deviceType ?? item?.os ?? "—",
   browser: item?.browser ?? item?.browser_name ?? item?.browserName ?? "—",
   duration: item?.duration ?? item?.total_duration ?? item?.totalDuration ?? item?.browse_time ?? item?.browseTime ?? "—",
+  visit_count: item?.visit_count ?? item?.visitCount ?? item?.visits ?? 0,
   last_seen: item?.last_seen ?? item?.lastSeen ?? item?.updated_at ?? item?.updatedAt ?? "—",
   status: item?.status ?? "unknown",
   user_name: item?.user_name ?? item?.userName ?? item?.username ?? "Guest",
@@ -148,6 +150,7 @@ export const VisitorTable = ({ className = "" }: VisitorTableProps) => {
         });
         const payload = res.data?.data ?? res.data ?? {};
         const list = unwrapList(payload);
+        console.log("[VisitorTable] raw visitor items:", list);
         setItems(Array.isArray(list) ? list.map(normalizeVisitor) : []);
         setServerPaging({
           total: readTotal(payload),
@@ -199,14 +202,14 @@ export const VisitorTable = ({ className = "" }: VisitorTableProps) => {
       ) : (
         <>
           <div className="overflow-x-auto scrollbar-thin">
-            <div className="grid min-w-[980px] grid-cols-[1.2fr_0.8fr_1fr_1.25fr_1.2fr_0.8fr_0.9fr_0.8fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
-              <div>User</div><div className="text-center">Visitor ID</div><div className="text-center">IP</div><div className="text-center">Location</div><div className="text-center">Device · Browser</div><div className="text-center">Duration</div><div className="text-center">Last Seen</div><div className="text-center">Status</div>
+            <div className="grid min-w-[980px] grid-cols-[1.2fr_1fr_1.25fr_1.2fr_0.8fr_0.7fr_0.9fr_0.8fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
+              <div>User</div><div className="text-center">IP</div><div className="text-center">Location</div><div className="text-center">Device · Browser</div><div className="text-center">Duration</div><div className="text-center">Visits</div><div className="text-center">Last Seen</div><div className="text-center">Status</div>
             </div>
             <div className="overflow-hidden rounded-[1.75rem] border border-white/[0.08] min-w-[980px]">
               {current.map((v, i) => (
                 <div
                   key={v.id ?? `${v.ip}-${i}`}
-                  className="grid min-w-[980px] grid-cols-[1.2fr_0.8fr_1fr_1.25fr_1.2fr_0.8fr_0.9fr_0.8fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors bg-white/[0.025] hover:bg-white/[0.04]"
+                  className="grid min-w-[980px] grid-cols-[1.2fr_1fr_1.25fr_1.2fr_0.8fr_0.7fr_0.9fr_0.8fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors bg-white/[0.025] hover:bg-white/[0.04]"
                 >
                   <div className="flex items-center gap-3 min-w-0 self-center">
                     <div className={`w-9 h-9 rounded-full shrink-0 bg-gradient-to-br ${getAvatarGradient(String(v.id ?? v.ip ?? i))} grid place-items-center text-[10px] font-bold overflow-hidden text-white`}>
@@ -221,11 +224,11 @@ export const VisitorTable = ({ className = "" }: VisitorTableProps) => {
                       <p className="text-[10px] text-white/30 truncate">{v.avatar ? "Signed visitor" : "Anonymous"}</p>
                     </div>
                   </div>
-                  <div className="text-xs text-white/50 truncate self-center text-center">{shortId(v.id)}</div>
                   <div className="text-xs text-white/50 truncate self-center text-center">{v.ip || "—"}</div>
                   <div className="text-xs text-white/50 truncate self-center text-center">{formatLocation(v)}</div>
                   <div className="text-xs text-white/50 truncate self-center text-center">{v.device || "—"} · {v.browser || "—"}</div>
                   <div className="text-xs text-white/50 truncate self-center text-center">{formatDuration(v.duration)}</div>
+                  <div className="text-xs text-white/70 truncate self-center text-center font-semibold tabular-nums">{v.visit_count ?? 0}</div>
                   <div className="text-xs text-white/50 truncate self-center text-center">{formatLastSeen(v.last_seen)}</div>
                   <div className="self-center flex justify-center">
                     <span
