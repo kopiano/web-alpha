@@ -216,7 +216,7 @@ const ChatPage = () => {
         </div>
 
         {/* CENTER — hidden on mobile when contacts list is showing */}
-        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"} rounded-[20px] md:rounded-r-[32px]`}
+        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"} rounded-r-[20px] rounded-tr-[20px] md:rounded-r-[32px] md:rounded-tr-[32px]`}
           style={{background:"rgba(255,255,255,0.02)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(255,255,255,0.06)",borderBottom:"1px solid rgba(255,255,255,0.06)",borderRight:"1px solid rgba(255,255,255,0.06)",boxShadow:"0 20px 60px -20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)"}}>
           <div className="px-2 md:px-5 py-2 md:py-3 flex items-center gap-2 md:gap-3 shrink-0 border-b border-white/[0.03]" style={{background:"rgba(255,255,255,0.015)",backdropFilter:"blur(40px)"}}>
             {/* Mobile back to contacts button */}
