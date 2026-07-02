@@ -4,13 +4,13 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useOnlineStatus } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
-import { fetchChat, sendChatMessage } from "@/api/chat";
+import { fetchConversations, createConversation, fetchConversationMessages, sendChatMessage } from "@/api/chat";
 import { getUsers } from "@/api/user";
 
 /* ─── Types ─── */
 interface ChatUser { id: number; username: string; email?: string; avatar?: string; status?: string; last_login_at?: string; }
-interface ChatMsg { id?: number; user_id: number; username: string; avatar?: string; type: string; content: string; file_name?: string; file_url?: string; CreatedAt?: string; }
-interface Contact { id: number; name: string; avatar: string; lastMsg: string; time: string; unread: number; online: boolean; userData?: ChatUser; lastSeen?: string; }
+interface ChatMsg { id?: number; user_id: number; username?: string; sender_username?: string; avatar?: string; type: string; content: string; file_name?: string; file_url?: string; CreatedAt?: string; created_at?: string; }
+interface Contact { id: number; name: string; avatar: string; lastMsg: string; time: string; unread: number; online: boolean; userData?: ChatUser; lastSeen?: string; convId?: number; }
 interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; fileName?: string; fileSize?: string; fileData?: string; username?: string; }
 
 const AVATAR_GRADS = ["from-violet-500 to-cyan-400","from-pink-500 to-violet-500","from-cyan-400 to-blue-500","from-emerald-400 to-cyan-400","from-fuchsia-500 to-pink-500","from-violet-500 to-fuchsia-500","from-blue-400 to-cyan-400"];
@@ -44,6 +44,7 @@ const ChatPage = () => {
   const midRef = useRef(0);
   const meRef = useRef("Me");
   const activeContactIdRef = useRef(0);
+  const msgCacheRef = useRef<Map<number, Message[]>>(new Map());
 
   const me = user;
   const meName = me?.username||"Me";
@@ -66,8 +67,17 @@ const ChatPage = () => {
             const isMe = d.username===meRef.current||d.sender_username===meRef.current;
             if(isMe) return;
             // 只显示当前选中联系人的消息
-            if(activeContactIdRef.current>0&&d.sender_id!==activeContactIdRef.current) return;
-            setMessages(p=>[...p,{id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username}]);
+            if(activeContactIdRef.current>0&&d.sender_id!==activeContactIdRef.current) {
+              // 不在当前聊天 → 缓存
+              const cached = msgCacheRef.current.get(d.sender_id) || []
+              msgCacheRef.current.set(d.sender_id, [...cached, {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username}])
+              return
+            }
+            const newMsg: Message = {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username}
+            setMessages(p=>[...p,newMsg])
+            // 同时更新缓存
+            const cached = msgCacheRef.current.get(d.sender_id) || []
+            msgCacheRef.current.set(d.sender_id, [...cached, {...newMsg}])
             setIsTyping(true); setTimeout(()=>setIsTyping(false),1500);
           }
           if(d.type==="recall") setMessages(p=>p.map(m=>m.id===d.msg_id?{...m,content:"[Message recalled]",type:"text"}:m));
@@ -80,31 +90,112 @@ const ChatPage = () => {
 
   /* ─── Load data ─── */
   const loadAll = useCallback(() => {
-    getUsers().then(res=>{
-      const users: ChatUser[] = res.data?.data ?? [];
-      const cs = users.filter(u=>u.id!==me?.id).map(u=>buildContact(u,"",""));
-      setContacts(cs.length?cs:[{id:0,name:"No users",avatar:"??",lastMsg:"Register to start chatting",time:"",unread:0,online:false}]);
+    const my = meRef.current;
+    Promise.all([
+      getUsers(),
+      fetchConversations().catch(() => ({ data: { data: { conversations: [] } } })),
+    ]).then(([userRes, convRes]) => {
+      const users: ChatUser[] = userRes.data?.data ?? [];
+      const convs: any[] = convRes.data?.data?.conversations ?? [];
+
+      // 创建 conversation_id → conv 映射
+      const convMap = new Map<number, any>()
+      convs.forEach((conv: any) => {
+        conv.members?.forEach((m: any) => convMap.set(m.user_id, conv))
+      })
+
+      const cs = users
+        .filter(u => u.id !== me?.id)
+        .map(u => {
+          const conv = convMap.get(u.id)
+          const lastMsg = conv?.last_message?.content ?? ""
+          const lastTime = conv?.last_message?.created_at ?? ""
+          const contact = buildContact(u, lastMsg, lastTime)
+          if (conv) contact.convId = conv.id
+          return contact
+        })
+
+      setContacts(cs.length ? cs : [{ id: 0, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", unread: 0, online: false }])
+
       // 自动加载第一个联系人的消息
       if (cs.length > 0) {
-        const my = meRef.current;
-        fetchChat({with_user:cs[0].id,limit:200}).then(res=>{
-          const d = res.data?.data;
-          if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return; }
-          const msgs: ChatMsg[] = d?.messages??[];
-          setMessages(msgs.map(m=>({id:++midRef.current,sender:m.username===my?"me":"them",type:(m.type as any)||"text",content:m.content,time:timeFmt(m.CreatedAt||""),fileName:m.file_name,fileData:m.file_url,username:m.username})));
-        }).catch(e=>console.error("Load messages failed:", e));
+        const targetId = cs[0].id
+        const convId = cs[0].convId
+        const toMessages = (msgs: ChatMsg[]): Message[] =>
+          msgs.map(m => ({
+            id: ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
+            type: (m.type as any) || "text", content: m.content,
+            time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
+            fileData: m.file_url, username: m.sender_username || m.username || ""
+          }))
+        const loadMsgs = (cid: number, uid: number) => {
+          fetchConversationMessages(cid, { limit: 500 }).then(res => {
+            const d = res.data?.data
+            if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return }
+            const parsed = toMessages(d?.messages ?? [])
+            msgCacheRef.current.set(uid, parsed)
+            setMessages(parsed)
+          }).catch(e => console.error("Load messages failed:", e))
+        }
+
+        if (convId) {
+          loadMsgs(convId, targetId)
+        } else {
+          // 没有会话 → 创建
+          createConversation(targetId).then(r => {
+            const newConv = r.data?.data
+            if (newConv?.id) {
+              cs[0].convId = newConv.id
+              loadMsgs(newConv.id, targetId)
+            }
+          }).catch(e => console.error("Create conversation failed:", e))
+        }
       }
-    }).catch(()=>setContacts([{id:0,name:"Server offline",avatar:"!!",lastMsg:"Backend not reachable",time:"",unread:0,online:false}])).finally(()=>setLoading(false));
-  }, [me?.id]);
+    }).catch(() => setContacts([{ id: 0, name: "Server offline", avatar: "!!", lastMsg: "Backend not reachable", time: "", unread: 0, online: false }]))
+      .finally(() => setLoading(false))
+  }, [me?.id])
 
   const loadForUser = useCallback((userId: number) => {
-    fetchChat({with_user:userId,limit:200}).then(res=>{
-      const d = res.data?.data;
-      if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return; }
-      const msgs: ChatMsg[] = d?.messages??[];
-      const my = meRef.current;
-      setMessages(msgs.map(m=>({id:++midRef.current,sender:m.username===my?"me":"them",type:(m.type as any)||"text",content:m.content,time:timeFmt(m.CreatedAt||""),fileName:m.file_name,fileData:m.file_url,username:m.username})));
-    }).catch(e=>console.error("Load messages failed:", e));
+    // 先显示缓存（如果有），同时后台刷新
+    const cached = msgCacheRef.current.get(userId)
+    if (cached) setMessages(cached)
+
+    const my = meRef.current
+    fetchConversations().then(convRes => {
+      const convs: any[] = convRes.data?.data?.conversations ?? []
+      let convId: number | null = null
+      for (const conv of convs) {
+        const found = conv.members?.find((m: any) => m.user_id === userId)
+        if (found) { convId = conv.id; break }
+      }
+
+      const toMessages = (msgs: ChatMsg[]): Message[] =>
+        msgs.map(m => ({
+          id: ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
+          type: (m.type as any) || "text", content: m.content,
+          time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
+          fileData: m.file_url, username: m.sender_username || m.username || ""
+        }))
+
+      const loadMsgs = (cid: number) => {
+        fetchConversationMessages(cid, { limit: 500 }).then(res => {
+          const d = res.data?.data
+          if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return }
+          const parsed = toMessages(d?.messages ?? [])
+          msgCacheRef.current.set(userId, parsed)
+          setMessages(parsed)
+        }).catch(e => console.error("Load messages failed:", e))
+      }
+
+      if (convId) {
+        loadMsgs(convId)
+      } else {
+        createConversation(userId).then(r => {
+          const newConv = r.data?.data
+          if (newConv?.id) loadMsgs(newConv.id)
+        }).catch(e => console.error("Create conversation failed:", e))
+      }
+    }).catch(e => console.error("Fetch conversations failed:", e))
   }, []);
 
   useEffect(()=>{if(!me)return;connectWS();loadAll();return()=>{const w=wsRef.current;if(w&&w.readyState!==WebSocket.CONNECTING)w.close(1000);};},[me]);
@@ -123,6 +214,9 @@ const ChatPage = () => {
     const c = contacts[activeIdx];
     const local: Message = {id:++midRef.current,sender:"me",type:type as any,content,time:timeFmt(new Date().toISOString()),fileName,fileData};
     setMessages(p=>[...p,local]);
+    // 写入缓存
+    const cached = msgCacheRef.current.get(c?.id) || []
+    msgCacheRef.current.set(c?.id, [...cached, {...local}])
     let messageType = 1; // text
     if (type==="emoji") messageType = 2;
     else if (type==="image") messageType = 3;
