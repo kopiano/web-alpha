@@ -115,11 +115,19 @@ const ChatPage = () => {
           return contact
         })
 
+      // 恢复上次选中的联系人
+      const savedId = localStorage.getItem("chat_active_contact")
+      let initialContactIdx = 0
+      if (savedId) {
+        const savedIdx = cs.findIndex(c => c.id === Number(savedId))
+        if (savedIdx >= 0) initialContactIdx = savedIdx
+      }
       setContacts(cs.length ? cs : [{ id: 0, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", unread: 0, online: false }])
+      setActiveIdx(initialContactIdx)
 
-      // 自动加载第一个联系人的消息
+      // 自动加载第一个/上次选中联系人的消息
       if (cs.length > 0) {
-        const targetId = cs[0].id
+        const targetId = cs[initialContactIdx]?.id || cs[0].id
         const convId = cs[0].convId
         const toMessages = (msgs: ChatMsg[]): Message[] =>
           msgs.map(m => ({
@@ -205,6 +213,7 @@ const ChatPage = () => {
     const idx = contacts.findIndex(c=>c.id===contactId);
     if(idx<0) return;
     setActiveIdx(idx);
+    localStorage.setItem("chat_active_contact", String(contactId));
     loadForUser(contactId);
     if (window.innerWidth < 768) setShowMobileContacts(false);
   };
@@ -242,43 +251,80 @@ const ChatPage = () => {
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden"
-      style={{background:"radial-gradient(circle at 30% 20%, rgba(138,92,246,0.15), transparent 35%), radial-gradient(circle at 70% 80%, rgba(0,212,255,0.1), transparent 30%), #070707",padding:"10px"}}>
+      style={{background:"radial-gradient(circle at 30% 80%, rgba(164,89,255,0.35), transparent 30%), radial-gradient(circle at 70% 20%, rgba(110,0,255,0.25), transparent 25%), linear-gradient(135deg, #070707, #111111)"}}>
+      {/* Glow blobs */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute -left-20 bottom-1/4 w-[400px] h-[400px] rounded-full opacity-20 max-md:w-[200px] max-md:h-[200px]" style={{background:"#A855F7",filter:"blur(120px)"}}/>
+        <div className="absolute right-0 top-1/4 w-[300px] h-[300px] rounded-full opacity-15 max-md:w-[150px] max-md:h-[150px]" style={{background:"#6D28D9",filter:"blur(100px)"}}/>
+        <div className="absolute left-1/3 -top-10 w-[250px] h-[250px] rounded-full opacity-10 max-md:w-[120px] max-md:h-[120px]" style={{background:"#7C3AED",filter:"blur(90px)"}}/>
+      </div>
       <style>{`.csb{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.08) transparent}.csb::-webkit-scrollbar{width:4px}.csb::-webkit-scrollbar-track{background:transparent}.csb::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:10px}.csb::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}`}</style>
       <Sidebar/>
-      <div className="relative z-10 w-full max-w-[1600px] h-[calc(100vh-72px)] flex flex-col md:flex-row gap-0 ml-0 lg:ml-24 pb-16 lg:pb-0">
 
-        {/* LEFT — hidden on mobile when chat is active */}
-        <div className={`w-full md:w-[320px] shrink-0 flex flex-col h-full ${showMobileContacts ? "flex" : "hidden"} md:flex rounded-l-[32px] overflow-hidden md:rounded-l-[32px]`}
-          style={{background:"rgba(255,255,255,0.03)",backdropFilter:"blur(30px) saturate(180%)",borderTop:"1px solid rgba(255,255,255,0.07)",borderBottom:"1px solid rgba(255,255,255,0.07)",borderLeft:"1px solid rgba(255,255,255,0.07)",borderRight:"1px solid rgba(255,255,255,0.04)",boxShadow:"0 20px 60px -20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
-          <div className="px-4 md:px-5 pt-4 md:pt-5 pb-3">
-            <div className="flex items-end justify-between mb-3">
+      {/* Main glass panel */}
+      <div className="relative z-10 w-full max-w-[1600px] h-screen md:h-[calc(100vh-72px)] flex flex-col md:flex-row ml-0 lg:ml-24 pb-0 rounded-none md:rounded-[20px] lg:rounded-[32px] overflow-hidden"
+        style={{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(30px) saturate(180%)",WebkitBackdropFilter:"blur(30px) saturate(180%)",border:"1px solid rgba(255,255,255,0.12)",boxShadow:"0 32px 80px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)"}}>
+
+        {/* LEFT — Glass sidebar (redesigned) */}
+        <div className={`w-full md:w-[280px] lg:w-[320px] shrink-0 flex flex-col h-full ${showMobileContacts ? "flex" : "hidden"} md:flex`}
+          style={{background:"rgba(255,255,255,0.03)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderRight:"1px solid rgba(255,255,255,0.08)"}}>
+
+          {/* Header */}
+          <div className="px-5 pt-6 pb-4" style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+            <div className="flex items-end justify-between mb-4">
               <div>
-                <p className="text-[9px] md:text-[10px] font-semibold text-violet-400/40 uppercase tracking-[0.3em] mb-1">Inbox</p>
-                <h2 className="text-lg md:text-[22px] font-bold tracking-tight" style={{background:"linear-gradient(to right, #fff, #c4b5fd 70%, #67e8f9)",WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent"}}>Chat</h2>
+                <p className="text-[10px] font-semibold text-violet-400/50 uppercase tracking-[0.25em] mb-1">chat box</p>
+                <h2 className="text-xl md:text-[24px] font-bold tracking-tight" style={{background:"linear-gradient(135deg, #fff, #c4b5fd, #67e8f9)",WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent"}}>Chat</h2>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-medium text-white/20 bg-white/[0.04] px-2 py-0.5 md:px-2.5 md:py-1 rounded-full">{contacts.filter(c=>c.id!==0).length}</span>
-                <span className="text-[9px] font-bold text-emerald-400/80 bg-emerald-500/8 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full">{onlineUsers.size}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-medium text-white/30 bg-white/[0.05] px-2.5 py-1 rounded-full border border-white/[0.06]">{contacts.filter(c=>c.id!==0).length}</span>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-400/20">{onlineUsers.size}</span>
               </div>
             </div>
             <div className="relative">
-              <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/15"/>
-              <input placeholder="Search..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className="w-full rounded-[1.25rem] pl-8 pr-3 py-2 text-[10px] md:text-[11px] outline-none placeholder:text-white/10 border border-white/[0.04]" style={{background:"rgba(255,255,255,0.03)"}}/>
+              <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20"/>
+              <input placeholder="Search contacts..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}
+                className="w-full rounded-2xl pl-9 pr-4 py-2.5 text-[11px] outline-none placeholder:text-white/15 text-white/70"
+                style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.06)"}}/>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto csb px-3 pb-3">
-            {loading?<div className="space-y-3 px-3 py-4">{[1,2,3,4].map(i=><div key={i} className="h-16 rounded-2xl bg-white/[0.03] animate-pulse"/>)}</div>
+
+          {/* Contact list */}
+          <div className="flex-1 overflow-y-auto csb">
+            {loading?<div className="space-y-2 px-5 py-4">{[1,2,3,4].map(i=><div key={i} className="h-[84px] flex items-center gap-4"><div className="w-[52px] h-[52px] rounded-full bg-white/[0.03] animate-pulse shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 w-3/4 rounded bg-white/[0.03] animate-pulse"/><div className="h-2 w-1/2 rounded bg-white/[0.02] animate-pulse"/></div></div>)}</div>
             :filtered.length===0?<div className="text-center py-10 text-white/20 text-[12px]">{contacts.length===0?"Server offline":"No matches"}</div>
-            :filtered.map((c,i)=>{
+            :<>
+              {/* Team section */}
+              <div className="px-5 pt-6 pb-3" style={{fontSize:"18px",fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Team</div>
+
+              {/* Default team group — shown if no group chats exist */}
+              <button className="w-full flex items-center gap-4 px-5" style={{height:"84px",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                <div className="w-[52px] h-[52px] rounded-full grid place-items-center shrink-0"
+                  style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)"}}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex justify-between items-baseline">
+                    <p className="text-[15px] font-medium text-white/85 truncate">General</p>
+                    <span className="text-[10px] text-white/20 shrink-0 ml-1.5 font-mono">12:30</span>
+                  </div>
+                  <p className="text-[12px] text-white/25 truncate mt-0.5">Welcome to the team channel</p>
+                </div>
+              </button>
+
+              {/* Personal section */}
+              <div className="px-5 pt-6 pb-3" style={{fontSize:"18px",fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Personal</div>
+
+              {filtered.map((c,i)=>{
               const isActive = c.id === contacts[activeIdx]?.id;
               const on=online(c);
               return (
                 <button key={c.id} onClick={()=>switchContact(c.id)}
-                  className={`w-full text-left px-2.5 md:px-3 py-2 md:py-2.5 rounded-[1.5rem] md:rounded-[2rem] flex items-center gap-3 md:gap-3.5 transition-all duration-300 mb-0.5 ${isActive?"scale-[1.01]":"hover:bg-white/[0.02]"}`}
-                  style={isActive?{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(24px) saturate(180%)",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 4px 20px -8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08)"}:{border:"1px solid transparent"}}>
+                  className={`w-full flex items-center gap-4 px-5 text-left transition-all duration-300 ${isActive?"scale-[1.01]":""}`}
+                  style={{height:"72px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:isActive?"rgba(0,0,0,0.25)":"transparent",backdropFilter:isActive?"blur(20px)":"none",WebkitBackdropFilter:isActive?"blur(20px)":"none",boxShadow:isActive?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}>
                   <div className="relative shrink-0">
-                    <div className="w-10 h-10 md:w-11 md:h-11 rounded-full grid place-items-center text-[10px] md:text-[11px] font-bold overflow-hidden shadow-lg"
-                      style={c.userData?.avatar?{}:{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px) saturate(180%)",border:"1px solid rgba(255,255,255,0.18)",boxShadow:"0 4px 24px -8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.12)"}}>
+                    <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold overflow-hidden shadow-lg ring-1 ring-white/10"
+                      style={c.userData?.avatar?{}:{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.15)"}}>
                       {c.userData?.avatar?<img src={c.userData.avatar.startsWith('http')?c.userData.avatar:resolveAvatar(c.userData.avatar)} alt="" className="w-full h-full object-cover" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
                       <span className={c.userData?.avatar?"hidden":""}>{c.avatar}</span>
                     </div>
@@ -286,34 +332,35 @@ const ChatPage = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline">
-                      <p className={`text-[12px] md:text-[13px] font-semibold truncate ${isActive?"text-white":"text-white/80"}`}>{c.name}</p>
-                      <span className="text-[8px] md:text-[9px] text-white/25 ml-1.5 shrink-0 font-mono">{c.time}</span>
+                      <p className="text-[15px] font-medium truncate" style={{color:isActive?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.8)"}}>{c.name}</p>
+                      <span className="text-[10px] text-white/25 ml-1.5 shrink-0 font-mono">{c.time}</span>
                     </div>
-                    <div className="flex justify-between items-center mt-0.5">
-                      <p className={`text-[9px] md:text-[10px] truncate ${isActive?"text-white/30":"text-white/18"}`}>{c.lastMsg||(on?"Say hi 👋":"")}</p>
-                      {c.unread>0&&!isActive&&<span className="text-[8px] font-bold bg-emerald-400 text-white min-w-[16px] h-[16px] rounded-full grid place-items-center leading-none ml-1.5 shrink-0">{c.unread>99?"99+":c.unread}</span>}
-                    </div>
+                    <p className="text-[12px] truncate mt-0.5" style={{color:isActive?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.25)"}}>{c.lastMsg||(on?"Say hi 👋":"")}</p>
+                    {c.unread>0&&!isActive&&<span className="text-[9px] font-bold bg-emerald-400 text-white min-w-[18px] h-[18px] rounded-full grid place-items-center leading-none mt-1 shadow-[0_0_8px_rgba(52,211,153,0.4)]">{c.unread>99?"99+":c.unread}</span>}
                   </div>
                 </button>
               );
             })}
+            </>}
           </div>
-          <div className="p-3 md:p-4 border-t border-white/[0.03]">
-            <div className="flex items-center gap-2.5 px-2 py-1.5 md:px-2.5 md:py-2 rounded-xl md:rounded-2xl">
-              <div className="w-9 h-9 md:w-10 md:h-10 rounded-full grid place-items-center text-[9px] md:text-[10px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden"
-                style={meAvatar?{}:{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px) saturate(180%)",border:"1px solid rgba(255,255,255,0.18)"}}>
+
+          {/* Bottom profile */}
+          <div className="px-5 py-4" style={{borderTop:"1px solid rgba(255,255,255,0.05)"}}>
+            <div className="flex items-center gap-4" style={{height:"52px"}}>
+              <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden shrink-0"
+                style={meAvatar?{}:{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.18)"}}>
                 {meAvatar?<img src={meAvatar} alt="" className="w-full h-full object-cover"/>:meInit}
               </div>
-              <div className="flex-1 min-w-0"><p className="text-[11px] md:text-[12px] font-semibold text-white/80">{meName}</p><p className="text-[9px] md:text-[10px] text-emerald-300/50">Online</p></div>
-              <ChevronDown size={12} className="text-white/10"/>
+              <div className="flex-1 min-w-0"><p className="text-[14px] font-medium text-white/85">{meName}</p><p className="text-[11px] text-emerald-400/60">Online</p></div>
+              <ChevronDown size={14} className="text-white/20"/>
             </div>
           </div>
         </div>
 
-        {/* CENTER — hidden on mobile when contacts list is showing */}
-        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"} rounded-r-[20px] rounded-tr-[20px] md:rounded-r-[32px] md:rounded-tr-[32px]`}
-          style={{background:"rgba(255,255,255,0.02)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(255,255,255,0.06)",borderBottom:"1px solid rgba(255,255,255,0.06)",borderRight:"1px solid rgba(255,255,255,0.06)",boxShadow:"0 20px 60px -20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)"}}>
-          <div className="px-2 md:px-5 py-2 md:py-3 flex items-center gap-2 md:gap-3 shrink-0 border-b border-white/[0.03]" style={{background:"rgba(255,255,255,0.015)",backdropFilter:"blur(40px)"}}>
+        {/* CENTER — Chat area */}
+        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"}`}
+          style={{background:"rgba(255,255,255,0.01)"}}>
+          <div className="px-5 py-3 flex items-center gap-3 shrink-0" style={{borderBottom:"1px solid rgba(255,255,255,0.05)",background:"rgba(255,255,255,0.015)"}}>
             {/* Mobile back to contacts button */}
             {!showMobileContacts && (
               <button onClick={()=>setShowMobileContacts(true)} className="md:hidden w-8 h-8 rounded-full grid place-items-center text-white/40 hover:text-white hover:bg-white/[0.08] shrink-0 active:scale-90 transition-all duration-200">
@@ -352,7 +399,7 @@ const ChatPage = () => {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto csb px-5 py-4 space-y-1.5">
+          <div className="flex-1 overflow-y-auto csb px-5 py-4 space-y-1.5 transition-opacity duration-300">
             {loading?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/10 animate-pulse">Loading...</p></div>
             :!contact||contact.id===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Select a contact to start chatting</p></div>
             :messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
@@ -364,7 +411,7 @@ const ChatPage = () => {
                 ?(meAvatar?<img src={meAvatar} alt="" className="w-full h-full object-cover"/>:<span>{meInit}</span>)
                 :(contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover"/>:<span>{contact?.avatar||"?"}</span>);
               return (
-                <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"}`} style={{animation:"slide-up 0.35s ease forwards",opacity:0}}>
+                <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"} transition-all duration-200`}>
                   <div className={`flex items-start gap-2.5 max-w-[72%] ${isMe?"":"flex-row-reverse"}`}>
                     {/* Message content — me: left of avatar / them: right of avatar */}
                     <div className={`flex flex-col ${isMe?"items-end":"items-start"} gap-0.5 min-w-0`}>
@@ -388,7 +435,7 @@ const ChatPage = () => {
                 </div>
               );
             })}
-            {isTyping&&<div className="flex justify-start" style={{animation:"slide-up 0.35s ease forwards",opacity:0}}>
+            {isTyping&&<div className="flex justify-start transition-opacity duration-200">
               <div className="flex flex-row-reverse items-start gap-2.5 max-w-[72%]">
                 <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
                   {[0,160,320].map(d=><span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce" style={{animationDelay:`${d}ms`,animationDuration:"0.8s"}}/>)}
@@ -411,7 +458,7 @@ const ChatPage = () => {
 
           <div className="px-3 md:px-4 pb-3 md:pb-4 pt-2 shrink-0">
             <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 h-[50px] md:h-[56px] rounded-full"
-              style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(30px)",border:"1px solid rgba(255,255,255,0.08)",boxShadow:"0 8px 32px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
+              style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(30px)",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 8px 32px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
               <div className="relative">
                 <button onClick={()=>setShowEmoji(!showEmoji)} disabled={!contact||contact.id===0} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center transition-all active:scale-90 ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${(!contact||contact.id===0)&&"opacity-20 cursor-not-allowed"}`}><Smile size={15}/></button>
                 {showEmoji&&<div className="absolute bottom-full left-0 mb-3 rounded-2xl p-3 w-[280px] md:w-[304px] z-50" style={{background:"rgba(18,16,30,0.97)",backdropFilter:"blur(60px)",border:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 20px 50px -10px rgba(0,0,0,0.7)"}}>
