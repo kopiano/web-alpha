@@ -6,6 +6,11 @@ export function getHotSearch(date) {
   return request.get('/hot_search', { params })
 }
 
+// 36kr
+export function get36krHot() {
+  return request.get('/36kr')
+}
+
 // todo task
 export function getTodos() {
   return request.get('/task')

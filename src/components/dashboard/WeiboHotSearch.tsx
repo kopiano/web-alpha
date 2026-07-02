@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
-import { getHotSearch } from "@/api/hotSearch"
-import { RefreshCw, Globe, Tags, Calendar } from "lucide-react"
+import { getHotSearch, get36krHot } from "@/api/hotSearch"
+import { RefreshCw, Globe, Tags } from "lucide-react"
 
 interface HotSearchItem {
   rank: number
@@ -9,7 +9,10 @@ interface HotSearchItem {
   label?: string
   url?: string
   category?: string
+  content?: string
 }
+
+type Tab = "weibo" | "36kr"
 
 const rankColors = [
   "from-red-500 via-orange-400 to-yellow-400",
@@ -31,39 +34,12 @@ function formatHot(hot: unknown) {
 }
 
 const CATEGORY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  "国际": {
-    bg: "bg-pink-500/10",
-    text: "text-pink-300",
-    border: "border-pink-400/25",
-  },
-  "科技": {
-    bg: "bg-violet-500/10",
-    text: "text-violet-300",
-    border: "border-violet-400/25",
-  },
-  // "社会": {
-  //   bg: "bg-amber-500/10",
-  //   text: "text-amber-300",
-  //   border: "border-amber-400/25",
-  // },
-  // "娱乐": {
-    // bg: "bg-pink-500/10",
-    // text: "text-pink-300",
-    // border: "border-pink-400/25",
-  // },
-  // "体育": {
-  //   bg: "bg-emerald-500/10",
-  //   text: "text-emerald-300",
-  //   border: "border-emerald-400/25",
-  // },
-}
-
-const LABEL_STYLES: Record<string, string> = {
-  "新": "bg-cyan-500/20 text-cyan-300 border-cyan-400/30",
-  "热": "bg-red-500/20 text-red-300 border-red-400/30",
-  "荐": "bg-amber-500/20 text-amber-300 border-amber-400/30",
-  "沸": "bg-orange-500/20 text-orange-300 border-orange-400/30",
-  "爆": "bg-rose-500/20 text-rose-300 border-rose-400/30",
+  "国际": { bg: "bg-pink-500/10", text: "text-pink-300", border: "border-pink-400/25" },
+  "科技": { bg: "bg-violet-500/10", text: "text-violet-300", border: "border-violet-400/25" },
+  "财经": { bg: "bg-emerald-500/10", text: "text-emerald-300", border: "border-emerald-400/25" },
+  "体育": { bg: "bg-amber-500/10", text: "text-amber-300", border: "border-amber-400/25" },
+  "娱乐": { bg: "bg-pink-500/10", text: "text-pink-300", border: "border-pink-400/25" },
+  "社会": { bg: "bg-blue-500/10", text: "text-blue-300", border: "border-blue-400/25" },
 }
 
 function CategoryBadge({ category }: { category: string }) {
@@ -84,6 +60,14 @@ function CategoryBadge({ category }: { category: string }) {
   )
 }
 
+const LABEL_STYLES: Record<string, string> = {
+  "新": "bg-cyan-500/20 text-cyan-300 border-cyan-400/30",
+  "热": "bg-red-500/20 text-red-300 border-red-400/30",
+  "荐": "bg-amber-500/20 text-amber-300 border-amber-400/30",
+  "沸": "bg-orange-500/20 text-orange-300 border-orange-400/30",
+  "爆": "bg-rose-500/20 text-rose-300 border-rose-400/30",
+}
+
 function WeiboLogo() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 30" fill="none" className="w-5 h-5">
@@ -101,37 +85,36 @@ function WeiboLogo() {
   )
 }
 
+function Kr36Logo() {
+  return (
+    <img src="/36kr_logo.png" alt="36kr"
+      className="w-5 h-5 rounded" />
+  )
+}
+
 export const WeiboHotSearch = () => {
-  const [items, setItems] = useState<HotSearchItem[]>([])
+  const [tab, setTab] = useState<Tab>("weibo")
+  const [items, setItems] = useState<(HotSearchItem & { source?: string })[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [taggedOnly, setTaggedOnly] = useState(false)
-  const [selectedDate, setSelectedDate] = useState("")
-  const [dateOpen, setDateOpen] = useState(false)
 
-  const getDateStr = (offset: number) => {
-    const d = new Date()
-    d.setDate(d.getDate() + offset)
-    return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-  }
-
-  const today = getDateStr(0)
-  const yesterday = getDateStr(-1)
-
-  const dateOptions = [today, yesterday, getDateStr(-2), getDateStr(-3), getDateStr(-4)]
-
-  const formatLabel = (d: string) => {
-    if (d === today) return "今天"
-    if (d === yesterday) return "昨天"
-    return d
-  }
-
-  const fetchData = async (date?: string) => {
+  const fetchData = async (activeTab: Tab) => {
     try {
       setError(false)
-      const res = await getHotSearch(date || undefined)
-      const body = res.data
-      setItems((Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : []).slice(0, 50))
+      if (activeTab === "weibo") {
+        const res = await getHotSearch()
+        const body = res.data
+        setItems((Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : []).slice(0, 50))
+      } else {
+        const res = await get36krHot()
+        const body = res.data
+        const raw = Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : []
+        setItems(raw.map((item: any) => ({
+          ...item,
+          source: "36kr",
+        })))
+      }
     } catch {
       setError(true)
     } finally {
@@ -140,103 +123,76 @@ export const WeiboHotSearch = () => {
   }
 
   useEffect(() => {
-    fetchData()
-  }, [])
-
-  const handleDateSelect = async (date: string) => {
-    setSelectedDate(date)
-    setDateOpen(false)
     setLoading(true)
-    await fetchData(date)
-  }
+    fetchData(tab)
+  }, [tab])
 
-  const handleRefresh = async () => {
-    setLoading(true)
-    await fetchData(selectedDate || undefined)
-  }
+  const tabLabel = tab === "weibo" ? "微博" : "36kr"
 
-  const displayItems = taggedOnly
-    ? items.filter((item) => item.category && CATEGORY_STYLES[item.category])
+  const FILTER_CATEGORIES = ["科技", "国际"]
+  const displayItems = tab === "weibo" && taggedOnly
+    ? items.filter((item) => item.category && FILTER_CATEGORIES.includes(item.category))
     : items
 
   return (
     <>
-      {/* Date overlay + dropdown */}
-      {dateOpen && (
-        <>
-          <div className="fixed inset-0 z-[999]" onClick={() => setDateOpen(false)} />
-          <div className="fixed z-[999] top-[710px] mt-3 right-[30px] glass rounded-2xl p-1.5 animate-dropdown-in flex gap-1 opacity-60">
-            {dateOptions.map((d) => {
-              const active = d === selectedDate
-              return (
-                <button
-                  key={d}
-                  onClick={() => handleDateSelect(active ? "" : d)}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-medium transition-all whitespace-nowrap ${
-                    active
-                      ? "bg-sky-500/20 text-sky-300 border border-sky-400/30"
-                      : "text-white/40 hover:bg-white/10 hover:text-white/60"
-                  }`}
-                >
-                  {formatLabel(d)}
-                </button>
-              )
-            })}
-          </div>
-        </>
-      )}
-
       {/* Card */}
       <div className="glass glass-hover noise rounded-3xl p-[1px]">
       <div className="relative rounded-[calc(1.75rem-1px)]">
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-red-500/0 via-red-500/60 to-red-500/0" />
+        <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-${
+          tab === "weibo" ? "red" : "blue"
+        }-500/60 to-transparent`} />
 
         {/* Header */}
         <div className="relative px-6 pt-6 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative w-9 h-9 rounded-[50%] bg-white/10 backdrop-blur-md border border-white/15 grid place-items-center shadow-lg">
-              <WeiboLogo />
+              {tab === "weibo" ? <WeiboLogo /> : <Kr36Logo />}
             </div>
             <div>
-              <p className="text-[10px] text-white/40 font-medium tracking-[0.2em] uppercase">Weibo</p>
+              <p className="text-[10px] text-white/40 font-medium tracking-[0.2em] uppercase">
+                {tab === "weibo" ? "Weibo" : "36Kr"}
+              </p>
               <h4 className="text-sm font-bold flex items-center gap-2">
-                微博热搜
+                {tabLabel}
                 <span className="text-[9px] font-medium text-emerald-300/80 tracking-wider bg-emerald-400/10 px-1.5 py-0.5 rounded-full border border-emerald-400/20">
                   LIVE
                 </span>
               </h4>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            {/* Date picker button (dropdown rendered outside card) */}
-            <div className="relative">
+          <div className="flex items-center gap-2">
+            {/* Filter: 科技/国际 only */}
+            {tab === "weibo" && (
               <button
-                onClick={() => setDateOpen(!dateOpen)}
+                onClick={() => setTaggedOnly(!taggedOnly)}
                 className={`w-8 h-8 rounded-[50%] grid place-items-center active:scale-90 transition-all ${
-                  selectedDate
-                    ? "bg-sky-500/20 text-sky-400 shadow-[0_0_10px_hsla(200,100%,55%,0.25)]"
+                  taggedOnly
+                    ? "bg-amber-500/20 text-amber-400 shadow-[0_0_10px_hsla(40,100%,55%,0.25)]"
                     : "bg-white/5 text-white/30 hover:bg-white/10"
                 }`}
               >
-                <Calendar size={13} />
+                <Tags size={13} />
               </button>
-            </div>
+            )}
 
-            {/* Filter: tagged categories only */}
-            <button
-              onClick={() => setTaggedOnly(!taggedOnly)}
-              className={`w-8 h-8 rounded-[50%] grid place-items-center active:scale-90 transition-all ${
-                taggedOnly
-                  ? "bg-amber-500/20 text-amber-400 shadow-[0_0_10px_hsla(40,100%,55%,0.25)]"
-                  : "bg-white/5 text-white/30 hover:bg-white/10"
-              }`}
-            >
-              <Tags size={13} />
-            </button>
+            {/* Tab toggle — 微博 / 36kr (styled like expense card) */}
+            <div className="flex rounded-full p-0.5" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              {(["weibo", "36kr"] as const).map((t) => (
+                <button key={t} onClick={() => setTab(t)}
+                  className="text-[10px] font-semibold px-3 py-1.5 rounded-full transition-all duration-200"
+                  style={{
+                    background: tab === t ? "rgba(255,255,255,0.12)" : "transparent",
+                    color: tab === t ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)"
+                  }}>
+                  {t === "weibo" ? "微博" : "36kr"}
+                </button>
+              ))}
+            </div>
 
             {/* Refresh */}
             <button
-              onClick={handleRefresh}
+              onClick={() => { setLoading(true); fetchData(tab); }}
               className="w-8 h-8 rounded-[50%] bg-white/5 grid place-items-center hover:bg-white/10 active:scale-90 transition-all"
             >
               <RefreshCw size={13} className="text-white/40" />
@@ -299,15 +255,30 @@ export const WeiboHotSearch = () => {
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        <CategoryBadge category={item.category || ""} />
-                        <span className="text-[10px] text-white/20 tabular-nums font-medium">
-                          {formatHot(item.hot)}
-                        </span>
+                        {tab === "weibo" ? (
+                          <>
+                            <CategoryBadge category={item.category || ""} />
+                            <span className="text-[10px] text-white/20 tabular-nums font-medium">
+                              {formatHot(item.hot)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            {item.content && (
+                              <span className="text-[10px] text-white/30 line-clamp-1">{item.content}</span>
+                            )}
+                            {item.hot > 0 && (
+                              <span className="text-[10px] text-white/20 tabular-nums font-medium">
+                                🔥 {formatHot(item.hot)}
+                              </span>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    {/* Label — right aligned */}
-                    {item.label && labelStyle && (
+                    {/* Label — right aligned (weibo only) */}
+                    {tab === "weibo" && item.label && labelStyle && (
                       <span className={`flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border self-center ${labelStyle}`}>
                         {item.label}
                       </span>
@@ -320,12 +291,12 @@ export const WeiboHotSearch = () => {
         </div>
 
         {/* Footer */}
-        {!loading && !error && items.length > 0 && (
+        {!loading && !error && displayItems.length > 0 && (
           <div className="px-6 pb-3 pt-1">
             <div className="h-px bg-gradient-to-r from-white/0 via-white/5 to-white/0 mb-2" />
             <div className="flex items-center justify-between text-[10px] text-white/20">
               <span>{new Date().toLocaleTimeString("zh-CN", { hour12: false })} 更新</span>
-              <span>共 {items.length} 条</span>
+              <span>{taggedOnly && tab === "weibo" ? `科技/国际 ${displayItems.length}/${items.length}` : `共 ${items.length} 条`}</span>
             </div>
           </div>
         )}
