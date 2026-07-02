@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Search, Smile, Image, Send, ChevronDown, FileText, Download, AlignJustify, Plus } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
+import { useOnlineStatus } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
 import { fetchChat, sendChatMessage } from "@/api/chat";
 import { getUsers } from "@/api/user";
@@ -32,7 +33,7 @@ const ChatPage = () => {
   const [showEmoji, setShowEmoji] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
+  const { onlineUsers } = useOnlineStatus();
   const [previewImg, setPreviewImg] = useState<string|null>(null);
   const [loading, setLoading] = useState(true);
   const [showMobileContacts, setShowMobileContacts] = useState(true);
@@ -46,6 +47,7 @@ const ChatPage = () => {
 
   const me = user;
   const meName = me?.username||"Me";
+  const meId = me?.id||0;
   const meInit = initials(meName);
   const meAvatar = me?.avatar ? resolveAvatar(me.avatar) : null;
   meRef.current = meName;
@@ -54,13 +56,12 @@ const ChatPage = () => {
   const connectWS = useCallback(() => {
     try {
       const p = location.protocol==="https:"?"wss:":"ws:";
-      const ws = new WebSocket(`${p}//${location.host}/api/v1/chat/ws?username=${encodeURIComponent(meRef.current)}&avatar=${encodeURIComponent(meInit)}`);
+      const ws = new WebSocket(`${p}//${location.host}/api/v1/chat/ws?user_id=${meId}&username=${encodeURIComponent(meRef.current)}&avatar=${encodeURIComponent(meInit)}`);
       wsRef.current = ws;
       ws.onopen = () => console.log("[WS] ok");
       ws.onmessage = (e) => {
         try {
           const d = JSON.parse(e.data);
-          if(d.type==="online"&&d.users) setOnlineUsers(new Set(d.users.map((u:any)=>u.user_id)));
           if(d.type==="message"&&d.content) {
             const isMe = d.username===meRef.current||d.sender_username===meRef.current;
             if(isMe) return;
@@ -75,7 +76,7 @@ const ChatPage = () => {
       ws.onclose = (e) => { if(e.code!==1000) setTimeout(connectWS,3000); };
       ws.onerror = () => { if(ws.readyState===WebSocket.OPEN) ws.close(); };
     } catch {}
-  }, [meInit]);
+  }, [meInit, meId]);
 
   /* ─── Load data ─── */
   const loadAll = useCallback(() => {

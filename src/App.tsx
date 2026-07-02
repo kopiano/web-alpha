@@ -7,6 +7,7 @@ import { MusicPlayer } from "@/components/dashboard/MusicPlayer";
 import { AuthProvider } from "@/components/dashboard/AuthProvider";
 import { NotificationProvider } from "@/components/dashboard/NotificationProvider";
 import { VisitorTracker } from "@/components/dashboard/VisitorTracker";
+import { OnlineStatusProvider } from "@/components/dashboard/OnlineStatusProvider";
 import Index from "./pages/Index.tsx";
 import ChatPage from "./pages/ChatPage.tsx";
 import DocsPage from "./pages/DocsPage.tsx";
@@ -25,6 +26,7 @@ const App = () => (
       <BrowserRouter>
         <NotificationProvider>
           <AuthProvider>
+            <OnlineStatusProvider>
             <VisitorTracker />
             <MusicPlayer />
             <Routes>
@@ -37,6 +39,7 @@ const App = () => (
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+          </OnlineStatusProvider>
           </AuthProvider>
         </NotificationProvider>
       </BrowserRouter>
