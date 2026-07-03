@@ -81,7 +81,9 @@ export const MusicPlayer = () => {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem("music-player-collapsed") === "1"; } catch { return false; }
   });
-  const [trackIdx, setTrackIdx] = useState(0);
+  const [trackIdx, setTrackIdx] = useState(() => {
+    try { return parseInt(localStorage.getItem("music-track") || "0") || 0; } catch { return 0; }
+  });
 
   useEffect(() => {
     getMusic().then((res) => {
@@ -99,7 +101,7 @@ export const MusicPlayer = () => {
   const trackIdxRef = useRef(0);
 
   useEffect(() => { playlistRef.current = playlist; }, [playlist]);
-  useEffect(() => { trackIdxRef.current = trackIdx; }, [trackIdx]);
+  useEffect(() => { trackIdxRef.current = trackIdx; try { localStorage.setItem("music-track", String(trackIdx)); } catch {} }, [trackIdx]);
 
   useEffect(() => {
     const audio = new Audio();
@@ -118,7 +120,10 @@ export const MusicPlayer = () => {
         audio.play().catch(() => {});
       }
     };
-    const onTime = () => setCurrentTime(audio.currentTime);
+    const onTime = () => {
+      setCurrentTime(audio.currentTime);
+      try { localStorage.setItem("music-time", String(Math.floor(audio.currentTime))); } catch {}
+    };
     const onDur = () => setDuration(audio.duration || 0);
 
     audio.addEventListener("loadedmetadata", onLoaded);
@@ -142,8 +147,19 @@ export const MusicPlayer = () => {
     if (!audio || !t) return;
     audio.src = t.src;
     audio.load();
+    const savedTime = (() => { try { return parseInt(localStorage.getItem("music-time") || "0") || 0; } catch { return 0; } })();
     setCurrentTime(0);
     setDuration(0);
+    if (savedTime > 0) {
+      const checkReady = () => {
+        if (audio.readyState >= 1) {
+          audio.currentTime = savedTime;
+        } else {
+          audio.addEventListener("canplay", () => { audio.currentTime = savedTime; }, { once: true });
+        }
+      };
+      checkReady();
+    }
     if (playing) audio.play().catch(() => setPlaying(false));
   }, [trackIdx, playlist]);
 
