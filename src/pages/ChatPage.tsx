@@ -323,15 +323,29 @@ const ChatPage = () => {
         <div className="absolute right-0 top-1/4 w-[300px] h-[300px] rounded-full opacity-15 max-md:w-[150px] max-md:h-[150px]" style={{background:"#6D28D9",filter:"blur(100px)"}}/>
         <div className="absolute left-1/3 -top-10 w-[250px] h-[250px] rounded-full opacity-10 max-md:w-[120px] max-md:h-[120px]" style={{background:"#7C3AED",filter:"blur(90px)"}}/>
       </div>
-      <style>{`.csb{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.08) transparent}.csb::-webkit-scrollbar{width:4px}.csb::-webkit-scrollbar-track{background:transparent}.csb::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:10px}.csb::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}`}</style>
+      <style>{`.csb{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.08) transparent}.csb::-webkit-scrollbar{width:4px}.csb::-webkit-scrollbar-track{background:transparent}.csb::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:10px}.csb::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}
+@keyframes msgIn{0%{opacity:0;transform:translateY(16px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes msgInMe{0%{opacity:0;transform:translateY(16px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}
+.msg-anim{animation:msgIn .28s cubic-bezier(.16,1,.3,1) both}
+.msg-anim-me{animation:msgInMe .28s cubic-bezier(.16,1,.3,1) both}
+.contact-btn{transition:all .25s cubic-bezier(.16,1,.3,1);position:relative}
+.contact-btn::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:0;border-radius:0 3px 3px 0;background:linear-gradient(to bottom,#a855f7,#06b6d4);transition:all .25s cubic-bezier(.16,1,.3,1);opacity:0}
+.contact-btn.active::before{height:40%;opacity:1}
+.contact-btn:hover{background:rgba(255,255,255,0.04)!important}
+.contact-btn:active{transform:scale(.98)}`}</style>
       <Sidebar/>
 
       {/* Main glass panel */}
       <div className="relative z-10 w-full max-w-[1600px] h-screen md:h-[calc(100vh-72px)] flex flex-col md:flex-row ml-0 lg:ml-24 mr-0 lg:mr-[30px] pb-0 rounded-none md:rounded-[20px] lg:rounded-[32px] overflow-hidden"
         style={{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(30px) saturate(180%)",WebkitBackdropFilter:"blur(30px) saturate(180%)",border:"1px solid rgba(255,255,255,0.12)",boxShadow:"0 32px 80px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)"}}>
 
+        {/* Mobile drawer overlay */}
+        {showMobileContacts && (
+          <div className="fixed inset-0 z-20 bg-black/40 backdrop-blur-sm md:hidden" onClick={() => setShowMobileContacts(false)}/>
+        )}
+
         {/* LEFT — Glass sidebar (redesigned) */}
-        <div className={`w-full md:w-[280px] lg:w-[320px] shrink-0 flex flex-col h-full ${showMobileContacts ? "flex" : "hidden"} md:flex`}
+        <div className={`w-full md:w-[280px] lg:w-[320px] shrink-0 flex flex-col h-full md:flex fixed md:relative z-30 md:z-auto top-0 left-0 transition-transform duration-300 ${showMobileContacts ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
           style={{background:"rgba(255,255,255,0.03)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderRight:"1px solid rgba(255,255,255,0.08)"}}>
 
           {/* Header */}
@@ -360,7 +374,7 @@ const ChatPage = () => {
             :filtered.length===0?<div className="text-center py-10 text-white/20 text-[12px]">{contacts.length===0?"Server offline":"No matches"}</div>
             :<>
               {/* Team section */}
-              <div className="px-5 pt-6 pb-3" style={{fontSize:"18px",fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Team</div>
+              <div className="px-4 md:px-5 pt-4 md:pt-6 pb-2 md:pb-3 text-base md:text-lg" style={{fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Team</div>
 
               {/* Team group chat */}
               {teamConv && (
@@ -387,8 +401,8 @@ const ChatPage = () => {
                   localStorage.setItem("chat_active_contact", "team")
                   if (window.innerWidth < 768) setShowMobileContacts(false)
                 }}
-                  className="w-full flex items-center gap-4 px-5 text-left transition-all duration-300"
-                  style={{height:"84px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:activeIdx===-2?"rgba(0,0,0,0.25)":"transparent",backdropFilter:activeIdx===-2?"blur(20px)":"none",WebkitBackdropFilter:activeIdx===-2?"blur(20px)":"none",boxShadow:activeIdx===-2?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}>
+                  className="w-full flex items-center gap-3 md:gap-4 px-4 md:px-5 text-left transition-all duration-300 contact-btn"
+                  style={{height:"68px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:activeIdx===-2?"rgba(0,0,0,0.25)":"transparent",backdropFilter:activeIdx===-2?"blur(20px)":"none",WebkitBackdropFilter:activeIdx===-2?"blur(20px)":"none",boxShadow:activeIdx===-2?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}>
                   <div className="w-[52px] h-[52px] rounded-full overflow-hidden shrink-0 flex items-center justify-center"
                     style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}}>
                     <img src={TEAM_AVATAR} alt="Team" className="w-full h-full object-cover"/>
@@ -403,15 +417,15 @@ const ChatPage = () => {
               )}
 
               {/* Personal section */}
-              <div className="px-5 pt-6 pb-3" style={{fontSize:"18px",fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Personal</div>
+              <div className="px-4 md:px-5 pt-4 md:pt-6 pb-2 md:pb-3" style={{fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Personal</div>
 
               {filtered.map((c,i)=>{
               const isActive = c.id === contacts[activeIdx]?.id;
               const on=online(c);
               return (
                 <button key={c.id} onClick={()=>switchContact(c.id)}
-                  className={`w-full flex items-center gap-4 px-5 text-left transition-all duration-300 ${isActive?"scale-[1.01]":""}`}
-                  style={{height:"72px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:isActive?"rgba(0,0,0,0.25)":"transparent",backdropFilter:isActive?"blur(20px)":"none",WebkitBackdropFilter:isActive?"blur(20px)":"none",boxShadow:isActive?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}>
+                  className={`w-full flex items-center gap-3 md:gap-4 px-4 md:px-5 text-left transition-all duration-300 contact-btn ${isActive?"active scale-[1.01]":""}`}
+                  style={{height:"64px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:isActive?"rgba(0,0,0,0.25)":"transparent",backdropFilter:isActive?"blur(20px)":"none",WebkitBackdropFilter:isActive?"blur(20px)":"none",boxShadow:isActive?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}>
                   <div className="relative shrink-0">
                     <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold overflow-hidden shadow-lg ring-1 ring-white/10"
                       style={c.userData?.avatar?{boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}:{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.15)"}}>
@@ -450,10 +464,14 @@ const ChatPage = () => {
         </div>
 
         {/* CENTER — Chat area */}
-        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"}`}
+        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"} md:flex`}
           style={{background:"rgba(255,255,255,0.01)"}}>
           <div className="px-5 py-3 flex items-center gap-3 shrink-0" style={{borderBottom:"1px solid rgba(255,255,255,0.05)",background:"rgba(255,255,255,0.015)"}}>
             {/* Mobile back to contacts button */}
+            {/* Mobile toggle contacts button */}
+            <button onClick={()=>setShowMobileContacts(true)} className={`md:hidden w-8 h-8 rounded-full grid place-items-center text-white/40 hover:text-white hover:bg-white/[0.08] shrink-0 active:scale-90 transition-all duration-200 ${showMobileContacts?"hidden":""}`}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
             {!showMobileContacts && (
               <button onClick={()=>setShowMobileContacts(true)} className="md:hidden w-8 h-8 rounded-full grid place-items-center text-white/40 hover:text-white hover:bg-white/[0.08] shrink-0 active:scale-90 transition-all duration-200">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
@@ -478,7 +496,7 @@ const ChatPage = () => {
                   <p className="text-[10px] text-white/20">{teamConv.members.length} members</p>
                 </div>
                 <div className="flex items-center -space-x-2 shrink-0 ml-2">
-                  {teamConv.members.slice(0, 20).map((m: any) => (
+                  {teamConv.members.slice(0, 5).map((m: any) => (
                     <div key={m.user_id} className="w-7 h-7 rounded-full border-2 border-[#0c0c14] overflow-hidden grid place-items-center text-[8px] font-bold ring-1 ring-white/10"
                       style={m.avatar?{}:{background:"rgba(255,255,255,0.10)"}}>
                       {m.avatar
@@ -487,7 +505,7 @@ const ChatPage = () => {
                       }
                     </div>
                   ))}
-                  {teamConv.members.length > 20 && <div className="w-7 h-7 rounded-full border-2 border-[#0c0c14] grid place-items-center text-[8px] font-bold text-white/40 bg-white/10">+{teamConv.members.length-20}</div>}
+                  {teamConv.members.length > 5 && <div className="w-7 h-7 rounded-full border-2 border-[#0c0c14] grid place-items-center text-[8px] font-bold text-white/40 bg-white/10">+{teamConv.members.length-5}</div>}
                 </div>
               </>
             ) : (
@@ -532,8 +550,8 @@ const ChatPage = () => {
                     ? <img src={resolveAvatar(contact.userData.avatar)||''} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(contact?.name||'?').slice(0,2).toUpperCase()}</span>`)}}/>
                     : <span>{contact?.avatar||"?"}</span>));
               return (
-                <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"} transition-all duration-200`}>
-                  <div className={`flex items-start gap-2.5 max-w-[72%] ${isMe?"":"flex-row-reverse"}`}>
+                <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"} ${isMe?"msg-anim-me":"msg-anim"}`}>
+                  <div className={`flex items-start gap-2.5 max-w-[88%] md:max-w-[72%] ${isMe?"":"flex-row-reverse"}`}>
                     {/* Message content — me: left of avatar / them: right of avatar */}
                     <div className={`flex flex-col ${isMe?"items-end":"items-start"} gap-0.5 min-w-0`}>
                       {m.type==="text"||m.type==="emoji"&&m.content.length>2?<div className={`px-5 py-3 text-[13px] leading-relaxed rounded-[3rem] ${isMe?"rounded-br-lg text-white/95":"rounded-bl-lg text-white/88"}`}
@@ -557,7 +575,7 @@ const ChatPage = () => {
               );
             })}
             {isTyping&&<div className="flex justify-start transition-opacity duration-200">
-              <div className="flex flex-row-reverse items-start gap-2.5 max-w-[72%]">
+              <div className="flex flex-row-reverse items-start gap-2.5 max-w-[88%] md:max-w-[72%]">
                 <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
                   {[0,160,320].map(d=><span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce" style={{animationDelay:`${d}ms`,animationDuration:"0.8s"}}/>)}
                 </div>
