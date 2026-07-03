@@ -47,7 +47,7 @@ export const Sidebar = () => {
   return (
     <>
       {/* Desktop sidebar — unchanged */}
-      <aside className="fixed left-4 top-[calc(50%-200px)] -translate-y-1/2 z-30 hidden lg:block animate-slide-left">
+      <aside className="fixed left-4 top-1/2 -translate-y-1/2 z-30 hidden lg:block">
         <div
           className="rounded-[2rem] p-2.5 flex flex-col items-center gap-[3px]"
           style={{
@@ -64,7 +64,7 @@ export const Sidebar = () => {
               <button
                 key={it.label}
                 onClick={() => handleClick(i)}
-                className={`group relative w-10 h-10 rounded-[50%] grid place-items-center transition-all duration-300 ${
+                className={`group relative w-10 h-10 rounded-[50%] grid place-items-center transition-colors duration-300 ${
                   isActive
                     ? "bg-gradient-to-br from-neon-purple/30 to-neon-cyan/20 text-white"
                     : "text-white/50 hover:text-white hover:bg-white/5"
@@ -111,7 +111,7 @@ export const Sidebar = () => {
                 key={it.label}
                 onClick={() => handleClick(i)}
                 aria-label={it.label}
-                className="relative flex items-center justify-center w-12 h-12 rounded-full transition-all duration-200 active:scale-90"
+                className="relative flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300"
               >
                 {/* Active indicator pill */}
                 {isActive && (
