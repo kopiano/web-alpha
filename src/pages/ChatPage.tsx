@@ -2,16 +2,16 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Search, Smile, Image, Send, ChevronDown, FileText, Download, AlignJustify, Plus } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
-import { useOnlineStatus } from "@/components/dashboard/OnlineStatusProvider";
+import { useOnlineStatus, type WsMessage } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
-import { createConversation, fetchConversationMessages, sendChatMessage, getChatUserInfo, markConversationRead } from "@/api/chat";
+import { createConversation, fetchConversationMessages, sendChatMessage, getChatUserInfo, getTeamInfo, markConversationRead } from "@/api/chat";
 // import { getUsers } from "@/api/user";
 
 /* ─── Types ─── */
 interface ChatUser { id: number; username: string; email?: string; avatar?: string; status?: string; last_login_at?: string; }
 interface ChatMsg { id?: number; user_id: number; username?: string; sender_username?: string; avatar?: string; type: string; content: string; file_name?: string; file_url?: string; CreatedAt?: string; created_at?: string; }
 interface Contact { id: number; name: string; avatar: string; lastMsg: string; time: string; lastTimeRaw: string; unread: number; online: boolean; userData?: ChatUser; lastSeen?: string; convId?: number; }
-interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; fileName?: string; fileSize?: string; fileData?: string; username?: string; }
+interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; fileName?: string; fileSize?: string; fileData?: string; username?: string; senderAvatar?: string; }
 
 const AVATAR_GRADS = ["from-violet-500 to-cyan-400","from-pink-500 to-violet-500","from-cyan-400 to-blue-500","from-emerald-400 to-cyan-400","from-fuchsia-500 to-pink-500","from-violet-500 to-fuchsia-500","from-blue-400 to-cyan-400"];
 const EMOJI_LIST = ["😀","😃","😄","😁","😆","😅","😂","🤣","😊","😇","🙂","😉","😍","😘","😋","😎","🤩","🥳","🤔","🤗","👍","👌","👏","🙌","💪","🙏","🎉","✨","🔥","🚀","💯","❤️"];
@@ -47,14 +47,14 @@ const ChatPage = () => {
   const [showEmoji, setShowEmoji] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const { onlineUsers } = useOnlineStatus();
+  const { onlineUsers, subscribe } = useOnlineStatus();
+  const [teamConv, setTeamConv] = useState<{ id: number; name: string; members: { user_id: number; username?: string; avatar?: string }[] } | null>(null);
   const [previewImg, setPreviewImg] = useState<string|null>(null);
   const [loading, setLoading] = useState(true);
   const [showMobileContacts, setShowMobileContacts] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
-  const wsRef = useRef<WebSocket|null>(null);
   const midRef = useRef(0);
   const meRef = useRef("Me");
   const activeContactIdRef = useRef(0);
@@ -68,52 +68,50 @@ const ChatPage = () => {
   const meAvatar = me?.avatar ? resolveAvatar(me.avatar) : null;
   meRef.current = meName;
 
-  /* ─── WebSocket (direct connection for messages) ─── */
-  const connectWS = useCallback(() => {
-    try {
-      const p = location.protocol==="https:"?"wss:":"ws:";
-      const ws = new WebSocket(`${p}//${location.host}/api/v1/chat/ws?user_id=${meId}&username=${encodeURIComponent(meRef.current)}&avatar=${encodeURIComponent(meInit)}`);
-      wsRef.current = ws;
-      ws.onmessage = (e) => {
-        try {
-          const d = JSON.parse(e.data);
-          if(d.type==="message"&&d.content) {
-            const isMe = d.username===meRef.current||d.sender_username===meRef.current;
-            if(isMe) return;
-            const msgTime = d.time || timeFmt(new Date().toISOString())
-            // 不是当前会话 → 只更新 sidebar 和缓存
-            if(activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
-              setContacts(prev => prev.map(c =>
-                c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime, unread: (c.unread||0) + 1 } : c
-              ))
-              const cached = msgCacheRef.current.get(d.sender_id) || []
-              msgCacheRef.current.set(d.sender_id, [...cached, {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:msgTime,fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username}])
-              return
-            }
-            // 更新联系人列表
-            setContacts(prev => prev.map(c =>
-              c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime } : c
-            ))
-            const newMsg: Message = {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username}
-            setMessages(p=>[...p,newMsg])
-            const cached = msgCacheRef.current.get(d.sender_id) || []
-            msgCacheRef.current.set(d.sender_id, [...cached, {...newMsg}])
-            setIsTyping(true); setTimeout(()=>setIsTyping(false),1500);
-          }
-          if(d.type==="recall") setMessages(p=>p.map(m=>m.id===d.msg_id?{...m,content:"[Message recalled]",type:"text"}:m));
-        } catch {}
-      };
-      ws.onclose = (e) => { if(e.code!==1000) setTimeout(connectWS,2000); };
-      ws.onerror = () => { if(ws.readyState===WebSocket.OPEN) ws.close(); };
-    } catch {}
-  }, [meInit, meId]);
+  /* ─── WebSocket messages via global provider ─── */
+  useEffect(() => {
+    const unsub = subscribe((d: WsMessage) => {
+      if(d.type==="message"&&d.content) {
+        const isMe = d.username===meRef.current||d.sender_username===meRef.current;
+        if(isMe) return;
+        const msgTime = d.time || timeFmt(new Date().toISOString())
+        if(activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
+          setContacts(prev => prev.map(c =>
+            c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime, unread: (c.unread||0) + 1 } : c
+          ))
+          const cached = msgCacheRef.current.get(d.sender_id) || []
+          msgCacheRef.current.set(d.sender_id, [...cached, {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:msgTime,fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}])
+          return
+        }
+        setContacts(prev => prev.map(c =>
+          c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime } : c
+        ))
+        const newMsg: Message = {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}
+        setMessages(p=>[...p,newMsg])
+        const cached = msgCacheRef.current.get(d.sender_id) || []
+        msgCacheRef.current.set(d.sender_id, [...cached, {...newMsg}])
+        setIsTyping(true); setTimeout(()=>setIsTyping(false),1500);
+      }
+      if(d.type==="recall") setMessages(p=>p.map(m=>m.id===d.msg_id?{...m,content:"[Message recalled]",type:"text"}:m));
+    })
+    return unsub
+  }, [subscribe])
 
   /* ─── Load data ─── */
   const loadAll = useCallback(() => {
     const my = meRef.current;
     getChatUserInfo().then(res => {
-      const rawContacts: any[] = res.data?.data?.contacts ?? [];
-      if (!rawContacts.length) { console.warn("getChatUserInfo: empty contacts", res.data); }
+      const body = res.data?.data || {};
+      const rawContacts: any[] = body.contacts ?? [];
+      // 团队群聊 — 从主接口或单独获取
+      if (body.team?.id) {
+        setTeamConv({ id: body.team.id, name: body.team.name || "Team", members: body.team.members || [] })
+      } else {
+        getTeamInfo().then(tres => {
+          const t = tres.data?.data
+          if (t?.id) setTeamConv({ id: t.id, name: t.name || "Team", members: t.members || [] })
+        }).catch(() => {})
+      }
       const cs = rawContacts
         .filter((c: any) => c.user_id !== me?.id)
         .map((c: any) => {
@@ -179,7 +177,7 @@ const ChatPage = () => {
           }).catch(e => console.error("Create conversation failed:", e))
         }
       }
-    }).catch(e => { console.error("Load contacts failed:", e); setContacts([{ id: 0, name: "Server offline", avatar: "!!", lastMsg: "Backend not reachable", time: "", lastTimeRaw: "", unread: 0, online: false }]); })
+    }).catch(e => { console.error("Load contacts failed:", e); setContacts([{ id: 0, name: "Server offline", avatar: "!!", lastMsg: "Backend not reachable", time: "", lastTimeRaw: "", unread: 0, online: false }]); getTeamInfo().then(tres=>{const t=tres.data?.data;if(t?.id)setTeamConv({id:t.id,name:t.name||"Team",members:t.members||[]})}).catch(()=>{}); })
       .finally(() => setLoading(false))
   }, [me?.id])
 
@@ -219,7 +217,7 @@ const ChatPage = () => {
     }).catch(e => console.error("Create conversation failed:", e))
   }, []);
 
-  useEffect(()=>{if(!me){setLoading(false);return;}connectWS();loadAll();return()=>{const w=wsRef.current;if(w&&w.readyState!==WebSocket.CONNECTING)w.close(1000);};},[me]);
+  useEffect(()=>{if(!me){setLoading(false);return;}loadAll();},[me]);
 
   /* ─── Switch contact → load private messages ─── */
   const switchContact = (contactId: number) => {
@@ -238,18 +236,22 @@ const ChatPage = () => {
 
   /* ─── Send ─── */
   const sendMsg = useCallback((type: string, content: string, fileName?: string, fileData?: string) => {
-    const c = contacts[activeIdx];
+    const isTeam = activeContactIdRef.current === -1
     const local: Message = {id:++midRef.current,sender:"me",type:type as any,content,time:timeFmt(new Date().toISOString()),fileName,fileData};
     setMessages(p=>[...p,local]);
-    // 写入缓存
-    const cached = msgCacheRef.current.get(c?.id) || []
-    msgCacheRef.current.set(c?.id, [...cached, {...local}])
-    let messageType = 1; // text
+    let messageType = 1;
     if (type==="emoji") messageType = 2;
     else if (type==="image") messageType = 3;
     else if (type==="file") messageType = 4;
-    sendChatMessage({recipient_id:c?.id||0,message_type:messageType,content,file_name:fileName||"",file_url:fileData||""}).catch(e=>console.error("Send failed:", e));
-  }, [contacts,activeIdx]);
+    if (isTeam && teamConv) {
+      sendChatMessage({recipient_id:0, message_type:messageType, content, conversation_id: teamConv.id, file_name:fileName||"", file_url:fileData||""}).catch(e=>console.error("Send failed:", e));
+    } else {
+      const c = contacts[activeIdx];
+      const cached = msgCacheRef.current.get(c?.id) || []
+      msgCacheRef.current.set(c?.id, [...cached, {...local}])
+      sendChatMessage({recipient_id:c?.id||0,message_type:messageType,content,file_name:fileName||"",file_url:fileData||""}).catch(e=>console.error("Send failed:", e));
+    }
+  }, [contacts,activeIdx,teamConv]);
 
   const sendText = () => { const v=input.trim(); if(!v) return; sendMsg(/^\p{Emoji}+$/u.test(v)?"emoji":"text",v); setInput(""); setShowEmoji(false); };
   const sendImg = () => { if(!previewImg) return; sendMsg("image",previewImg,"image.png",previewImg); setPreviewImg(null); };
@@ -337,20 +339,47 @@ const ChatPage = () => {
               {/* Team section */}
               <div className="px-5 pt-6 pb-3" style={{fontSize:"18px",fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Team</div>
 
-              {/* Default team group — shown if no group chats exist */}
-              <button className="w-full flex items-center gap-4 px-5" style={{height:"84px",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                <div className="w-[52px] h-[52px] rounded-full grid place-items-center shrink-0"
-                  style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)"}}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="flex justify-between items-baseline">
-                    <p className="text-[15px] font-medium text-white/85 truncate">General</p>
-                    <span className="text-[10px] text-white/20 shrink-0 ml-1.5 font-mono">12:30</span>
+              {/* Team group chat */}
+              {teamConv && (
+                <button onClick={() => {
+                  const idx = contacts.findIndex(c => c.id === -1)
+                  if (idx >= 0) { switchContact(-1); return }
+                  // 加载团队群聊消息
+                  setActiveIdx(-2) // special index for team
+                  activeContactIdRef.current = -1
+                  activeConvIdRef.current = teamConv.id
+                  fetchConversationMessages(teamConv.id, { limit: 500 }).then(res => {
+                    const d = res.data?.data
+                    if (d?.messages) {
+                      const my = meRef.current
+                      const parsed = d.messages.map((m: any) => ({
+                        id: ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
+                        type: (m.type as any) || "text", content: m.content,
+                        time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
+                        fileData: m.file_url, username: m.sender_username || m.username || "",
+                        senderAvatar: m.sender_avatar || ""
+                      }))
+                      setMessages(parsed)
+                    }
+                  }).catch(e => console.error("Load team messages failed:", e))
+                  localStorage.setItem("chat_active_contact", "team")
+                  if (window.innerWidth < 768) setShowMobileContacts(false)
+                }}
+                  className="w-full flex items-center gap-4 px-5 text-left transition-all duration-300"
+                  style={{height:"84px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:activeIdx===-2?"rgba(0,0,0,0.25)":"transparent",backdropFilter:activeIdx===-2?"blur(20px)":"none",WebkitBackdropFilter:activeIdx===-2?"blur(20px)":"none",boxShadow:activeIdx===-2?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}>
+                  <div className="w-[52px] h-[52px] rounded-full grid place-items-center shrink-0"
+                    style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)"}}>
+                    <img src="/teamGroup.png" alt="Team" className="w-full h-full rounded-full object-cover"/>
                   </div>
-                  <p className="text-[12px] text-white/25 truncate mt-0.5">Welcome to the team channel</p>
-                </div>
-              </button>
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="flex justify-between items-baseline">
+                      <p className="text-[15px] font-medium text-white/85 truncate">{teamConv.name}</p>
+                      <span className="text-[10px] text-white/20 shrink-0 ml-1.5 font-mono">{teamConv.members.length} members</span>
+                    </div>
+                    <p className="text-[12px] text-white/25 truncate mt-0.5">Team channel — {teamConv.members.length} members</p>
+                  </div>
+                </button>
+              )}
 
               {/* Personal section */}
               <div className="px-5 pt-6 pb-3" style={{fontSize:"18px",fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Personal</div>
@@ -417,6 +446,29 @@ const ChatPage = () => {
                   <div className="h-2 w-16 rounded-full bg-white/[0.04] animate-pulse"/>
                 </div>
               </>
+            ) : activeIdx === -2 && teamConv ? (
+              <>
+                <div className="w-9 h-9 rounded-full grid place-items-center shrink-0"
+                  style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)"}}>
+                  <img src="/teamGroup.png" alt="Team" className="w-full h-full rounded-full object-cover"/>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-white/90">{teamConv.name}</p>
+                  <p className="text-[10px] text-white/20">{teamConv.members.length} members</p>
+                </div>
+                <div className="flex items-center -space-x-2 shrink-0 ml-2">
+                  {teamConv.members.slice(0, 20).map((m: any) => (
+                    <div key={m.user_id} className="w-7 h-7 rounded-full border-2 border-[#0c0c14] overflow-hidden grid place-items-center text-[8px] font-bold ring-1 ring-white/10"
+                      style={m.avatar?{}:{background:"rgba(255,255,255,0.10)"}}>
+                      {m.avatar
+                        ? <img src={m.avatar.startsWith('http') || m.avatar.startsWith('/') ? m.avatar : `/api/v1/avatar/${m.avatar}`} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement; t.style.display='none'; t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
+                        : <span>{m.username?.slice(0,2).toUpperCase()||"?"}</span>
+                      }
+                    </div>
+                  ))}
+                  {teamConv.members.length > 20 && <div className="w-7 h-7 rounded-full border-2 border-[#0c0c14] grid place-items-center text-[8px] font-bold text-white/40 bg-white/10">+{teamConv.members.length-20}</div>}
+                </div>
+              </>
             ) : (
               <>
                 <div className="relative shrink-0">
@@ -443,7 +495,7 @@ const ChatPage = () => {
           {/* Messages */}
           <div className="flex-1 overflow-y-auto csb px-5 py-4 space-y-1.5 transition-opacity duration-300">
             {loading?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/10 animate-pulse">Loading...</p></div>
-            :!contact||contact.id===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Select a contact to start chatting</p></div>
+            :(!contact||contact.id===0)&&activeIdx!==-2?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Select a contact to start chatting</p></div>
             :messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
             :messages.map((m,i)=>{
               const isMe=m.sender==="me";
@@ -451,7 +503,8 @@ const ChatPage = () => {
               const showAv=!prevSame;
               const avEl=isMe
                 ?(meAvatar?<img src={meAvatar} alt="" className="w-full h-full object-cover"/>:<span>{meInit}</span>)
-                :(contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover"/>:<span>{contact?.avatar||"?"}</span>);
+                :(activeIdx===-2 && m.senderAvatar ? <img src={m.senderAvatar.startsWith('http')||m.senderAvatar.startsWith('/')?m.senderAvatar:`/api/v1/avatar/${m.senderAvatar}`} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
+                : contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(contact?.name||'?').slice(0,2).toUpperCase()}</span>`)}}/>:<span>{contact?.avatar||"?"}</span>);
               return (
                 <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"} transition-all duration-200`}>
                   <div className={`flex items-start gap-2.5 max-w-[72%] ${isMe?"":"flex-row-reverse"}`}>
@@ -502,20 +555,20 @@ const ChatPage = () => {
             <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 h-[50px] md:h-[56px] rounded-full"
               style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(30px)",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 8px 32px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
               <div className="relative">
-                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={!contact||contact.id===0} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center transition-all active:scale-90 ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${(!contact||contact.id===0)&&"opacity-20 cursor-not-allowed"}`}><Smile size={15}/></button>
+                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center transition-all active:scale-90 ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><Smile size={15}/></button>
                 {showEmoji&&<div className="absolute bottom-full left-0 mb-3 rounded-2xl p-3 w-[280px] md:w-[304px] z-50" style={{background:"rgba(18,16,30,0.97)",backdropFilter:"blur(60px)",border:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 20px 50px -10px rgba(0,0,0,0.7)"}}>
                   <div className="grid grid-cols-8 gap-1.5">{EMOJI_LIST.map(e=><button key={e} onClick={()=>{setInput(p=>p+e);setShowEmoji(false);}} className="w-7 h-7 md:w-8 md:h-8 rounded-lg grid place-items-center text-lg md:text-xl hover:bg-white/10 hover:scale-[1.15] active:scale-95">{e}</button>)}</div>
                 </div>}
               </div>
-              <button onClick={()=>imgRef.current?.click()} disabled={!contact||contact.id===0} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&"opacity-20 cursor-not-allowed"}`}><Image size={15}/></button>
+              <button onClick={()=>imgRef.current?.click()} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><Image size={15}/></button>
               <input ref={imgRef} type="file" accept="image/*" onChange={pickImg} className="hidden"/>
-              <button onClick={()=>fileRef.current?.click()} disabled={!contact||contact.id===0} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&"opacity-20 cursor-not-allowed"}`}><AlignJustify size={15}/></button>
+              <button onClick={()=>fileRef.current?.click()} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><AlignJustify size={15}/></button>
               <input ref={fileRef} type="file" onChange={pickFile} className="hidden"/>
               <input type="text" placeholder={contact&&contact.id>0?"Message...":"Select a contact to chat"} value={input} onChange={e=>setInput(e.target.value)}
-                disabled={!contact||contact.id===0}
+                disabled={(!contact||contact.id===0)&&activeIdx!==-2}
                 onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();sendText();}}}
                 className="flex-1 bg-transparent outline-none text-[12px] md:text-[13px] placeholder:text-white/15 px-1.5 md:px-2 disabled:opacity-20"/>
-              <button onClick={sendText} disabled={!input.trim()||!contact||contact.id===0} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center transition-all active:scale-90 ${input.trim()&&contact&&contact.id>0?"bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100":"text-white/20 scale-95"}`}><Send size={13}/></button>
+              <button onClick={sendText} disabled={!input.trim()||((!contact||contact.id===0)&&activeIdx!==-2)} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center transition-all active:scale-90 ${(input.trim()&&contact&&contact.id>0)||(input.trim()&&activeIdx===-2)?"bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100":"text-white/20 scale-95"}`}><Send size={13}/></button>
             </div>
           </div>
         </div>

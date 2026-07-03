@@ -1,11 +1,30 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from "react"
 import { useAuth } from "./AuthProvider"
+
+export interface WsMessage {
+  type: string
+  content?: string
+  sender_id?: number
+  sender_username?: string
+  username?: string
+  msg_type?: string
+  time?: string
+  file_name?: string
+  file_url?: string
+  id?: number
+  conversation_id?: number
+  [key: string]: any
+}
 
 interface OnlineContextType {
   onlineUsers: Set<number>
+  subscribe: (handler: (msg: WsMessage) => void) => () => void
 }
 
-const OnlineContext = createContext<OnlineContextType>({ onlineUsers: new Set() })
+const OnlineContext = createContext<OnlineContextType>({
+  onlineUsers: new Set(),
+  subscribe: () => () => {},
+})
 
 export const useOnlineStatus = () => useContext(OnlineContext)
 
@@ -14,6 +33,12 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
   const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set())
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>()
+  const handlersRef = useRef<Set<(msg: WsMessage) => void>>(new Set())
+
+  const subscribe = useCallback((handler: (msg: WsMessage) => void) => {
+    handlersRef.current.add(handler)
+    return () => { handlersRef.current.delete(handler) }
+  }, [])
 
   const connect = () => {
     if (!user) return
@@ -23,13 +48,15 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
     )
     wsRef.current = ws
 
-    ws.onopen = () => console.log("[Online WS] connected")
+    ws.onopen = () => console.log("[WS] connected")
     ws.onmessage = (e) => {
       try {
-        const d = JSON.parse(e.data)
+        const d: WsMessage = JSON.parse(e.data)
         if (d.type === "online" && d.users) {
           setOnlineUsers(new Set(d.users.map((u: any) => u.user_id)))
         }
+        // 转发所有消息类型到订阅者
+        handlersRef.current.forEach(h => h(d))
       } catch { /* ignore */ }
     }
     ws.onclose = (e) => {
@@ -42,7 +69,6 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     connect()
-    // 每 15s 从 API 同步在线状态（WebSocket 兜底）
     const poll = async () => {
       if (!user) return
       try {
@@ -67,7 +93,7 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
   }, [user?.id])
 
   return (
-    <OnlineContext.Provider value={{ onlineUsers }}>
+    <OnlineContext.Provider value={{ onlineUsers, subscribe }}>
       {children}
     </OnlineContext.Provider>
   )
