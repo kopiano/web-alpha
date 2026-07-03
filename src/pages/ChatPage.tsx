@@ -4,30 +4,44 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useOnlineStatus } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
-import { fetchConversations, createConversation, fetchConversationMessages, sendChatMessage } from "@/api/chat";
-import { getUsers } from "@/api/user";
+import { createConversation, fetchConversationMessages, sendChatMessage, getChatUserInfo, markConversationRead } from "@/api/chat";
+// import { getUsers } from "@/api/user";
 
 /* ─── Types ─── */
 interface ChatUser { id: number; username: string; email?: string; avatar?: string; status?: string; last_login_at?: string; }
 interface ChatMsg { id?: number; user_id: number; username?: string; sender_username?: string; avatar?: string; type: string; content: string; file_name?: string; file_url?: string; CreatedAt?: string; created_at?: string; }
-interface Contact { id: number; name: string; avatar: string; lastMsg: string; time: string; unread: number; online: boolean; userData?: ChatUser; lastSeen?: string; convId?: number; }
+interface Contact { id: number; name: string; avatar: string; lastMsg: string; time: string; lastTimeRaw: string; unread: number; online: boolean; userData?: ChatUser; lastSeen?: string; convId?: number; }
 interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; fileName?: string; fileSize?: string; fileData?: string; username?: string; }
 
 const AVATAR_GRADS = ["from-violet-500 to-cyan-400","from-pink-500 to-violet-500","from-cyan-400 to-blue-500","from-emerald-400 to-cyan-400","from-fuchsia-500 to-pink-500","from-violet-500 to-fuchsia-500","from-blue-400 to-cyan-400"];
 const EMOJI_LIST = ["😀","😃","😄","😁","😆","😅","😂","🤣","😊","😇","🙂","😉","😍","😘","😋","😎","🤩","🥳","🤔","🤗","👍","👌","👏","🙌","💪","🙏","🎉","✨","🔥","🚀","💯","❤️"];
 
 function initials(n: string) { return n?.slice(0,2).toUpperCase()||"??"; }
-function timeFmt(ts: string) { if(!ts) return ""; try{return new Date(ts).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true});}catch{return ts;} }
+function timeFmt(ts: string) {
+  if(!ts) return "";
+  try {
+    const d = new Date(ts);
+    const now = new Date();
+    const time = d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true});
+    // 不是今天的消息显示日期+时间
+    if (d.toDateString() !== now.toDateString()) {
+      const mm = String(d.getMonth()+1).padStart(2,"0");
+      const dd = String(d.getDate()).padStart(2,"0");
+      return `${mm}-${dd} ${time}`;
+    }
+    return time;
+  } catch { return ts; }
+}
 function ago(iso: string) { if(!iso) return ""; const d=Math.max(0,Math.floor((Date.now()-new Date(iso).getTime())/1000)); if(d<60) return "just now"; if(d<3600) return `${Math.floor(d/60)}m ago`; if(d<86400) return `${Math.floor(d/3600)}h ago`; if(d<604800) return `${Math.floor(d/86400)}d ago`; return ""; }
 
 function buildContact(u: ChatUser, lastMsg: string, lastTime: string): Contact {
-  return { id: u.id, name: u.username, avatar: initials(u.username), lastMsg, time: timeFmt(lastTime), unread: 0, online: false, userData: u, lastSeen: u.last_login_at||"" };
+  return { id: u.id, name: u.username, avatar: initials(u.username), lastMsg, time: timeFmt(lastTime), lastTimeRaw: lastTime, unread: 0, online: false, userData: u, lastSeen: u.last_login_at||"" };
 }
 
 const ChatPage = () => {
   const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [activeIdx, setActiveIdx] = useState(0);
+  const [activeIdx, setActiveIdx] = useState(-1);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
@@ -44,6 +58,7 @@ const ChatPage = () => {
   const midRef = useRef(0);
   const meRef = useRef("Me");
   const activeContactIdRef = useRef(0);
+  const activeConvIdRef = useRef(0);
   const msgCacheRef = useRef<Map<number, Message[]>>(new Map());
 
   const me = user;
@@ -53,29 +68,34 @@ const ChatPage = () => {
   const meAvatar = me?.avatar ? resolveAvatar(me.avatar) : null;
   meRef.current = meName;
 
-  /* ─── WebSocket ─── */
+  /* ─── WebSocket (direct connection for messages) ─── */
   const connectWS = useCallback(() => {
     try {
       const p = location.protocol==="https:"?"wss:":"ws:";
       const ws = new WebSocket(`${p}//${location.host}/api/v1/chat/ws?user_id=${meId}&username=${encodeURIComponent(meRef.current)}&avatar=${encodeURIComponent(meInit)}`);
       wsRef.current = ws;
-      ws.onopen = () => console.log("[WS] ok");
       ws.onmessage = (e) => {
         try {
           const d = JSON.parse(e.data);
           if(d.type==="message"&&d.content) {
             const isMe = d.username===meRef.current||d.sender_username===meRef.current;
             if(isMe) return;
-            // 只显示当前选中联系人的消息
-            if(activeContactIdRef.current>0&&d.sender_id!==activeContactIdRef.current) {
-              // 不在当前聊天 → 缓存
+            const msgTime = d.time || timeFmt(new Date().toISOString())
+            // 不是当前会话 → 只更新 sidebar 和缓存
+            if(activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
+              setContacts(prev => prev.map(c =>
+                c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime, unread: (c.unread||0) + 1 } : c
+              ))
               const cached = msgCacheRef.current.get(d.sender_id) || []
-              msgCacheRef.current.set(d.sender_id, [...cached, {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username}])
+              msgCacheRef.current.set(d.sender_id, [...cached, {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:msgTime,fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username}])
               return
             }
+            // 更新联系人列表
+            setContacts(prev => prev.map(c =>
+              c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime } : c
+            ))
             const newMsg: Message = {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username}
             setMessages(p=>[...p,newMsg])
-            // 同时更新缓存
             const cached = msgCacheRef.current.get(d.sender_id) || []
             msgCacheRef.current.set(d.sender_id, [...cached, {...newMsg}])
             setIsTyping(true); setTimeout(()=>setIsTyping(false),1500);
@@ -83,7 +103,7 @@ const ChatPage = () => {
           if(d.type==="recall") setMessages(p=>p.map(m=>m.id===d.msg_id?{...m,content:"[Message recalled]",type:"text"}:m));
         } catch {}
       };
-      ws.onclose = (e) => { if(e.code!==1000) setTimeout(connectWS,3000); };
+      ws.onclose = (e) => { if(e.code!==1000) setTimeout(connectWS,2000); };
       ws.onerror = () => { if(ws.readyState===WebSocket.OPEN) ws.close(); };
     } catch {}
   }, [meInit, meId]);
@@ -91,43 +111,43 @@ const ChatPage = () => {
   /* ─── Load data ─── */
   const loadAll = useCallback(() => {
     const my = meRef.current;
-    Promise.all([
-      getUsers(),
-      fetchConversations().catch(() => ({ data: { data: { conversations: [] } } })),
-    ]).then(([userRes, convRes]) => {
-      const users: ChatUser[] = userRes.data?.data ?? [];
-      const convs: any[] = convRes.data?.data?.conversations ?? [];
-
-      // 创建 conversation_id → conv 映射
-      const convMap = new Map<number, any>()
-      convs.forEach((conv: any) => {
-        conv.members?.forEach((m: any) => convMap.set(m.user_id, conv))
-      })
-
-      const cs = users
-        .filter(u => u.id !== me?.id)
-        .map(u => {
-          const conv = convMap.get(u.id)
-          const lastMsg = conv?.last_message?.content ?? ""
-          const lastTime = conv?.last_message?.created_at ?? ""
-          const contact = buildContact(u, lastMsg, lastTime)
-          if (conv) contact.convId = conv.id
+    getChatUserInfo().then(res => {
+      const rawContacts: any[] = res.data?.data?.contacts ?? [];
+      if (!rawContacts.length) { console.warn("getChatUserInfo: empty contacts", res.data); }
+      const cs = rawContacts
+        .filter((c: any) => c.user_id !== me?.id)
+        .map((c: any) => {
+          const u: ChatUser = { id: c.user_id, username: c.username, avatar: c.avatar, status: c.online ? "active" : "inactive" }
+          const contact = buildContact(u, c.last_msg || "", c.last_time || "")
+          contact.online = c.online
+          contact.unread = c.unread || 0
+          if (c.avatar) contact.userData = u
           return contact
         })
 
       // 恢复上次选中的联系人
       const savedId = localStorage.getItem("chat_active_contact")
-      let initialContactIdx = 0
-      if (savedId) {
+      let initialContactIdx = -1
+      let firstContactId = 0
+      let firstConvId = 0
+      if (savedId && cs.length > 0) {
         const savedIdx = cs.findIndex(c => c.id === Number(savedId))
-        if (savedIdx >= 0) initialContactIdx = savedIdx
+        if (savedIdx >= 0) {
+          initialContactIdx = savedIdx
+          firstContactId = cs[savedIdx].id
+          firstConvId = cs[savedIdx].convId || 0
+        }
       }
-      setContacts(cs.length ? cs : [{ id: 0, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", unread: 0, online: false }])
+      setContacts(cs.length ? cs : [{ id: 0, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }])
       setActiveIdx(initialContactIdx)
+      if (initialContactIdx >= 0) {
+        activeContactIdRef.current = firstContactId
+        activeConvIdRef.current = firstConvId
+      }
 
-      // 自动加载第一个/上次选中联系人的消息
-      if (cs.length > 0) {
-        const targetId = cs[initialContactIdx]?.id || cs[0].id
+      // 有保存的联系人则自动加载消息
+      if (initialContactIdx >= 0 && cs.length > 0) {
+        const targetId = firstContactId
         const convId = cs[0].convId
         const toMessages = (msgs: ChatMsg[]): Message[] =>
           msgs.map(m => ({
@@ -159,7 +179,7 @@ const ChatPage = () => {
           }).catch(e => console.error("Create conversation failed:", e))
         }
       }
-    }).catch(() => setContacts([{ id: 0, name: "Server offline", avatar: "!!", lastMsg: "Backend not reachable", time: "", unread: 0, online: false }]))
+    }).catch(e => { console.error("Load contacts failed:", e); setContacts([{ id: 0, name: "Server offline", avatar: "!!", lastMsg: "Backend not reachable", time: "", lastTimeRaw: "", unread: 0, online: false }]); })
       .finally(() => setLoading(false))
   }, [me?.id])
 
@@ -169,51 +189,49 @@ const ChatPage = () => {
     if (cached) setMessages(cached)
 
     const my = meRef.current
-    fetchConversations().then(convRes => {
-      const convs: any[] = convRes.data?.data?.conversations ?? []
-      let convId: number | null = null
-      for (const conv of convs) {
-        const found = conv.members?.find((m: any) => m.user_id === userId)
-        if (found) { convId = conv.id; break }
-      }
 
-      const toMessages = (msgs: ChatMsg[]): Message[] =>
-        msgs.map(m => ({
-          id: ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
-          type: (m.type as any) || "text", content: m.content,
-          time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
-          fileData: m.file_url, username: m.sender_username || m.username || ""
-        }))
+    const toMessages = (msgs: ChatMsg[]): Message[] =>
+      msgs.map(m => ({
+        id: ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
+        type: (m.type as any) || "text", content: m.content,
+        time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
+        fileData: m.file_url, username: m.sender_username || m.username || ""
+      }))
 
-      const loadMsgs = (cid: number) => {
-        fetchConversationMessages(cid, { limit: 500 }).then(res => {
-          const d = res.data?.data
-          if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return }
-          const parsed = toMessages(d?.messages ?? [])
-          msgCacheRef.current.set(userId, parsed)
-          setMessages(parsed)
-        }).catch(e => console.error("Load messages failed:", e))
-      }
+    const loadMsgs = (cid: number) => {
+      fetchConversationMessages(cid, { limit: 500 }).then(res => {
+        const d = res.data?.data
+        if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return }
+        const apiMsgs = toMessages(d?.messages ?? [])
+        const cached = msgCacheRef.current.get(userId) || []
+        const apiIds = new Set(apiMsgs.map(m => m.id))
+        const newCached = cached.filter(m => !apiIds.has(m.id))
+        const merged = [...apiMsgs, ...newCached]
+        msgCacheRef.current.set(userId, merged)
+        setMessages(merged)
+      }).catch(e => console.error("Load messages failed:", e))
+    }
 
-      if (convId) {
-        loadMsgs(convId)
-      } else {
-        createConversation(userId).then(r => {
-          const newConv = r.data?.data
-          if (newConv?.id) loadMsgs(newConv.id)
-        }).catch(e => console.error("Create conversation failed:", e))
-      }
-    }).catch(e => console.error("Fetch conversations failed:", e))
+    // 通过 createConversation 获取会话 ID（查找或创建）
+    createConversation(userId).then(r => {
+      const newConv = r.data?.data
+      if (newConv?.id) loadMsgs(newConv.id)
+    }).catch(e => console.error("Create conversation failed:", e))
   }, []);
 
-  useEffect(()=>{if(!me)return;connectWS();loadAll();return()=>{const w=wsRef.current;if(w&&w.readyState!==WebSocket.CONNECTING)w.close(1000);};},[me]);
+  useEffect(()=>{if(!me){setLoading(false);return;}connectWS();loadAll();return()=>{const w=wsRef.current;if(w&&w.readyState!==WebSocket.CONNECTING)w.close(1000);};},[me]);
 
   /* ─── Switch contact → load private messages ─── */
   const switchContact = (contactId: number) => {
     const idx = contacts.findIndex(c=>c.id===contactId);
     if(idx<0) return;
     setActiveIdx(idx);
+    activeContactIdRef.current = contactId;
+    activeConvIdRef.current = contacts[idx]?.convId || 0;
     localStorage.setItem("chat_active_contact", String(contactId));
+    // 标记已读：调用后端 API（不改变本地 unread，避免排序跳动）
+    const convId = contacts[idx]?.convId
+    if (convId) markConversationRead(convId).catch(() => {})
     loadForUser(contactId);
     if (window.innerWidth < 768) setShowMobileContacts(false);
   };
@@ -241,10 +259,32 @@ const ChatPage = () => {
   useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:"smooth"});},[messages.length]);
 
   const grad = (i: number) => AVATAR_GRADS[i%7];
-  const online = (c: Contact) => onlineUsers.has(c.id)||String(c.userData?.status||"").toLowerCase()==="active";
+  const online = (c: Contact) => c.online;
+  const activeContactId = activeIdx >= 0 ? contacts[activeIdx]?.id : null
   const filtered = contacts
     .filter(c=>c.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    .sort((a,b)=>(online(b)?1:0)-(online(a)?1:0));
+    .sort((a,b) => {
+      const aOn = online(a) ? 1 : 0
+      const bOn = online(b) ? 1 : 0
+      if (aOn !== bOn) return bOn - aOn
+      // 在线：按最新消息 → 有头像 → 名称
+      if (aOn && bOn) {
+        const aTime = a.lastTimeRaw || ""
+        const bTime = b.lastTimeRaw || ""
+        if (aTime && bTime && aTime !== bTime) return bTime.localeCompare(aTime)
+        if (aTime && !bTime) return -1
+        if (!aTime && bTime) return 1
+        const aAv = a.userData?.avatar ? 1 : 0
+        const bAv = b.userData?.avatar ? 1 : 0
+        if (aAv !== bAv) return bAv - aAv
+        return a.name.localeCompare(b.name)
+      }
+      // 离线：按有头像 → 名称
+      const aAv = a.userData?.avatar ? 1 : 0
+      const bAv = b.userData?.avatar ? 1 : 0
+      if (aAv !== bAv) return bAv - aAv
+      return a.name.localeCompare(b.name)
+    });
   const contact = contacts[activeIdx];
 
   useEffect(()=>{activeContactIdRef.current=contact?.id||0;},[contact]);
@@ -262,7 +302,7 @@ const ChatPage = () => {
       <Sidebar/>
 
       {/* Main glass panel */}
-      <div className="relative z-10 w-full max-w-[1600px] h-screen md:h-[calc(100vh-72px)] flex flex-col md:flex-row ml-0 lg:ml-24 pb-0 rounded-none md:rounded-[20px] lg:rounded-[32px] overflow-hidden"
+      <div className="relative z-10 w-full max-w-[1600px] h-screen md:h-[calc(100vh-72px)] flex flex-col md:flex-row ml-0 lg:ml-24 mr-0 lg:mr-[30px] pb-0 rounded-none md:rounded-[20px] lg:rounded-[32px] overflow-hidden"
         style={{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(30px) saturate(180%)",WebkitBackdropFilter:"blur(30px) saturate(180%)",border:"1px solid rgba(255,255,255,0.12)",boxShadow:"0 32px 80px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)"}}>
 
         {/* LEFT — Glass sidebar (redesigned) */}
@@ -277,8 +317,8 @@ const ChatPage = () => {
                 <h2 className="text-xl md:text-[24px] font-bold tracking-tight" style={{background:"linear-gradient(135deg, #fff, #c4b5fd, #67e8f9)",WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent"}}>Chat</h2>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-medium text-white/30 bg-white/[0.05] px-2.5 py-1 rounded-full border border-white/[0.06]">{contacts.filter(c=>c.id!==0).length}</span>
-                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-400/20">{onlineUsers.size}</span>
+                <span className="text-[10px] font-medium text-white/40 w-7 h-7 rounded-full grid place-items-center border border-white/20">{contacts.filter(c=>c.id!==0).length}</span>
+                <span className="text-[10px] font-medium text-emerald-400/70 w-7 h-7 rounded-full grid place-items-center border border-emerald-400/30">{contacts.filter(c => c.online).length}</span>
               </div>
             </div>
             <div className="relative">
@@ -333,10 +373,12 @@ const ChatPage = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline">
                       <p className="text-[15px] font-medium truncate" style={{color:isActive?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.8)"}}>{c.name}</p>
-                      <span className="text-[10px] text-white/25 ml-1.5 shrink-0 font-mono">{c.time}</span>
+                      <span className="text-[10px] text-white/25 font-mono shrink-0 ml-1.5">{c.time}</span>
                     </div>
-                    <p className="text-[12px] truncate mt-0.5" style={{color:isActive?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.25)"}}>{c.lastMsg||(on?"Say hi 👋":"")}</p>
-                    {c.unread>0&&!isActive&&<span className="text-[9px] font-bold bg-emerald-400 text-white min-w-[18px] h-[18px] rounded-full grid place-items-center leading-none mt-1 shadow-[0_0_8px_rgba(52,211,153,0.4)]">{c.unread>99?"99+":c.unread}</span>}
+                    <div className="flex justify-between items-center mt-0.5">
+                      <p className="text-[12px] truncate" style={{color:isActive?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.25)"}}>{c.lastMsg || ""}</p>
+                      {c.unread>0&&<span className={`w-[16px] h-[16px] rounded-full grid place-items-center text-[8px] font-medium text-white/35 border border-white/20 leading-none shrink-0 ml-1.5 ${isActive?"hidden":""}`}>{c.unread>99?"99+":c.unread}</span>}
+                    </div>
                   </div>
                 </button>
               );

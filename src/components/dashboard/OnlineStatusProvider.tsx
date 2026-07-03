@@ -42,7 +42,23 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     connect()
+    // 每 15s 从 API 同步在线状态（WebSocket 兜底）
+    const poll = async () => {
+      if (!user) return
+      try {
+        const token = localStorage.getItem("token")
+        const res = await fetch("/api/v1/chat/user_info", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        })
+        const data = await res.json()
+        const contacts = data?.data?.contacts ?? []
+        setOnlineUsers(new Set(contacts.filter((c: any) => c.online).map((c: any) => c.user_id)))
+      } catch { /* ignore */ }
+    }
+    const timer = setInterval(poll, 15000)
+    poll()
     return () => {
+      clearInterval(timer)
       clearTimeout(reconnectTimer.current)
       if (wsRef.current && wsRef.current.readyState !== WebSocket.CONNECTING) {
         wsRef.current.close(1000)

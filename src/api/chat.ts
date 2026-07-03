@@ -4,8 +4,17 @@ import request from './request'
  * 获取当前用户的会话列表（含最后一条消息、未读数）
  * GET /api/v1/chat/conversations
  */
-export function fetchConversations() {
-  return request.get('/chat/conversations')
+
+// export function fetchConversations() {
+//   return request.get('/chat/conversations')
+// }
+
+/**
+ * 获取当前用户的联系人列表（含在线状态、最新消息）
+ * GET /api/v1/chat/user_info
+ */
+export function getChatUserInfo() {
+  return request.get('/chat/user_info')
 }
 
 /**
@@ -44,4 +53,12 @@ export function sendChatMessage(msg: {
  */
 export function recallMessage(msgId: number) {
   return request.put(`/chat/messages/${msgId}/recall`)
+}
+
+/**
+ * 标记会话已读
+ * PUT /api/v1/chat/conversations/:id/read
+ */
+export function markConversationRead(convId: number) {
+  return request.put(`/chat/conversations/${convId}/read`)
 }
