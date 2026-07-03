@@ -4,12 +4,7 @@ export function login(data) {
   return request.post('/login', data)
 }
 
-export function register(data, isFormData) {
-  if (isFormData) {
-    return request.post('/register', data, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-  }
+export function register(data) {
   return request.post('/register', data)
 }
 

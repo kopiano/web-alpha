@@ -1,57 +1,34 @@
+
+
+
 import request from './request'
 
-/**
- * 获取当前用户的联系人列表（含在线状态、最新消息）
- * GET /api/v1/chat/user_info
- */
+/** GET /api/v1/chat/user_info — 联系人列表 + 团队信息 */
 export function getChatUserInfo() {
   return request.get('/chat/user_info')
 }
 
-/**
- * 获取团队群聊信息
- * GET /api/v1/chat/team
- */
-export function getTeamInfo() {
-  return request.get('/chat/team')
-}
-
-/**
- * 获取/创建与指定用户的私聊会话
- * POST /api/v1/chat/conversations
- */
-export function createConversation(userId) {
-  return request.post('/chat/conversations', { user_id: userId })
-}
-
-/**
- * 获取会话消息列表
- * GET /api/v1/chat/conversations/:id/messages
- */
+/** GET /api/v1/chat/:id/messages — 获取会话消息 */
 export function fetchConversationMessages(convId, params) {
-  return request.get(`/chat/conversations/${convId}/messages`, { params: params || {} })
+  return request.get(`/chat/${convId}/messages`, { params: params || {} })
 }
 
-/**
- * 发送聊天消息
- * POST /api/v1/chat/messages
- */
+/** POST /api/v1/chat/messages — 发送消息 (recipient_id/message_type/content) */
 export function sendChatMessage(msg) {
   return request.post('/chat/messages', msg)
 }
 
-/**
- * 撤回消息
- * PUT /api/v1/chat/messages/:id/recall
- */
-export function recallMessage(msgId) {
-  return request.put(`/chat/messages/${msgId}/recall`)
+/** GET /api/v1/chat/team — 获取团队群组信息 */
+export function getTeamInfo() {
+  return request.get('/chat/team')
 }
 
-/**
- * 标记会话已读
- * PUT /api/v1/chat/conversations/:id/read
- */
+/** POST /api/v1/chat/conversations — 创建/获取私聊会话 */
+export function createConversation(userId) {
+  return request.post('/chat/conversations', { user_id: userId })
+}
+
+/** PUT /api/v1/chat/:id/read — 标记会话已读 */
 export function markConversationRead(convId) {
-  return request.put(`/chat/conversations/${convId}/read`)
+  return request.put(`/chat/${convId}/read`)
 }

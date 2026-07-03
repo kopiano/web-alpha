@@ -242,8 +242,6 @@ text-xs font-semibold transition-all ${
               onMouseLeave={() => setHoverIdx(null)}
             />
           ))}
-        </svg>
-
         {/* Hover tooltip */}
         {hoverIdx !== null && (
           <div
@@ -276,6 +274,7 @@ text-xs font-semibold transition-all ${
             );
           })}
         </g>
+        </svg>
       </div>
 
       {/* Bottom stats */}

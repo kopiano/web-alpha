@@ -3,6 +3,7 @@ import { useAuth } from "./AuthProvider"
 
 export interface WsMessage {
   type: string
+  chat_type?: string
   content?: string
   sender_id?: number
   sender_username?: string

@@ -4,14 +4,14 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useOnlineStatus, type WsMessage } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
-import { createConversation, fetchConversationMessages, sendChatMessage, getChatUserInfo, getTeamInfo, markConversationRead } from "@/api/chat";
+import { fetchConversationMessages, sendChatMessage, getChatUserInfo, createConversation, getTeamInfo, markConversationRead } from "@/api/chat";
 import teamAvatar from "@/assets/teamGroup.png";
 // import { getUsers } from "@/api/user";
 
 /* ─── Types ─── */
 interface ChatUser { id: number; username: string; email?: string; avatar?: string; status?: string; last_login_at?: string; }
-interface ChatMsg { id?: number; user_id: number; username?: string; sender_username?: string; avatar?: string; type: string; content: string; file_name?: string; file_url?: string; CreatedAt?: string; created_at?: string; }
-interface Contact { id: number; name: string; avatar: string; lastMsg: string; time: string; lastTimeRaw: string; unread: number; online: boolean; userData?: ChatUser; lastSeen?: string; convId?: number; }
+interface ChatMsg { id?: number; user_id: number; username?: string; sender_username?: string; sender_avatar?: string; avatar?: string; type: string; content: string; file_name?: string; file_url?: string; CreatedAt?: string; created_at?: string; }
+interface Contact { id: number; name: string; avatar: string; lastMsg: string; time: string; lastTimeRaw: string; unread: number; online: boolean; userData?: ChatUser; lastSeen?: string; convId?: string; }
 interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; fileName?: string; fileSize?: string; fileData?: string; username?: string; senderAvatar?: string; }
 
 const AVATAR_GRADS = ["from-violet-500 to-cyan-400","from-pink-500 to-violet-500","from-cyan-400 to-blue-500","from-emerald-400 to-cyan-400","from-fuchsia-500 to-pink-500","from-violet-500 to-fuchsia-500","from-blue-400 to-cyan-400"];
@@ -52,6 +52,8 @@ const ChatPage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const { onlineUsers, subscribe } = useOnlineStatus();
   const [teamConv, setTeamConv] = useState<{ id: number; name: string; members: { user_id: number; username?: string; avatar?: string }[] } | null>(null);
+  const teamConvRef = useRef(teamConv);
+  useEffect(() => { teamConvRef.current = teamConv; }, [teamConv]);
   const [previewImg, setPreviewImg] = useState<string|null>(null);
   const [loading, setLoading] = useState(true);
   const [showMobileContacts, setShowMobileContacts] = useState(true);
@@ -61,8 +63,9 @@ const ChatPage = () => {
   const midRef = useRef(0);
   const meRef = useRef("Me");
   const activeContactIdRef = useRef(0);
-  const activeConvIdRef = useRef(0);
+  const activeConvIdRef = useRef("");
   const msgCacheRef = useRef<Map<number, Message[]>>(new Map());
+  const loadAllRef = useRef<() => void>(() => {});
 
   const me = user;
   const meName = me?.username||"Me";
@@ -74,18 +77,24 @@ const ChatPage = () => {
   /* ─── WebSocket messages via global provider ─── */
   useEffect(() => {
     const unsub = subscribe((d: WsMessage) => {
+      if(d.type==="user_registered"&&d.user_id!==meRef.current) {
+        loadAllRef.current()
+        return
+      }
       if(d.type==="message"&&d.content) {
         const isMe = d.username===meRef.current||d.sender_username===meRef.current;
         if(isMe) return;
         const msgTime = d.time || timeFmt(new Date().toISOString())
-        // 群聊消息不更新联系人最新消息
-        const isTeamMsg = teamConv?.id && d.conversation_id === teamConv.id
-        if(!isTeamMsg && activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
+        // 群聊消息：不更新联系人，只在查看群聊时显示
+        const isTeamMsg = d.chat_type === "group"
+        if(isTeamMsg) {
+          if(activeConvIdRef.current !== d.conversation_id) return
+        } else if(activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
           setContacts(prev => prev.map(c =>
             c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime, unread: (c.unread||0) + 1 } : c
           ))
           const cached = msgCacheRef.current.get(d.sender_id) || []
-          msgCacheRef.current.set(d.sender_id, [...cached, {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:msgTime,fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}])
+          msgCacheRef.current.set(d.sender_id, [...cached, {id:d.id||++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:msgTime,fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}])
           return
         }
         if(!isTeamMsg) {
@@ -93,7 +102,7 @@ const ChatPage = () => {
             c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime } : c
           ))
         }
-        const newMsg: Message = {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}
+        const newMsg: Message = {id:d.id||++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}
         setMessages(p=>[...p,newMsg])
         const cached = msgCacheRef.current.get(d.sender_id) || []
         msgCacheRef.current.set(d.sender_id, [...cached, {...newMsg}])
@@ -110,14 +119,8 @@ const ChatPage = () => {
     getChatUserInfo().then(res => {
       const body = res.data?.data || {};
       const rawContacts: any[] = body.contacts ?? [];
-      // 团队群聊 — 从主接口或单独获取
       if (body.team?.id) {
         setTeamConv({ id: body.team.id, name: body.team.name || "Team", members: body.team.members || [] })
-      } else {
-        getTeamInfo().then(tres => {
-          const t = tres.data?.data
-          if (t?.id) setTeamConv({ id: t.id, name: t.name || "Team", members: t.members || [] })
-        }).catch(() => {})
       }
       const cs = rawContacts
         .filter((c: any) => c.user_id !== me?.id)
@@ -127,6 +130,7 @@ const ChatPage = () => {
           contact.online = c.online
           contact.unread = c.unread || 0
           if (c.avatar) contact.userData = u
+          contact.convId = c.conversation_id || undefined
           return contact
         })
 
@@ -134,13 +138,13 @@ const ChatPage = () => {
       const savedId = localStorage.getItem("chat_active_contact")
       let initialContactIdx = -1
       let firstContactId = 0
-      let firstConvId = 0
+      let firstConvId = ""
       if (savedId && cs.length > 0) {
         const savedIdx = cs.findIndex(c => c.id === Number(savedId))
         if (savedIdx >= 0) {
           initialContactIdx = savedIdx
           firstContactId = cs[savedIdx].id
-          firstConvId = cs[savedIdx].convId || 0
+          firstConvId = cs[savedIdx].convId || ""
         }
       }
       setContacts(cs.length ? cs : [{ id: 0, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }])
@@ -153,15 +157,16 @@ const ChatPage = () => {
       // 有保存的联系人则自动加载消息
       if (initialContactIdx >= 0 && cs.length > 0) {
         const targetId = firstContactId
-        const convId = cs[0].convId
+        const convId = firstConvId
         const toMessages = (msgs: ChatMsg[]): Message[] =>
           msgs.map(m => ({
-            id: ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
+            id: m.id || ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
             type: (m.type as any) || "text", content: m.content,
             time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
-            fileData: m.file_url, username: m.sender_username || m.username || ""
+            fileData: m.file_url, username: m.sender_username || m.username || "",
+            senderAvatar: m.sender_avatar || ""
           }))
-        const loadMsgs = (cid: number, uid: number) => {
+        const loadMsgs = (cid: string, uid: number) => {
           fetchConversationMessages(cid, { limit: 500 }).then(res => {
             const d = res.data?.data
             if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return }
@@ -177,9 +182,9 @@ const ChatPage = () => {
           // 没有会话 → 创建
           createConversation(targetId).then(r => {
             const newConv = r.data?.data
-            if (newConv?.id) {
-              cs[0].convId = newConv.id
-              loadMsgs(newConv.id, targetId)
+            if (newConv?.conversation_id) {
+              cs[0].convId = newConv.conversation_id
+              loadMsgs(newConv.conversation_id, targetId)
             }
           }).catch(e => console.error("Create conversation failed:", e))
         }
@@ -187,6 +192,8 @@ const ChatPage = () => {
     }).catch(e => { console.error("Load contacts failed:", e); setContacts([{ id: 0, name: "Server offline", avatar: "!!", lastMsg: "Backend not reachable", time: "", lastTimeRaw: "", unread: 0, online: false }]); getTeamInfo().then(tres=>{const t=tres.data?.data;if(t?.id)setTeamConv({id:t.id,name:t.name||"Team",members:t.members||[]})}).catch(()=>{}); })
       .finally(() => setLoading(false))
   }, [me?.id])
+  // 同步 loadAllRef，避免 WebSocket 闭包中的 TDZ 问题
+  useEffect(() => { loadAllRef.current = loadAll; }, [loadAll]);
 
   const loadForUser = useCallback((userId: number) => {
     // 先显示缓存（如果有），同时后台刷新
@@ -197,13 +204,14 @@ const ChatPage = () => {
 
     const toMessages = (msgs: ChatMsg[]): Message[] =>
       msgs.map(m => ({
-        id: ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
+        id: m.id || ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
         type: (m.type as any) || "text", content: m.content,
-        time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
-        fileData: m.file_url, username: m.sender_username || m.username || ""
+       time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
+        fileData: m.file_url, username: m.sender_username || m.username || "",
+        senderAvatar: m.sender_avatar || ""
       }))
 
-    const loadMsgs = (cid: number) => {
+    const loadMsgs = (cid: string) => {
       fetchConversationMessages(cid, { limit: 500 }).then(res => {
         const d = res.data?.data
         if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return }
@@ -220,7 +228,7 @@ const ChatPage = () => {
     // 通过 createConversation 获取会话 ID（查找或创建）
     createConversation(userId).then(r => {
       const newConv = r.data?.data
-      if (newConv?.id) loadMsgs(newConv.id)
+      if (newConv?.conversation_id) loadMsgs(newConv.conversation_id)
     }).catch(e => console.error("Create conversation failed:", e))
   }, []);
 
@@ -232,18 +240,23 @@ const ChatPage = () => {
     if(idx<0) return;
     setActiveIdx(idx);
     activeContactIdRef.current = contactId;
-    activeConvIdRef.current = contacts[idx]?.convId || 0;
+    activeConvIdRef.current = contacts[idx]?.convId || "";
     localStorage.setItem("chat_active_contact", String(contactId));
-    // 标记已读：调用后端 API（不改变本地 unread，避免排序跳动）
+    // 清空旧消息，防止切换时看到上一个联系人的消息
+    setMessages([]);
+    // 标记已读：调用后端 API + 更新本地未读计数
     const convId = contacts[idx]?.convId
-    if (convId) markConversationRead(convId).catch(() => {})
+    if (convId) {
+      markConversationRead(convId).catch(() => {})
+      setContacts(prev => prev.map(c => c.id === contactId ? { ...c, unread: 0 } : c))
+    }
     loadForUser(contactId);
     if (window.innerWidth < 768) setShowMobileContacts(false);
   };
 
   /* ─── Send ─── */
   const sendMsg = useCallback((type: string, content: string, fileName?: string, fileData?: string) => {
-    const isTeam = activeContactIdRef.current === -1
+    const isTeam = activeIdx === -2
     const local: Message = {id:++midRef.current,sender:"me",type:type as any,content,time:timeFmt(new Date().toISOString()),fileName,fileData};
     setMessages(p=>[...p,local]);
     let messageType = 1;
@@ -251,12 +264,10 @@ const ChatPage = () => {
     else if (type==="image") messageType = 3;
     else if (type==="file") messageType = 4;
     if (isTeam && teamConv) {
-      sendChatMessage({recipient_id:0, message_type:messageType, content, conversation_id: teamConv.id, file_name:fileName||"", file_url:fileData||""}).catch(e=>console.error("Send failed:", e));
+      sendChatMessage({chat_type:"group", group_id: teamConv.id, message_type:messageType, content, file_name:fileName||"", file_url:fileData||""}).catch(e=>console.error("Send failed:", e));
     } else {
       const c = contacts[activeIdx];
-      const cached = msgCacheRef.current.get(c?.id) || []
-      msgCacheRef.current.set(c?.id, [...cached, {...local}])
-      sendChatMessage({recipient_id:c?.id||0,message_type:messageType,content,file_name:fileName||"",file_url:fileData||""}).catch(e=>console.error("Send failed:", e));
+      sendChatMessage({chat_type:"private",receiver_id:c?.id||0,message_type:messageType,content,file_name:fileName||"",file_url:fileData||""}).catch(e=>console.error("Send failed:", e));
     }
   }, [contacts,activeIdx,teamConv]);
 
@@ -268,6 +279,11 @@ const ChatPage = () => {
   useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:"smooth"});},[messages.length]);
 
   const grad = (i: number) => AVATAR_GRADS[i%7];
+  const userGrad = (name: string) => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) { hash = name.charCodeAt(i) + ((hash << 5) - hash); }
+    return AVATAR_GRADS[Math.abs(hash) % 7];
+  }
   const online = (c: Contact) => c.online;
   const activeContactId = activeIdx >= 0 ? contacts[activeIdx]?.id : null
   const filtered = contacts
@@ -296,7 +312,7 @@ const ChatPage = () => {
     });
   const contact = contacts[activeIdx];
 
-  useEffect(()=>{activeContactIdRef.current=contact?.id||0;},[contact]);
+  useEffect(()=>{if(activeIdx!==-2)activeContactIdRef.current=contact?.id||0;},[contact,activeIdx]);
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden"
@@ -353,14 +369,13 @@ const ChatPage = () => {
                   if (idx >= 0) { switchContact(-1); return }
                   // 加载团队群聊消息
                   setActiveIdx(-2) // special index for team
-                  activeContactIdRef.current = -1
-                  activeConvIdRef.current = teamConv.id
-                  fetchConversationMessages(teamConv.id, { limit: 500 }).then(res => {
+                  activeConvIdRef.current = "g_" + teamConv.id
+                  fetchConversationMessages("g_" + teamConv.id, { limit: 500 }).then(res => {
                     const d = res.data?.data
                     if (d?.messages) {
                       const my = meRef.current
                       const parsed = d.messages.map((m: any) => ({
-                        id: ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
+                        id: m.id || ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
                         type: (m.type as any) || "text", content: m.content,
                         time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
                         fileData: m.file_url, username: m.sender_username || m.username || "",
@@ -383,7 +398,6 @@ const ChatPage = () => {
                       <p className="text-[15px] font-medium text-white/85 truncate">{teamConv.name}</p>
                       <span className="text-[10px] text-white/20 shrink-0 ml-1.5 font-mono">{teamConv.members.length} members</span>
                     </div>
-                    <p className="text-[12px] text-white/25 truncate mt-0.5">Team channel — {teamConv.members.length} members</p>
                   </div>
                 </button>
               )}
@@ -468,7 +482,7 @@ const ChatPage = () => {
                     <div key={m.user_id} className="w-7 h-7 rounded-full border-2 border-[#0c0c14] overflow-hidden grid place-items-center text-[8px] font-bold ring-1 ring-white/10"
                       style={m.avatar?{}:{background:"rgba(255,255,255,0.10)"}}>
                       {m.avatar
-                        ? <img src={m.avatar.startsWith('http') || m.avatar.startsWith('/') ? m.avatar : `/api/v1/avatar/${m.avatar}`} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement; t.style.display='none'; t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
+                        ? <img src={resolveAvatar(m.avatar)||''} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement; t.style.display='none'; t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
                         : <span>{m.username?.slice(0,2).toUpperCase()||"?"}</span>
                       }
                     </div>
@@ -510,8 +524,13 @@ const ChatPage = () => {
               const showAv=!prevSame;
               const avEl=isMe
                 ?(meAvatar?<img src={meAvatar} alt="" className="w-full h-full object-cover"/>:<span>{meInit}</span>)
-                :(activeIdx===-2 && m.senderAvatar ? <img src={m.senderAvatar.startsWith('http')||m.senderAvatar.startsWith('/')?m.senderAvatar:`/api/v1/avatar/${m.senderAvatar}`} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
-                : contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(contact?.name||'?').slice(0,2).toUpperCase()}</span>`)}}/>:<span>{contact?.avatar||"?"}</span>);
+                :(activeIdx===-2
+                  ? (m.senderAvatar
+                    ? <img src={resolveAvatar(m.senderAvatar)||''} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
+                    : <span>{(m.username||'?').slice(0,2).toUpperCase()}</span>)
+                  : (contact?.userData?.avatar
+                    ? <img src={resolveAvatar(contact.userData.avatar)||''} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(contact?.name||'?').slice(0,2).toUpperCase()}</span>`)}}/>
+                    : <span>{contact?.avatar||"?"}</span>));
               return (
                 <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"} transition-all duration-200`}>
                   <div className={`flex items-start gap-2.5 max-w-[72%] ${isMe?"":"flex-row-reverse"}`}>
@@ -529,7 +548,7 @@ const ChatPage = () => {
                     </div>
                     {/* Avatar + username — me: right side / them: left side */}
                     <div className="shrink-0 flex flex-col items-center gap-0.5">
-                      {showAv?<div className={`w-7 h-7 rounded-full overflow-hidden grid place-items-center text-[9px] font-bold ring-1 ring-white/10 ${isMe?"":`bg-gradient-to-br ${grad(activeIdx)}`}`}
+                      {showAv?<div className={`w-7 h-7 rounded-full overflow-hidden grid place-items-center text-[9px] font-bold ring-1 ring-white/10 ${isMe?"":`bg-gradient-to-br ${activeIdx===-2?userGrad(m.username||''):grad(activeIdx)}`}`}
                         style={isMe&&!meAvatar?{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.18)"}:{}}>{avEl}</div>:<div className="w-7"/>}
                       {showAv&&<span className="text-[9px] text-white font-medium px-0.5 whitespace-nowrap">{isMe?meName:m.username}</span>}
                     </div>

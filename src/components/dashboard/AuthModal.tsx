@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
-import { User, Lock, Loader2, Camera } from "lucide-react";
-import { toast } from "sonner";
-import { login, register } from "@/api/auth";
-import { useNotifications } from "./NotificationProvider";
+import { useState, useRef, useCallback } from "react"
+import { User, Lock, Loader2, Camera } from "lucide-react"
+import { toast } from "sonner"
+import { login, register } from "@/api/auth"
+import { useNotifications } from "./NotificationProvider"
+import { compressImageToBlob, compressImageToDataUrl } from "@/lib/avatar"
 
 interface AuthModalProps {
   onClose: () => void;
@@ -21,15 +22,21 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAvatar(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setAvatarPreview(reader.result as string);
-      reader.readAsDataURL(file);
+  const handleAvatarChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Compress & preview on client side so even large phone photos display instantly
+    try {
+      const dataUrl = await compressImageToDataUrl(file, 256, 0.8)
+      setAvatarPreview(dataUrl)
+      setAvatar(file) // keep original file ref; we'll compress at submit time
+    } catch {
+      // fallback: use raw FileReader if compression fails
+      const reader = new FileReader()
+      reader.onloadend = () => setAvatarPreview(reader.result as string)
+      reader.readAsDataURL(file)
     }
-  };
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,16 +64,17 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         onAuthSuccess?.();
         onClose();
       } else {
+        const formData = new FormData()
+        formData.append("username", username.trim())
+        formData.append("password", password)
+        if (email.trim()) formData.append("email", email.trim())
         if (avatar) {
-          const formData = new FormData();
-          formData.append("username", username.trim());
-          formData.append("password", password);
-          if (email.trim()) formData.append("email", email.trim());
-          formData.append("avatar", avatar);
-          await register(formData, true);
-        } else {
-          await register({ username: username.trim(), password, email: email.trim() || undefined });
+          // Compress avatar before upload so the server stores a smaller image
+          const compressed = await compressImageToBlob(avatar, 256, 0.8)
+          const compressedFile = new File([compressed], avatar.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" })
+          formData.append("avatar", compressedFile)
         }
+        await register(formData)
         toast.success("Account created successfully");
         pushNotification(`${username.trim()} registered`);
         setMode("login");
