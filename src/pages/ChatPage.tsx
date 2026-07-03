@@ -5,6 +5,7 @@ import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useOnlineStatus, type WsMessage } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
 import { createConversation, fetchConversationMessages, sendChatMessage, getChatUserInfo, getTeamInfo, markConversationRead } from "@/api/chat";
+import teamAvatar from "@/assets/teamGroup.png";
 // import { getUsers } from "@/api/user";
 
 /* ─── Types ─── */
@@ -37,6 +38,8 @@ function ago(iso: string) { if(!iso) return ""; const d=Math.max(0,Math.floor((D
 function buildContact(u: ChatUser, lastMsg: string, lastTime: string): Contact {
   return { id: u.id, name: u.username, avatar: initials(u.username), lastMsg, time: timeFmt(lastTime), lastTimeRaw: lastTime, unread: 0, online: false, userData: u, lastSeen: u.last_login_at||"" };
 }
+
+const TEAM_AVATAR = teamAvatar
 
 const ChatPage = () => {
   const { user } = useAuth();
@@ -75,7 +78,9 @@ const ChatPage = () => {
         const isMe = d.username===meRef.current||d.sender_username===meRef.current;
         if(isMe) return;
         const msgTime = d.time || timeFmt(new Date().toISOString())
-        if(activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
+        // 群聊消息不更新联系人最新消息
+        const isTeamMsg = teamConv?.id && d.conversation_id === teamConv.id
+        if(!isTeamMsg && activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
           setContacts(prev => prev.map(c =>
             c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime, unread: (c.unread||0) + 1 } : c
           ))
@@ -83,9 +88,11 @@ const ChatPage = () => {
           msgCacheRef.current.set(d.sender_id, [...cached, {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:msgTime,fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}])
           return
         }
-        setContacts(prev => prev.map(c =>
-          c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime } : c
-        ))
+        if(!isTeamMsg) {
+          setContacts(prev => prev.map(c =>
+            c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime } : c
+          ))
+        }
         const newMsg: Message = {id:++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}
         setMessages(p=>[...p,newMsg])
         const cached = msgCacheRef.current.get(d.sender_id) || []
@@ -367,9 +374,9 @@ const ChatPage = () => {
                 }}
                   className="w-full flex items-center gap-4 px-5 text-left transition-all duration-300"
                   style={{height:"84px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:activeIdx===-2?"rgba(0,0,0,0.25)":"transparent",backdropFilter:activeIdx===-2?"blur(20px)":"none",WebkitBackdropFilter:activeIdx===-2?"blur(20px)":"none",boxShadow:activeIdx===-2?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}>
-                  <div className="w-[52px] h-[52px] rounded-full grid place-items-center shrink-0"
-                    style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)"}}>
-                    <img src="/teamGroup.png" alt="Team" className="w-full h-full rounded-full object-cover"/>
+                  <div className="w-[52px] h-[52px] rounded-full overflow-hidden shrink-0 flex items-center justify-center"
+                    style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}}>
+                    <img src={TEAM_AVATAR} alt="Team" className="w-full h-full object-cover"/>
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <div className="flex justify-between items-baseline">
@@ -393,7 +400,7 @@ const ChatPage = () => {
                   style={{height:"72px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:isActive?"rgba(0,0,0,0.25)":"transparent",backdropFilter:isActive?"blur(20px)":"none",WebkitBackdropFilter:isActive?"blur(20px)":"none",boxShadow:isActive?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}>
                   <div className="relative shrink-0">
                     <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold overflow-hidden shadow-lg ring-1 ring-white/10"
-                      style={c.userData?.avatar?{}:{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.15)"}}>
+                      style={c.userData?.avatar?{boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}:{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.15)"}}>
                       {c.userData?.avatar?<img src={c.userData.avatar.startsWith('http')?c.userData.avatar:resolveAvatar(c.userData.avatar)} alt="" className="w-full h-full object-cover" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
                       <span className={c.userData?.avatar?"hidden":""}>{c.avatar}</span>
                     </div>
@@ -448,9 +455,9 @@ const ChatPage = () => {
               </>
             ) : activeIdx === -2 && teamConv ? (
               <>
-                <div className="w-9 h-9 rounded-full grid place-items-center shrink-0"
-                  style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)"}}>
-                  <img src="/teamGroup.png" alt="Team" className="w-full h-full rounded-full object-cover"/>
+                <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 flex items-center justify-center"
+                  style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}}>
+                  <img src={TEAM_AVATAR} alt="Team" className="w-full h-full object-cover"/>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-white/90">{teamConv.name}</p>
