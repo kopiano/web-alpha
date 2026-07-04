@@ -46,21 +46,21 @@ const TYPE_CONFIG = {
 
 /* ─── Guest Mock Data ─── */
 const MOCK_DATA: Transaction[] = [
-  { id: 1, time: "2026-07-01 12:30", type: "expense", merchant: "星巴克(国贸店)", product: "拿铁咖啡·大杯", amount: 38.00, payment_method: "微信", payment_app: "微信支付", category: "餐饮", note: "午餐咖啡" },
-  { id: 2, time: "2026-07-01 08:15", type: "expense", merchant: "滴滴出行", product: "快车", amount: 24.50, payment_method: "支付宝", payment_app: "支付宝", category: "交通", note: "上班通勤" },
-  { id: 3, time: "2026-06-30 19:45", type: "expense", merchant: "京东自营", product: "机械键盘 Keychron K8", amount: 598.00, payment_method: "银行卡", payment_app: "云闪付", category: "购物", note: "办公外设" },
-  { id: 4, time: "2026-06-30 13:00", type: "expense", merchant: "美团外卖", product: "黄焖鸡米饭+可乐", amount: 32.80, payment_method: "微信", payment_app: "微信支付", category: "餐饮", note: "工作日午餐" },
-  { id: 5, time: "2026-06-29 20:30", type: "expense", merchant: "万达影城", product: "IMAX电影票×2", amount: 156.00, payment_method: "支付宝", payment_app: "支付宝", category: "娱乐", note: "周末观影" },
-  { id: 6, time: "2026-06-29 15:00", type: "expense", merchant: "Apple Store", product: "iCloud+ 200GB月费", amount: 21.00, payment_method: "支付宝", payment_app: "支付宝", category: "通讯", note: "云存储订阅" },
-  { id: 7, time: "2026-06-28 11:20", type: "expense", merchant: "链家地产", product: "6月房租", amount: 3200.00, payment_method: "银行卡", payment_app: "招商银行", category: "居住", note: "整月房租" },
-  { id: 8, time: "2026-06-28 09:00", type: "expense", merchant: "瑞幸咖啡", product: "生椰拿铁", amount: 15.90, payment_method: "微信", payment_app: "微信支付", category: "餐饮", note: "早餐咖啡" },
-  { id: 9, time: "2026-06-27 18:30", type: "expense", merchant: "叮咚买菜", product: "蔬菜水果套餐", amount: 67.30, payment_method: "支付宝", payment_app: "支付宝", category: "餐饮", note: "周末食材" },
-  { id: 10, time: "2026-06-27 10:00", type: "expense", merchant: "中石化加油站", product: "92号汽油 45L", amount: 328.50, payment_method: "微信", payment_app: "微信支付", category: "交通", note: "加油" },
-  { id: 11, time: "2026-06-26 14:00", type: "expense", merchant: "丁香诊所", product: "体检套餐", amount: 599.00, payment_method: "银行卡", payment_app: "银联", category: "医疗", note: "年度体检" },
-  { id: 12, time: "2026-05-15 16:00", type: "expense", merchant: "极客时间", product: "Go语言高级编程", amount: 199.00, payment_method: "支付宝", payment_app: "支付宝", category: "教育", note: "在线课程" },
-  { id: 13, time: "2026-07-02 09:00", type: "income", merchant: "公司", product: "7月薪资", amount: 15000.00, payment_method: "银行卡", payment_app: "招商银行", category: "其他", note: "工资" },
-  { id: 14, time: "2026-06-15 10:30", type: "income", merchant: "支付宝", product: "余额宝收益", amount: 86.50, payment_method: "支付宝", payment_app: "支付宝", category: "金融", note: "" },
-  { id: 15, time: "2026-06-10 14:00", type: "neutral", merchant: "微信", product: "零钱通转入", amount: 2000.00, payment_method: "微信", payment_app: "微信支付", category: "金融", note: "" },
+  { id: 1, time: "2026-07-01 12:30", type: "expense", merchant: "星巴克(国贸店)", product: "拿铁咖啡·大杯", amount: 38.00, payment_method: "微信支付", payment_app: "WeChat", category: "餐饮", note: "午餐咖啡" },
+  { id: 2, time: "2026-07-01 08:15", type: "expense", merchant: "滴滴出行", product: "快车", amount: 24.50, payment_method: "余额宝", payment_app: "Alipay", category: "交通", note: "上班通勤" },
+  { id: 3, time: "2026-06-30 19:45", type: "expense", merchant: "京东自营", product: "机械键盘 Keychron K8", amount: 598.00, payment_method: "银行卡", payment_app: "WeChat", category: "购物", note: "办公外设" },
+  { id: 4, time: "2026-06-30 13:00", type: "expense", merchant: "美团外卖", product: "黄焖鸡米饭+可乐", amount: 32.80, payment_method: "微信支付", payment_app: "WeChat", category: "餐饮", note: "工作日午餐" },
+  { id: 5, time: "2026-06-29 20:30", type: "expense", merchant: "万达影城", product: "IMAX电影票×2", amount: 156.00, payment_method: "余额宝", payment_app: "Alipay", category: "娱乐", note: "周末观影" },
+  { id: 6, time: "2026-06-29 15:00", type: "expense", merchant: "Apple Store", product: "iCloud+ 200GB月费", amount: 21.00, payment_method: "余额宝", payment_app: "Alipay", category: "通讯", note: "云存储订阅" },
+  { id: 7, time: "2026-06-28 11:20", type: "expense", merchant: "链家地产", product: "6月房租", amount: 3200.00, payment_method: "银行卡", payment_app: "Alipay", category: "居住", note: "整月房租" },
+  { id: 8, time: "2026-06-28 09:00", type: "expense", merchant: "瑞幸咖啡", product: "生椰拿铁", amount: 15.90, payment_method: "微信支付", payment_app: "WeChat", category: "餐饮", note: "早餐咖啡" },
+  { id: 9, time: "2026-06-27 18:30", type: "expense", merchant: "叮咚买菜", product: "蔬菜水果套餐", amount: 67.30, payment_method: "余额宝", payment_app: "Alipay", category: "餐饮", note: "周末食材" },
+  { id: 10, time: "2026-06-27 10:00", type: "expense", merchant: "中石化加油站", product: "92号汽油 45L", amount: 328.50, payment_method: "微信支付", payment_app: "WeChat", category: "交通", note: "加油" },
+  { id: 11, time: "2026-06-26 14:00", type: "expense", merchant: "丁香诊所", product: "体检套餐", amount: 599.00, payment_method: "银行卡", payment_app: "WeChat", category: "医疗", note: "年度体检" },
+  { id: 12, time: "2026-05-15 16:00", type: "expense", merchant: "极客时间", product: "Go语言高级编程", amount: 199.00, payment_method: "余额宝", payment_app: "Alipay", category: "教育", note: "在线课程" },
+  { id: 13, time: "2026-07-02 09:00", type: "income", merchant: "公司", product: "7月薪资", amount: 15000.00, payment_method: "银行卡", payment_app: "Alipay", category: "其他", note: "工资" },
+  { id: 14, time: "2026-06-15 10:30", type: "income", merchant: "支付宝", product: "余额宝收益", amount: 86.50, payment_method: "余额宝", payment_app: "Alipay", category: "金融", note: "" },
+  { id: 15, time: "2026-06-10 14:00", type: "neutral", merchant: "微信", product: "零钱通转入", amount: 2000.00, payment_method: "微信支付", payment_app: "WeChat", category: "金融", note: "" },
   { id: 16, time: "2026-05-20 11:00", type: "neutral", merchant: "理财通", product: "基金申购", amount: 1000.00, payment_method: "银行卡", payment_app: "微信支付", category: "金融", note: "" },
 ];
 
@@ -368,19 +368,20 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
         ) : (
           <>
             <div className="overflow-x-auto scrollbar-thin">
-              <div className="grid min-w-[980px] grid-cols-[0.8fr_1fr_0.8fr_0.5fr_0.7fr_0.6fr_0.6fr_0.5fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
+              <div className="grid min-w-[980px] grid-cols-[0.7fr_0.9fr_0.7fr_0.4fr_0.6fr_0.4fr_0.4fr_0.5fr_0.4fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
                 <button className="text-left flex items-center gap-1 hover:text-white/50 transition-colors" onClick={() => toggleSort("time")}>
                   交易时间 {sortKey === "time" && (sortDir === "desc" ? "↓" : "↑")}
                 </button>
-                <div className="text-left">商家</div>
-                <div className="text-left">商品</div>
+                <div className="text-center">商家</div>
+                <div className="text-center">商品</div>
                 <div className="text-center">收支</div>
-                <button className="text-right flex items-center justify-end gap-1 hover:text-white/50 transition-colors" onClick={() => toggleSort("amount")}>
+                <button className="text-center flex items-center justify-center gap-1 hover:text-white/50 transition-colors" onClick={() => toggleSort("amount")}>
                   金额 {sortKey === "amount" && (sortDir === "desc" ? "↓" : "↑")}
                 </button>
-                <div className="text-center">支付</div>
+                <div className="text-center">支付软件</div>
+                <div className="text-center">支付方式</div>
                 <div className="text-center">分类</div>
-                <div className="text-left">备注</div>
+                <div className="text-center">备注</div>
               </div>
 
               <div className="overflow-hidden rounded-[1.75rem] border border-white/[0.08] min-w-[980px]" style={{ minHeight: "252px", transition: "min-height 0.3s ease" }}>
@@ -390,27 +391,46 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
                   const isExpense = tx.type === "expense";
                   return (
                     <div key={tx.id}
-                      className="grid min-w-[980px] grid-cols-[0.8fr_1fr_0.8fr_0.5fr_0.7fr_0.6fr_0.6fr_0.5fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors bg-white/[0.025] hover:bg-white/[0.04]"
+                      className="grid min-w-[980px] grid-cols-[0.7fr_0.9fr_0.7fr_0.4fr_0.6fr_0.4fr_0.4fr_0.5fr_0.4fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors bg-white/[0.025] hover:bg-white/[0.04]"
                     >
-                      <div className="text-xs text-white/50 self-center truncate">{formatTime(tx.time)}</div>
-                      <div className="text-xs text-white/80 self-center truncate font-medium">{tx.merchant}</div>
-                      <div className="text-xs text-white/60 self-center truncate">{tx.product}</div>
+                      <div className="text-xs text-white/50 self-center overflow-hidden whitespace-nowrap text-left"
+    onMouseEnter={e=>{const s=e.currentTarget.querySelector('span');if(s&&s.scrollWidth>e.currentTarget.offsetWidth){s.style.transition='transform 0.5s cubic-bezier(.25,.46,.45,.94)';s.style.transform=`translateX(-${s.scrollWidth-e.currentTarget.offsetWidth+8}px)`}}}
+    onMouseLeave={e=>{const s=e.currentTarget.querySelector('span');if(s){s.style.transition='transform 0.3s cubic-bezier(.25,.46,.45,.94)';s.style.transform='translateX(0)'}}}>
+    <span style={{display:'inline-block',whiteSpace:'nowrap'}}>{formatTime(tx.time)}</span></div>
+                      <div className="text-xs text-white/80 self-center overflow-hidden whitespace-nowrap font-medium relative text-center"
+    onMouseEnter={e=>{const s=e.currentTarget.querySelector('span');if(s&&s.scrollWidth>e.currentTarget.offsetWidth){s.style.transition='transform 0.5s cubic-bezier(.25,.46,.45,.94)';s.style.transform=`translateX(-${s.scrollWidth-e.currentTarget.offsetWidth+8}px)`}}}
+    onMouseLeave={e=>{const s=e.currentTarget.querySelector('span');if(s){s.style.transition='transform 0.3s cubic-bezier(.25,.46,.45,.94)';s.style.transform='translateX(0)'}}}>
+    <span style={{display:'inline-block',whiteSpace:'nowrap'}}>{tx.merchant || "—"}</span>
+  </div>
+                      <div className="text-xs text-white/60 self-center overflow-hidden whitespace-nowrap relative text-center"
+    onMouseEnter={e=>{const s=e.currentTarget.querySelector('span');if(s&&s.scrollWidth>e.currentTarget.offsetWidth){s.style.transition='transform 0.5s cubic-bezier(.25,.46,.45,.94)';s.style.transform=`translateX(-${s.scrollWidth-e.currentTarget.offsetWidth+8}px)`}}}
+    onMouseLeave={e=>{const s=e.currentTarget.querySelector('span');if(s){s.style.transition='transform 0.3s cubic-bezier(.25,.46,.45,.94)';s.style.transform='translateX(0)'}}}>
+    <span style={{display:'inline-block',whiteSpace:'nowrap'}}>{tx.product || "—"}</span>
+  </div>
                       <div className="self-center flex justify-center">
                         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${typeCfg.bg} ${typeCfg.border} border ${typeCfg.color}`}>{typeCfg.label}</span>
                       </div>
-                      <div className={`text-xs self-center text-right font-mono font-semibold tabular-nums ${isExpense ? "text-rose-400/80" : tx.type === "income" ? "text-emerald-400/80" : "text-amber-400/60"}`}>
+                      <div className={`text-xs self-center text-center font-mono font-semibold tabular-nums ${isExpense ? "text-rose-400/80" : tx.type === "income" ? "text-emerald-400/80" : "text-amber-400/60"}`}>
                         {isExpense ? "-" : ""}¥{tx.amount.toFixed(2)}
                       </div>
-                      <div className="self-center flex justify-center text-[10px] text-white/40">
-                        {tx.payment_app || tx.payment_method || "—"}
-                      </div>
+                      <div className="self-center text-[10px] text-white/40 font-medium overflow-hidden whitespace-nowrap text-center"
+    onMouseEnter={e=>{const s=e.currentTarget.querySelector('span');if(s&&s.scrollWidth>e.currentTarget.offsetWidth){s.style.transition='transform 0.5s cubic-bezier(.25,.46,.45,.94)';s.style.transform=`translateX(-${s.scrollWidth-e.currentTarget.offsetWidth+8}px)`}}}
+    onMouseLeave={e=>{const s=e.currentTarget.querySelector('span');if(s){s.style.transition='transform 0.3s cubic-bezier(.25,.46,.45,.94)';s.style.transform='translateX(0)'}}}>
+    <span style={{display:'inline-block',whiteSpace:'nowrap'}}>{tx.payment_app || "—"}</span></div>
+                      <div className="self-center text-[10px] text-white/30 overflow-hidden whitespace-nowrap text-center"
+    onMouseEnter={e=>{const s=e.currentTarget.querySelector('span');if(s&&s.scrollWidth>e.currentTarget.offsetWidth){s.style.transition='transform 0.5s cubic-bezier(.25,.46,.45,.94)';s.style.transform=`translateX(-${s.scrollWidth-e.currentTarget.offsetWidth+8}px)`}}}
+    onMouseLeave={e=>{const s=e.currentTarget.querySelector('span');if(s){s.style.transition='transform 0.3s cubic-bezier(.25,.46,.45,.94)';s.style.transform='translateX(0)'}}}>
+    <span style={{display:'inline-block',whiteSpace:'nowrap'}}>{tx.payment_method || "—"}</span></div>
                       <div className="self-center flex justify-center">
                         <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
                           style={{ background: `${catColor}18`, border: `1px solid ${catColor}30`, color: catColor }}>
                           {tx.category}
                         </span>
                       </div>
-                      <div className="text-[10px] text-white/30 self-center truncate">{tx.note || "—"}</div>
+                      <div className="text-[10px] text-white/30 self-center overflow-hidden whitespace-nowrap text-center"
+    onMouseEnter={e=>{const s=e.currentTarget.querySelector('span');if(s&&s.scrollWidth>e.currentTarget.offsetWidth){s.style.transition='transform 0.5s cubic-bezier(.25,.46,.45,.94)';s.style.transform=`translateX(-${s.scrollWidth-e.currentTarget.offsetWidth+8}px)`}}}
+    onMouseLeave={e=>{const s=e.currentTarget.querySelector('span');if(s){s.style.transition='transform 0.3s cubic-bezier(.25,.46,.45,.94)';s.style.transform='translateX(0)'}}}>
+    <span style={{display:'inline-block',whiteSpace:'nowrap'}}>{tx.note || "—"}</span></div>
                     </div>
                   );
                 })}

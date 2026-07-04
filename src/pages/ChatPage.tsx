@@ -363,7 +363,7 @@ const ChatPage = () => {
             <div className="relative">
               <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20"/>
               <input placeholder="Search contacts..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}
-                className="w-full rounded-2xl pl-9 pr-4 py-2.5 text-[11px] outline-none placeholder:text-white/15 text-white/70"
+                className="w-full rounded-2xl pl-9 pr-4 py-2.5 text-base md:text-[11px] outline-none placeholder:text-white/15 text-white/70"
                 style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.06)"}}/>
             </div>
           </div>
@@ -464,19 +464,13 @@ const ChatPage = () => {
         </div>
 
         {/* CENTER — Chat area */}
-        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"} md:flex`}
+        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"} md:flex pb-[72px] lg:pb-0`}
           style={{background:"rgba(255,255,255,0.01)"}}>
           <div className="px-5 py-3 flex items-center gap-3 shrink-0" style={{borderBottom:"1px solid rgba(255,255,255,0.05)",background:"rgba(255,255,255,0.015)"}}>
-            {/* Mobile back to contacts button */}
-            {/* Mobile toggle contacts button */}
-            <button onClick={()=>setShowMobileContacts(true)} className={`md:hidden w-8 h-8 rounded-full grid place-items-center text-white/40 hover:text-white hover:bg-white/[0.08] shrink-0 active:scale-90 transition-all duration-200 ${showMobileContacts?"hidden":""}`}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            {/* Mobile back / toggle contacts button */}
+            <button onClick={()=>setShowMobileContacts(true)} className="md:hidden w-8 h-8 rounded-full grid place-items-center text-white/40 hover:text-white hover:bg-white/[0.08] shrink-0 active:scale-90 transition-all duration-200">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
             </button>
-            {!showMobileContacts && (
-              <button onClick={()=>setShowMobileContacts(true)} className="md:hidden w-8 h-8 rounded-full grid place-items-center text-white/40 hover:text-white hover:bg-white/[0.08] shrink-0 active:scale-90 transition-all duration-200">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
-              </button>
-            )}
             {loading ? (
               <>
                 <div className="w-9 h-9 rounded-full bg-white/[0.06] animate-pulse shrink-0"/>
@@ -599,20 +593,20 @@ const ChatPage = () => {
             <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 h-[50px] md:h-[56px] rounded-full"
               style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(30px)",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 8px 32px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
               <div className="relative">
-                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center transition-all active:scale-90 ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><Smile size={15}/></button>
+                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square transition-all active:scale-90 ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><Smile size={15}/></button>
                 {showEmoji&&<div className="absolute bottom-full left-0 mb-3 rounded-2xl p-3 w-[280px] md:w-[304px] z-50" style={{background:"rgba(18,16,30,0.97)",backdropFilter:"blur(60px)",border:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 20px 50px -10px rgba(0,0,0,0.7)"}}>
                   <div className="grid grid-cols-8 gap-1.5">{EMOJI_LIST.map(e=><button key={e} onClick={()=>{setInput(p=>p+e);setShowEmoji(false);}} className="w-7 h-7 md:w-8 md:h-8 rounded-lg grid place-items-center text-lg md:text-xl hover:bg-white/10 hover:scale-[1.15] active:scale-95">{e}</button>)}</div>
                 </div>}
               </div>
-              <button onClick={()=>imgRef.current?.click()} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><Image size={15}/></button>
+              <button onClick={()=>imgRef.current?.click()} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><Image size={15}/></button>
               <input ref={imgRef} type="file" accept="image/*" onChange={pickImg} className="hidden"/>
-              <button onClick={()=>fileRef.current?.click()} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><AlignJustify size={15}/></button>
+              <button onClick={()=>fileRef.current?.click()} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><AlignJustify size={15}/></button>
               <input ref={fileRef} type="file" onChange={pickFile} className="hidden"/>
               <input type="text" placeholder={contact&&contact.id>0?"Message...":"Select a contact to chat"} value={input} onChange={e=>setInput(e.target.value)}
                 disabled={(!contact||contact.id===0)&&activeIdx!==-2}
                 onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();sendText();}}}
-                className="flex-1 bg-transparent outline-none text-[12px] md:text-[13px] placeholder:text-white/15 px-1.5 md:px-2 disabled:opacity-20"/>
-              <button onClick={sendText} disabled={!input.trim()||((!contact||contact.id===0)&&activeIdx!==-2)} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center transition-all active:scale-90 ${(input.trim()&&contact&&contact.id>0)||(input.trim()&&activeIdx===-2)?"bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100":"text-white/20 scale-95"}`}><Send size={13}/></button>
+                className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-[13px] placeholder:text-white/15 px-1.5 md:px-2 disabled:opacity-20"/>
+              <button onClick={sendText} disabled={!input.trim()||((!contact||contact.id===0)&&activeIdx!==-2)} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square transition-all active:scale-90 ${(input.trim()&&contact&&contact.id>0)||(input.trim()&&activeIdx===-2)?"bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100":"text-white/20 scale-95"}`}><Send size={13}/></button>
             </div>
           </div>
         </div>

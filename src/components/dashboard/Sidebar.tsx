@@ -14,10 +14,10 @@ const items = [
   { icon: LayoutDashboard, label: "Overview", path: "/" },
   { icon: BarChart3, label: "Analytics", path: "/analytics" },
   { icon: FileText, label: "Docs", path: "/docs" },
-  { icon: Users, label: "User", path: "/user" },
-  { icon: Sparkles, label: "AI Insights", path: "/" },
+  { icon: Users,label: "User",path: "/user" },
   { icon: MessageSquare, label: "Chat", path: "/chat" },
-  { icon: Map, label: "Map", path: "/map" },
+  { icon: Map,label: "Map",path: "/map" },
+  { icon: Sparkles, label: "ChatGPT", path: "/ai" },
 ];
 
 export const Sidebar = () => {
@@ -26,10 +26,11 @@ export const Sidebar = () => {
 
   const getActiveFromPath = () => {
     if (location.pathname === "/analytics") return 1;
-    if (location.pathname === "/map") return 6;
-    if (location.pathname === "/chat") return 5;
     if (location.pathname === "/docs") return 2;
     if (location.pathname === "/user") return 3;
+    if (location.pathname === "/chat") return 4;
+    if (location.pathname === "/map") return 5;
+    if (location.pathname === "/ai") return 6;
     return 0;
   };
 
