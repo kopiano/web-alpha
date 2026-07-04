@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { AlertCircle, UserRound } from "lucide-react";
+import { AlertCircle, PieChart, UserRound } from "lucide-react";
 import * as echarts from "echarts";
 import { getExpenseCategories, getTransactionSummary } from "@/api/transactions";
 import { useAuth } from "@/components/dashboard/AuthProvider";
