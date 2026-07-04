@@ -20,7 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **UI components**: shadcn/ui (Radix UI primitives) — see `src/components/ui/`
 - **State/queries**: @tanstack/react-query
 - **HTTP client**: Axios
-- **Charts**: Recharts
+- **Charts**: echarts
 - **map**: maplibre-gl + CartoDB
 
 

@@ -5,6 +5,7 @@ import { TopNav } from "@/components/dashboard/TopNav";
 import { TransactionTable } from "@/components/dashboard/TransactionTable";
 import { ExpensePieChart } from "@/components/dashboard/ExpensePieChart";
 import { MonthlyExpenseChart } from "@/components/dashboard/MonthlyExpenseChart";
+import { MerchantRanking } from "@/components/dashboard/MerchantRanking";
 import { Particles } from "@/components/dashboard/Particles";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { importTransactions, getTransactionMonths } from "@/api/transactions";
@@ -52,6 +53,10 @@ export default function AnalyticsPage() {
       })
       .finally(() => setLoadingMonths(false));
   }, [user, isGuest, refreshKey]);
+
+
+
+
 
   const months = isGuest ? guestMonths : availableMonths;
   const displayMonths = Array.isArray(months) ? months : [];
@@ -125,10 +130,12 @@ export default function AnalyticsPage() {
         <div className="flex flex-col gap-6">
 
           {/* Filter + Import Bar */}
-          <div className="flex items-center justify-between gap-4 px-5 py-3"
+          <header
+            className="flex items-center justify-between gap-4 px-5 py-3"
             style={{
-              position: "relative",
-              zIndex: 3,
+              position: "sticky",
+              top: "20px",
+              zIndex: 30,
               background: "rgba(195,195,210,0.10)",
               backdropFilter: "blur(50px) saturate(180%)",
               WebkitBackdropFilter: "blur(50px) saturate(180%)",
@@ -198,7 +205,8 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Import CSV + Clear Buttons */}
-            <div className="flex items-center" style={{ gap: "30px" }}>
+            <div
+              id="header-bar" className="flex items-center" style={{ gap: "30px" }}>
               {/* Clear Button */}
               {!isGuest && (
                 <button
@@ -249,7 +257,7 @@ export default function AnalyticsPage() {
                 <span className="text-white/80">{importing ? "导入中..." : "导入 CSV"}</span>
               </button>
             </div>
-          </div>
+          </header>
 
           {/* Guest hint */}
           {isGuest && (
@@ -272,9 +280,12 @@ export default function AnalyticsPage() {
               selectedMonth={selectedMonth}
             />
           </div>
+          <div className="mt-6">
+            <MerchantRanking selectedMonth={selectedMonth} />
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ExpensePieChart key={`pie-${user?.id ?? "guest"}-${refreshKey}`} />
+            <ExpensePieChart key={`pie-${user?.id ?? "guest"}-${refreshKey}`} selectedMonth={selectedMonth} />
             <MonthlyExpenseChart key={`line-${user?.id ?? "guest"}-${refreshKey}`} />
           </div>
         </div>

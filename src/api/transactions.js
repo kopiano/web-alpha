@@ -92,3 +92,13 @@ export function getMonthlyExpense(params) {
 export function deleteTransactions(params) {
   return request.delete('/transactions', { params })
 }
+
+/** 获取商家消费排行（前10） */
+export function getTopMerchants(params) {
+  return request.get('/transactions/top-merchants', { params })
+}
+
+/** 获取热门商家排行（Redis 缓存） */
+export function getHotMerchants(params) {
+  return request.get('/transactions/hot-merchants', { params })
+}
