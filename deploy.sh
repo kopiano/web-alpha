@@ -10,7 +10,7 @@ cd dist
 cp index.html 404.html
 
 # 如果是发布到自定义域名
-echo 'alpha.coulsonzero.shop' > CNAME
+echo 'ai.coulsonzero.shop' > CNAME
 
 git init
 git add -A
