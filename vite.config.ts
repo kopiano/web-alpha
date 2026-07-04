@@ -11,13 +11,6 @@ const __dirname = path.dirname(__filename);
 export default defineConfig(({ mode }) => ({
   build: {
     chunkSizeWarningLimit: 1500,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          highlight: ["highlight.js"],
-        },
-      },
-    },
   },
   server: {
     host: "0.0.0.0",
