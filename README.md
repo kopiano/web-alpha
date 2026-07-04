@@ -14,3 +14,4 @@ ngrok http 5000     # 本地要pnpm run dev
 kill -9 $(lsof -i:5000)
 ```
 
+### cloudflare
