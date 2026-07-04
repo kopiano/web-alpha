@@ -1,5 +1,5 @@
 
-const apiBase = import.meta.env.VITE_API_BASE_URL as string || ""
+const apiBase = import.meta.env.VITE_API_URL as string || ""
 const backendOrigin = apiBase.replace(/\/api\/v1.*$/, "").replace(/:5000/, ":8000")
 
 export function resolveAvatar(avatar: string | null | undefined): string | null {

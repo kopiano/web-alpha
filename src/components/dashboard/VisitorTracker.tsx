@@ -150,7 +150,7 @@ function buildPayload(visitorId: string, startAt: number, userName?: string) {
 }
 
 function heartbeatUrl() {
-  const base = import.meta.env.VITE_API_BASE_URL || "";
+  const base = import.meta.env.VITE_API_URL || "";
   return `${base.replace(/\/$/, "")}/visit/heartbeat`;
 }
 

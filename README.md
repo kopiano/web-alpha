@@ -1,6 +1,6 @@
 # web-alpha
 
-###  ngrok部署
+###  ngrok部署（测试）
 ```sh
 brew install ngrok   # 安装 ngrok
 # 登录后 https://dashboard.ngrok.com/get-started/your-authtoken 复制 token
@@ -14,4 +14,4 @@ ngrok http 5000     # 本地要pnpm run dev
 kill -9 $(lsof -i:5000)
 ```
 
-### cloudflare pages
+### cloudflare pages（正式上线）
