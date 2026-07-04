@@ -113,7 +113,27 @@ export const MonthlyExpenseChart = ({ className = "" }: Props) => {
     });
   }, [data, maxVal]);
 
-  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  // 平滑曲线（Catmull-Rom → Cubic Bezier）
+  const smoothPath = useMemo(() => {
+    const pts = points;
+    if (pts.length === 0) return "";
+    if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i === 0 ? 0 : i - 1];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2 >= pts.length ? pts.length - 1 : i + 2];
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+    }
+    return d;
+  }, [points]);
+
+  const linePath = smoothPath;
   const areaPath = `${linePath} L ${points[points.length - 1].x} ${padT + chartH} L ${points[0].x} ${padT + chartH} Z`;
   const yTicks = [0, Math.round(maxVal * 0.25), Math.round(maxVal * 0.5), Math.round(maxVal * 0.75), maxVal];
 
@@ -184,8 +204,11 @@ export const MonthlyExpenseChart = ({ className = "" }: Props) => {
               <path d={linePath} fill="none" stroke={CHART_COLORS.line} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
               {points.map((p, i) => (
                 <g key={i}>
-                  <circle cx={p.x} cy={p.y} r="4.5" fill={CHART_COLORS.dot} stroke="rgba(10,12,20,0.9)" strokeWidth="2" />
-                  <title>{MONTH_LABELS[i]}: ¥{p.v.toLocaleString()}</title>
+                  {p.v > 0 && <circle cx={p.x} cy={p.y} r="5" fill={CHART_COLORS.dot} stroke="rgba(10,12,20,0.9)" strokeWidth="2" className="cursor-pointer" />}
+                  {p.v > 0 && <title>{MONTH_LABELS[i]}: ¥{p.v.toLocaleString()}</title>}
+                  <rect x={p.x - 12} y={p.y - 12} width="24" height="24" fill="transparent" className="cursor-pointer">
+                    <title>{MONTH_LABELS[i]}: ¥{p.v.toLocaleString()}</title>
+                  </rect>
                 </g>
               ))}
               {points.map((p, i) => (

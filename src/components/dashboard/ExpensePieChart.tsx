@@ -137,7 +137,7 @@ export const ExpensePieChart = ({ className = "" }: Props) => {
           </div>
         ) : (
           <>
-            <svg width="280" height="280" viewBox="0 0 280 280" className="-mt-2">
+            <svg key={mode} width="280" height="280" viewBox="0 0 280 280" className="-mt-2 animate-chart-fade">
               {data.map((d, i) => {
                 const sliceAngle = (d.amount / total) * Math.PI * 2;
                 const startAngle = angle;
