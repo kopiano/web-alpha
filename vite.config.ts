@@ -2,19 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { fileURLToPath } from "url";
-import { componentTagger } from "lovable-tagger";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const plugins = [react()];
-
-if (process.env.NODE_ENV === "development") {
-  plugins.push(componentTagger());
-}
-
-// https://vitejs.dev/config/
 export default defineConfig({
+  plugins: [react()],
   build: {
     chunkSizeWarningLimit: 1500,
   },
@@ -30,7 +23,6 @@ export default defineConfig({
       },
     },
   },
-  plugins,
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
