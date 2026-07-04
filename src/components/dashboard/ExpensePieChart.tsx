@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { PieChart, AlertCircle, UserRound } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { AlertCircle, UserRound } from "lucide-react";
+import * as echarts from "echarts";
 import { getExpenseCategories, getTransactionSummary } from "@/api/transactions";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 
@@ -9,15 +10,6 @@ const CAT_COLORS: Record<string, string> = {
   "教育": "#818cf8", "通讯": "#fb923c", "金融": "#f97316",
   "社交": "#ec4899", "其他": "#94a3b8",
 };
-
-function buildSlicePath(cx: number, cy: number, r: number, startAngle: number, endAngle: number): string {
-  const x1 = cx + r * Math.cos(startAngle);
-  const y1 = cy + r * Math.sin(startAngle);
-  const x2 = cx + r * Math.cos(endAngle);
-  const y2 = cy + r * Math.sin(endAngle);
-  const large = endAngle - startAngle > Math.PI ? 1 : 0;
-  return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
-}
 
 const FALLBACK_COLORS = ["#f59e0b", "#60a5fa", "#f472b6", "#a78bfa", "#34d399", "#22d3ee", "#818cf8", "#fb923c", "#f97316", "#94a3b8"];
 
@@ -91,6 +83,46 @@ export const ExpensePieChart = ({ className = "" }: Props) => {
 
   const data = isGuest ? guestData : pieData;
   const total = useMemo(() => data.reduce((s, d) => s + d.amount, 0), [data]);
+  const pieChartRef = useRef<HTMLDivElement>(null);
+  const pieInstance = useRef<echarts.ECharts | null>(null);
+
+  useEffect(() => {
+    if (!pieChartRef.current) return;
+    if (!pieInstance.current) {
+      pieInstance.current = echarts.init(pieChartRef.current);
+    }
+    const chart = pieInstance.current;
+    chart.setOption({
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(8,8,20,0.92)',
+        borderColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        textStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
+        formatter: (params: any) => '<span style="color:rgba(255,255,255,0.6)">'+params.name+'</span><br/><span style="font-weight:600">¥'+Number(params.value).toLocaleString()+'</span><span style="color:rgba(255,255,255,0.4)"> ('+params.percent+'%)</span>',
+      },
+      series: [{
+        type: 'pie',
+        radius: ['43%', '78%'],
+        center: ['50%', '50%'],
+        avoidLabelOverlap: true,
+        padAngle: 1.5,
+        data: data.map((d: any) => ({
+          value: d.amount,
+          name: d.category,
+          itemStyle: { color: CAT_COLORS[d.category] || '#94a3b8', opacity: 0.85, borderColor: 'rgba(0,0,0,0.3)', borderWidth: 1.5 },
+        })),
+        label: { show: true, formatter: '{d}%', color: 'rgba(255,255,255,0.5)', fontSize: 9, fontWeight: 600, showAbove: true },
+        labelLine: { show: false },
+        animationDuration: 800,
+        animationEasing: 'cubicOut',
+      }],
+    });
+    chart.resize();
+    const handleResize = () => chart.resize();
+    window.addEventListener('resize', handleResize);
+    return () => { window.removeEventListener('resize', handleResize); };
+  }, [data, mode]);
 
   const cx = 140, cy = 140, outerR = 110, innerR = 60;
   let angle = -Math.PI / 2;
@@ -137,36 +169,13 @@ export const ExpensePieChart = ({ className = "" }: Props) => {
           </div>
         ) : (
           <>
-            <svg key={mode} width="280" height="280" viewBox="0 0 280 280" className="-mt-2 animate-chart-fade">
-              {data.map((d, i) => {
-                const sliceAngle = (d.amount / total) * Math.PI * 2;
-                const startAngle = angle;
-                const endAngle = angle + sliceAngle;
-                const path = buildSlicePath(cx, cy, outerR, startAngle, endAngle);
-                angle = endAngle;
-                const mid = startAngle + sliceAngle / 2;
-                const lx = cx + (outerR + 18) * Math.cos(mid);
-                const ly = cy + (outerR + 18) * Math.sin(mid);
-                const color = CAT_COLORS[d.category] || FALLBACK_COLORS[i % FALLBACK_COLORS.length];
-                return (
-                  <g key={d.category}>
-                    <path d={path} fill={color} opacity={0.85} stroke="rgba(0,0,0,0.3)" strokeWidth="1.5" />
-                    {d.percentage >= 4 && (
-                      <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,0.6)" fontSize="9" fontWeight={600}>
-                        {d.percentage.toFixed(1)}%
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-              <circle cx={cx} cy={cy} r={innerR} fill="rgba(10,12,20,0.8)" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-              <text x={cx} y={cy - 6} textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="10" fontWeight={500}>
-                {mode === "month" ? "当月支出" : "全年支出"}
-              </text>
-              <text x={cx} y={cy + 14} textAnchor="middle" fill="rgba(255,255,255,0.8)" fontSize="16" fontWeight={700}>
-                ¥{total >= 10000 ? (total / 10000).toFixed(1) + "w" : total.toFixed(0)}
-              </text>
-            </svg>
+            <div className="relative w-[280px] h-[280px] -mt-2" key={mode}>
+              <div ref={pieChartRef} className="w-full h-full"></div>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                <p className="text-[10px] text-white/40 font-medium">{mode === "month" ? "当月支出" : "全年支出"}</p>
+                <p className="text-lg font-bold text-white/80">¥{total >= 10000 ? (total / 10000).toFixed(1) + "w" : total.toFixed(0)}</p>
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 w-full max-w-[400px] mt-2">
               {data.map((d, i) => {

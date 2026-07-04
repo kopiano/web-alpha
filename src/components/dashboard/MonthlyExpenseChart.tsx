@@ -1,18 +1,11 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { TrendingUp, AlertCircle, UserRound } from "lucide-react";
+import * as echarts from "echarts";
 import { getMonthlyExpense, getTransactionMonths } from "@/api/transactions";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import type { MonthlyEntry } from "@/api/transactions";
 
 const MONTH_LABELS = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
-
-const CHART_COLORS = {
-  line: "#60a5fa",
-  gradientTop: "rgba(96,165,250,0.25)",
-  gradientBottom: "rgba(96,165,250,0.02)",
-  dot: "#93c5fd",
-  grid: "rgba(255,255,255,0.05)",
-};
 
 /* ─── Guest mock data ─── */
 const GUEST_YEAR_DATA: Record<string, number[]> = {
@@ -100,42 +93,67 @@ export const MonthlyExpenseChart = ({ className = "" }: Props) => {
 
   const maxVal = Math.max(...data, 1);
   const total = data.reduce((s, v) => s + v, 0);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const chartInstance = useRef<echarts.ECharts | null>(null);
 
-  const w = 600, h = 240, padL = 50, padR = 20, padT = 20, padB = 30;
-  const chartW = w - padL - padR;
-  const chartH = h - padT - padB;
-
-  const points = useMemo(() => {
-    return data.map((v, i) => {
-      const x = padL + (i / Math.max(data.length - 1, 1)) * chartW;
-      const y = padT + chartH - (v / maxVal) * chartH;
-      return { x, y, v };
-    });
-  }, [data, maxVal]);
-
-  // 平滑曲线（Catmull-Rom → Cubic Bezier）
-  const smoothPath = useMemo(() => {
-    const pts = points;
-    if (pts.length === 0) return "";
-    if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
-    let d = `M ${pts[0].x} ${pts[0].y}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i === 0 ? 0 : i - 1];
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const p3 = pts[i + 2 >= pts.length ? pts.length - 1 : i + 2];
-      const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
-      const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
-      d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+  useEffect(() => {
+    if (!chartRef.current) return;
+    if (!chartInstance.current) {
+      chartInstance.current = echarts.init(chartRef.current);
     }
-    return d;
-  }, [points]);
-
-  const linePath = smoothPath;
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${padT + chartH} L ${points[0].x} ${padT + chartH} Z`;
-  const yTicks = [0, Math.round(maxVal * 0.25), Math.round(maxVal * 0.5), Math.round(maxVal * 0.75), maxVal];
+    const chart = chartInstance.current;
+    chart.setOption({
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(8,8,20,0.92)',
+        borderColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        textStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
+        formatter: (params: any) => {
+          const p = params[0];
+          return '<span style="color:rgba(255,255,255,0.5)">'+p.name+'</span><br/><span style="color:#93c5fd">支出: ¥'+Number(p.value).toLocaleString()+'</span>';
+        }
+      },
+      grid: { left: '8%', right: '5%', top: '6%', bottom: '14%' },
+      xAxis: {
+        type: 'category',
+        data: MONTH_LABELS,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { color: 'rgba(255,255,255,0.25)', fontSize: 10 },
+      },
+      yAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+        axisLabel: { color: 'rgba(255,255,255,0.18)', fontSize: 9, formatter: (v: number) => v >= 1000 ? (v/1000).toFixed(0)+'k' : ''+v },
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      series: [{
+        type: 'line',
+        smooth: true,
+        data: data,
+        symbol: 'circle',
+        symbolSize: (v: number) => v > 0 ? 7 : 0,
+        lineStyle: { color: '#60a5fa', width: 2.5 },
+        areaStyle: {
+          color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(96,165,250,0.25)' },
+              { offset: 1, color: 'rgba(96,165,250,0.02)' },
+            ]
+          }
+        },
+        itemStyle: { color: '#93c5fd', borderColor: 'rgba(10,12,20,0.9)', borderWidth: 2 },
+        animationDuration: 800,
+        animationEasing: 'cubicOut',
+      }],
+    });
+    chart.resize();
+    const handleResize = () => chart.resize();
+    window.addEventListener('resize', handleResize);
+    return () => { window.removeEventListener('resize', handleResize); };
+  }, [data]);
 
   return (
     <div className={`glass glass-hover noise rounded-[2rem] p-6 overflow-hidden animate-fade-in ${className}`}>
@@ -183,39 +201,7 @@ export const MonthlyExpenseChart = ({ className = "" }: Props) => {
             <span className="text-xs text-white/30">全年合计</span>
             <span className="text-lg font-bold text-white/80">¥{total.toLocaleString()}</span>
           </div>
-          <div className="overflow-x-auto scrollbar-none">
-            <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="w-full min-w-[500px]">
-              {yTicks.map((t) => {
-                const y = padT + chartH - (t / maxVal) * chartH;
-                return (
-                  <g key={t}>
-                    <line x1={padL} y1={y} x2={w - padR} y2={y} stroke={CHART_COLORS.grid} strokeWidth="1" />
-                    <text x={padL - 8} y={y + 3} textAnchor="end" fill="rgba(255,255,255,0.2)" fontSize="9">¥{t >= 1000 ? (t / 1000).toFixed(0) + "k" : t}</text>
-                  </g>
-                );
-              })}
-              <defs>
-                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={CHART_COLORS.gradientTop} />
-                  <stop offset="100%" stopColor={CHART_COLORS.gradientBottom} />
-                </linearGradient>
-              </defs>
-              <path d={areaPath} fill="url(#areaGrad)" />
-              <path d={linePath} fill="none" stroke={CHART_COLORS.line} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-              {points.map((p, i) => (
-                <g key={i}>
-                  {p.v > 0 && <circle cx={p.x} cy={p.y} r="5" fill={CHART_COLORS.dot} stroke="rgba(10,12,20,0.9)" strokeWidth="2" className="cursor-pointer" />}
-                  {p.v > 0 && <title>{MONTH_LABELS[i]}: ¥{p.v.toLocaleString()}</title>}
-                  <rect x={p.x - 12} y={p.y - 12} width="24" height="24" fill="transparent" className="cursor-pointer">
-                    <title>{MONTH_LABELS[i]}: ¥{p.v.toLocaleString()}</title>
-                  </rect>
-                </g>
-              ))}
-              {points.map((p, i) => (
-                <text key={i} x={p.x} y={padT + chartH + 18} textAnchor="middle" fill="rgba(255,255,255,0.25)" fontSize="9">{MONTH_LABELS[i]}</text>
-              ))}
-            </svg>
-          </div>
+          <div ref={chartRef} className="w-full h-[240px]"></div>
         </>
       )}
     </div>
