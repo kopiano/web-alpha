@@ -54,8 +54,8 @@ export function getTransactions(params) {
 }
 
 /** 按年月筛选交易记录（POST） */
-export function filterTransactions(year, month) {
-  return request.post('/transactions/filter', { year, month })
+export function filterTransactions(year, month, type = "") {
+  return request.post('/transactions/filter', { year, month, type })
 }
 
 /** 导入 CSV 交易记录 */

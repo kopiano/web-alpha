@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Receipt, TrendingUp, TrendingDown, Minus, RefreshCw, AlertCircle, UserRound } from "lucide-react";
+import { ChevronLeft, ChevronRight, Receipt, TrendingUp, TrendingDown, Minus, RefreshCw, AlertCircle, UserRound, MoreHorizontal, ListFilter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTransactions, filterTransactions } from "@/api/transactions";
 import { useTilt } from "@/hooks/useTilt";
@@ -71,7 +71,7 @@ const MOCK_SUMMARY: TransactionSummary = {
   total_income: 15086.50, total_expense: 8280.00,
 };
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 10;
 
 interface Props {
   selectedMonth?: string;
@@ -117,6 +117,8 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [showFilter, setShowFilter] = useState(false);
 
   const [year, month] = useMemo(() => {
     if (!selectedMonth) return ["", ""];
@@ -132,11 +134,12 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
       let res;
       // 有年月筛选时使用 POST，否则使用 GET
       if (year || month) {
-        res = await filterTransactions(year || "", month || "");
+        res = await filterTransactions(year || "", month || "", typeFilter || "");
       } else {
         res = await getTransactions({
           page,
           page_size: PAGE_SIZE,
+          type: typeFilter || undefined,
         });
       }
       const data = res.data?.data;
@@ -152,7 +155,7 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
     } finally {
       setLoading(false);
     }
-  }, [year, month, page, isGuest, refreshTrigger]);
+  }, [year, month, page, isGuest, refreshTrigger, typeFilter]);
 
   useEffect(() => {
     if (isGuest) return;
@@ -368,13 +371,48 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
         ) : (
           <>
             <div className="overflow-x-auto scrollbar-thin">
-              <div className="grid min-w-[980px] grid-cols-[0.7fr_0.9fr_0.7fr_0.4fr_0.6fr_0.4fr_0.4fr_0.5fr_0.4fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
+              <div className="grid min-w-[980px] grid-cols-[0.55fr_0.75fr_0.55fr_0.3fr_0.45fr_0.3fr_0.3fr_0.35fr_0.25fr_0.25fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
                 <button className="text-left flex items-center gap-1 hover:text-white/50 transition-colors" onClick={() => toggleSort("time")}>
                   交易时间 {sortKey === "time" && (sortDir === "desc" ? "↓" : "↑")}
                 </button>
                 <div className="text-center">商家</div>
                 <div className="text-center">商品</div>
-                <div className="text-center">收支</div>
+              <div className="relative text-center">
+                <div className="inline-flex items-center justify-center gap-[2px] cursor-pointer hover:text-white/50 transition-colors"
+                  onClick={()=>setShowFilter(!showFilter)}>
+                  <span>{typeFilter==="income"?"收入":typeFilter==="expense"?"支出":typeFilter==="neutral"?"中性":"收支"}</span>
+                  <ListFilter size={10} className={typeFilter?"text-violet-400":"text-white/20"}/>
+                </div>
+                {showFilter && (
+                  <div className="absolute top-full -translate-x-1/2 mt-1.5 z-50 rounded-2xl p-1.5 min-w-[90px] animate-dropdown-in"
+                              style={{ background: "rgba(8,8,20,0.92)",backdropFilter: "blur(40px) saturate(140%)",WebkitBackdropFilter: "blur(40px) saturate(140%)",border: "1px solid rgba(255,255,255,0.06)",boxShadow: "0 30px 80px -20px rgba(0,0,0,0.9), inset 0 1px 0 0 rgba(255,255,255,0.04)", width: "100px"}}>
+                    <div className={"flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-medium cursor-pointer transition-all hover:bg-white/10 "+(typeFilter===""?"text-white/90":"text-white/50 hover:text-white/80")}
+                      onClick={()=>{setTypeFilter("");setShowFilter(false);setPage(1);}}>
+                      <span className="w-[5px] h-[5px] rounded-full bg-white/30 shrink-0"></span>
+                      <span>全部</span>
+                      {typeFilter==="" && <svg className="ml-auto w-3 h-3 text-white/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </div>
+                    <div className={"flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-medium cursor-pointer transition-all hover:bg-white/10 "+(typeFilter==="income"?"text-white/90":"text-white/50 hover:text-white/80")}
+                      onClick={()=>{setTypeFilter("income");setShowFilter(false);setPage(1);}}>
+                      <span className="w-[5px] h-[5px] rounded-full bg-emerald-400 shrink-0"></span>
+                      <span>收入</span>
+                      {typeFilter==="income" && <svg className="ml-auto w-3 h-3 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </div>
+                    <div className={"flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-medium cursor-pointer transition-all hover:bg-white/10 "+(typeFilter==="expense"?"text-white/90":"text-white/50 hover:text-white/80")}
+                      onClick={()=>{setTypeFilter("expense");setShowFilter(false);setPage(1);}}>
+                      <span className="w-[5px] h-[5px] rounded-full bg-rose-400 shrink-0"></span>
+                      <span>支出</span>
+                      {typeFilter==="expense" && <svg className="ml-auto w-3 h-3 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </div>
+                    <div className={"flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-medium cursor-pointer transition-all hover:bg-white/10 "+(typeFilter==="neutral"?"text-white/90":"text-white/50 hover:text-white/80")}
+                      onClick={()=>{setTypeFilter("neutral");setShowFilter(false);setPage(1);}}>
+                      <span className="w-[5px] h-[5px] rounded-full bg-amber-400 shrink-0"></span>
+                      <span>中性</span>
+                      {typeFilter==="neutral" && <svg className="ml-auto w-3 h-3 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </div>
+                  </div>
+                )}
+              </div>
                 <button className="text-center flex items-center justify-center gap-1 hover:text-white/50 transition-colors" onClick={() => toggleSort("amount")}>
                   金额 {sortKey === "amount" && (sortDir === "desc" ? "↓" : "↑")}
                 </button>
@@ -382,6 +420,7 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
                 <div className="text-center">支付方式</div>
                 <div className="text-center">分类</div>
                 <div className="text-center">备注</div>
+                <div className="text-center">操作</div>
               </div>
 
               <div className="overflow-hidden rounded-[1.75rem] border border-white/[0.08] min-w-[980px]" style={{ minHeight: "252px", transition: "min-height 0.3s ease" }}>
@@ -391,7 +430,7 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
                   const isExpense = tx.type === "expense";
                   return (
                     <div key={tx.id}
-                      className="grid min-w-[980px] grid-cols-[0.7fr_0.9fr_0.7fr_0.4fr_0.6fr_0.4fr_0.4fr_0.5fr_0.4fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors bg-white/[0.025] hover:bg-white/[0.04]"
+                      className="grid min-w-[980px] grid-cols-[0.55fr_0.75fr_0.55fr_0.3fr_0.45fr_0.3fr_0.3fr_0.35fr_0.25fr_0.25fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors bg-white/[0.025] hover:bg-white/[0.04]"
                     >
                       <div className="text-xs text-white/50 self-center overflow-hidden whitespace-nowrap text-left"
     onMouseEnter={e=>{const s=e.currentTarget.querySelector('span');if(s&&s.scrollWidth>e.currentTarget.offsetWidth){s.style.transition='transform 0.5s cubic-bezier(.25,.46,.45,.94)';s.style.transform=`translateX(-${s.scrollWidth-e.currentTarget.offsetWidth+8}px)`}}}
