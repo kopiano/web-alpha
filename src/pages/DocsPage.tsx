@@ -230,6 +230,7 @@ export default function DocsPage() {
         sel={sel}
         selectedIdx={selectedIdx}
         setSelectedIdx={setSelectedIdx}
+        onSaved={refresh}
         viewMode={viewMode}
         setViewMode={setViewMode}
         isEditing={isEditing}

@@ -13,6 +13,7 @@ interface ArticleViewProps {
   sel: (typeof import("@/components/doc/docsData").ARTICLES)[number] | null;
   selectedIdx: number | null;
   setSelectedIdx: (idx: number | null) => void;
+  onSaved?: () => void;
   viewMode: "preview" | "raw";
   setViewMode: (mode: "preview" | "raw") => void;
   isEditing: boolean;
@@ -48,6 +49,7 @@ export const ArticleView = ({
   articleMd, setArticleMd, renderedContent, comments, setComments, form, setForm, refreshComments, replyTo, setReplyTo, replyText, setReplyText,
   liked, setLiked, showEmoji, setShowEmoji, showReplyEmoji, setShowReplyEmoji, commentEndRef, loggedInUser,
   TAG_COLORS, TAG_ICONS,
+  onSaved,
 }: ArticleViewProps) => {
   const [saving, setSaving] = useState(false);
   if (!sel) return null;
@@ -63,6 +65,7 @@ export const ArticleView = ({
       setIsEditing(false);
       setViewMode("preview");
       toast.success("Document updated");
+      onSaved?.();
     } catch {
       // Keep localStorage save as fallback
       saveMd(p, editContent);
