@@ -81,9 +81,9 @@ export const MusicPlayer = () => {
   const [volume, setVolume] = useState(0.7);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [buffered, setBuffered] = useState(0);
   const [showVolume, setShowVolume] = useState(false);
   const [showPlaylist, setShowPlaylist] = useState(false);
-  const [currentStarted, setCurrentStarted] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem("music-player-collapsed") === "1"; } catch { return false; }
   });
@@ -103,8 +103,7 @@ export const MusicPlayer = () => {
     try { localStorage.setItem("music-player-collapsed", collapsed ? "1" : "0"); } catch {}
   }, [collapsed]);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const preloadRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(new Audio());
   const playlistRef = useRef<Track[]>([]);
   const trackIdxRef = useRef(0);
   const playRequestRef = useRef(0);
@@ -113,13 +112,29 @@ export const MusicPlayer = () => {
   useEffect(() => { trackIdxRef.current = trackIdx; try { localStorage.setItem("music-track", String(trackIdx)); } catch {} }, [trackIdx]);
 
   useEffect(() => {
-    const audio = new Audio();
+    const audio = audioRef.current;
     audio.preload = "auto";
-    audio.volume = volume;
-    audioRef.current = audio;
+    audio.crossOrigin = "anonymous";
 
     const onLoaded = () => setDuration(audio.duration || 0);
-    const onPlaying = () => setCurrentStarted(true);
+    const onProgress = () => {
+      const d = audio.duration;
+      if (!d || !isFinite(d)) {
+        setBuffered(0);
+        return;
+      }
+      try {
+        const ranges = audio.buffered;
+        if (!ranges || ranges.length === 0) {
+          setBuffered(0);
+          return;
+        }
+        const end = ranges.end(ranges.length - 1);
+        setBuffered(Math.max(0, Math.min(1, end / d)));
+      } catch {
+        setBuffered(0);
+      }
+    };
     const onEnded = () => {
       const list = playlistRef.current;
       if (list.length > 0) {
@@ -137,7 +152,7 @@ export const MusicPlayer = () => {
     const onDur = () => setDuration(audio.duration || 0);
 
     audio.addEventListener("loadedmetadata", onLoaded);
-    audio.addEventListener("playing", onPlaying);
+    audio.addEventListener("progress", onProgress);
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("durationchange", onDur);
@@ -145,11 +160,10 @@ export const MusicPlayer = () => {
     return () => {
       audio.pause();
       audio.removeEventListener("loadedmetadata", onLoaded);
-      audio.removeEventListener("playing", onPlaying);
+      audio.removeEventListener("progress", onProgress);
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("durationchange", onDur);
-      audioRef.current = null;
     };
   }, []);
 
@@ -157,56 +171,34 @@ export const MusicPlayer = () => {
     const audio = audioRef.current;
     const t = playlist[trackIdx];
     if (!audio || !t) return;
+    playRequestRef.current += 1;
     audio.src = musicFileUrl(t.file);
     audio.load();
-    const savedTime = (() => { try { return parseInt(localStorage.getItem("music-time") || "0") || 0; } catch { return 0; } })();
+    audio.currentTime = 0;
     setCurrentTime(0);
     setDuration(0);
-    setCurrentStarted(false);
-    if (savedTime > 0) {
-      const checkReady = () => {
-        if (audio.readyState >= 1) {
-          audio.currentTime = savedTime;
-        } else {
-          audio.addEventListener("canplay", () => { audio.currentTime = savedTime; }, { once: true });
-        }
-      };
-      checkReady();
-    }
+    setBuffered(0);
     if (playing) {
       const requestId = ++playRequestRef.current;
-      const tryPlay = async () => {
-        try {
-          if (audio.readyState < 2) {
-            await new Promise<void>((resolve) => {
-              const onCanPlay = () => resolve();
-              audio.addEventListener("canplay", onCanPlay, { once: true });
-            });
-          }
-          if (requestId !== playRequestRef.current) return;
-          await audio.play();
-        } catch {
-          if (requestId === playRequestRef.current) setPlaying(false);
-        }
-      };
-      void tryPlay();
+      void audio.play().catch(() => {
+        if (requestId === playRequestRef.current) setPlaying(false);
+      });
     }
   }, [trackIdx, playlist]);
 
-  /* ─── Preload next track ─── */
   useEffect(() => {
-    if (!playlist.length || !playing || !currentStarted) return;
-    const nextIdx = (trackIdx + 1) % playlist.length;
-    const nextTrack = playlist[nextIdx];
-    if (!nextTrack) return;
-    const prev = preloadRef.current;
-    const next = new Audio();
-    next.preload = "auto";
-    next.src = musicFileUrl(nextTrack.file);
-    next.load();
-    preloadRef.current = next;
-    return () => { next.pause(); next.src = ""; if (prev && prev !== next) { prev.pause(); prev.src = ""; } };
-  }, [trackIdx, playing, currentStarted, playlist]);
+    const nextTrack = playlist[(trackIdx + 1) % playlist.length];
+    if (!playlist.length || !playing || !nextTrack) return;
+    const controller = new AbortController();
+    void fetch(musicFileUrl(nextTrack.file), {
+      method: "GET",
+      signal: controller.signal,
+      cache: "force-cache",
+      credentials: "include",
+      keepalive: true,
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [trackIdx, playing, playlist]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = muted ? 0 : volume;
@@ -221,16 +213,10 @@ export const MusicPlayer = () => {
       setPlaying(false);
       return;
     }
-    setPlaying(true);
     const requestId = ++playRequestRef.current;
+    setPlaying(true);
     const start = async () => {
       try {
-        if (audio.readyState < 2) {
-          await new Promise<void>((resolve) => {
-            const onCanPlay = () => resolve();
-            audio.addEventListener("canplay", onCanPlay, { once: true });
-          });
-        }
         if (requestId !== playRequestRef.current) return;
         await audio.play();
       } catch {
@@ -244,11 +230,16 @@ export const MusicPlayer = () => {
     const audio = audioRef.current;
     if (!audio || !playlist.length) return;
     if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+    audio.currentTime = 0;
+    playRequestRef.current += 1;
     setTrackIdx((prev) => (prev === 0 ? playlist.length - 1 : prev - 1));
   }, [playlist.length]);
 
   const handleNext = useCallback(() => {
     if (!playlist.length) return;
+    const audio = audioRef.current;
+    if (audio) audio.currentTime = 0;
+    playRequestRef.current += 1;
     setTrackIdx((prev) => (prev + 1) % playlist.length);
   }, [playlist.length]);
 
@@ -337,8 +328,35 @@ export const MusicPlayer = () => {
         <div className="min-w-0 w-36 flex flex-col justify-center" style={{opacity:collapsed?0:1,transition:"opacity 0.4s ease 0.05s"}}>
           <MarqueeLine title={track.title} artist={track.artist} />
           <div className="mt-1 h-[4px] rounded-full bg-white/20 overflow-hidden cursor-pointer" onClick={seek}>
-            <div className="h-full rounded-full bg-gradient-to-r from-white/50 to-white/25"
-              style={{ width: `${progress * 100}%`, transition: "width 0.3s linear" }} />
+            <div className="relative h-full rounded-full bg-white/[0.05]">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-white/20 transition-[width] duration-500 ease-out"
+                style={{
+                  width: `${buffered * 100}%`,
+                  boxShadow: "0 0 10px rgba(255,255,255,0.18)",
+                }}
+              />
+              <div
+                className="absolute inset-y-0 left-0 rounded-full"
+                style={{
+                  width: `${progress * 100}%`,
+                  transition: "width 0.25s linear",
+                  background: "linear-gradient(90deg, rgba(59,130,246,0.95), rgba(168,85,247,0.95), rgba(244,114,182,0.95))",
+                  boxShadow: "0 0 14px rgba(59,130,246,0.35), 0 0 24px rgba(168,85,247,0.18)",
+                }}
+              />
+              <div
+                className="absolute top-0 bottom-0 rounded-full animate-pulse"
+                style={{
+                  left: 0,
+                  width: `${Math.max(2, buffered * 100)}%`,
+                  background: "linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.16), rgba(255,255,255,0.04))",
+                  filter: "blur(0.2px)",
+                  opacity: buffered > 0 ? 1 : 0,
+                  transition: "opacity 0.2s ease",
+                }}
+              />
+            </div>
           </div>
           <div className="flex justify-between mt-0.5">
             <span className="text-[8px] text-white/25 tabular-nums">{formatTime(currentTime)}</span>
@@ -393,7 +411,7 @@ export const MusicPlayer = () => {
               </div>
               <div className="p-2 max-h-[260px] overflow-y-auto scrollbar-none">
                 {playlist.map((t, i) => (
-                  <button key={i} onClick={()=>{setTrackIdx(i); if (!playing) setPlaying(true); setShowPlaylist(false);}}
+                  <button key={i} onClick={()=>{setTrackIdx(i); setShowPlaylist(false);}}
                     className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-3 transition-all duration-200 ${i===trackIdx?"bg-white/[0.08]":"hover:bg-white/[0.05]"}`}>
                     <div className={`w-7 h-7 rounded-[50%] grid place-items-center shrink-0 text-[10px] font-bold ${i===trackIdx?"bg-white/20 text-white":"text-white/40 bg-white/[0.08]"}`}>
                       {i===trackIdx&&playing?<span className="flex gap-[2px] items-center"><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"0ms",animationDuration:"0.6s"}}/><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"150ms",animationDuration:"0.6s"}}/><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"300ms",animationDuration:"0.6s"}}/></span>:String(i+1).padStart(2,"0")}
