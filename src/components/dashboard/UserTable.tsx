@@ -83,9 +83,9 @@ export const UserTable = ({ className = "" }: UserTableProps) => {
               <div className="text-center">Status</div>
             </div>
             <div className="overflow-hidden rounded-[1.75rem] border border-white/[0.08]">
-              {current.map((u, i) => (
+              {current.map((u) => (
                 <div
-                  key={u.email || i}
+                  key={u.ID ?? u.email ?? u.username ?? "user"}
                   className={`grid grid-cols-[1.2fr_1.25fr_1fr_0.8fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors min-w-[500px] ${String(u.status || "").toLowerCase() === "active" ? "bg-emerald-400/10 hover:bg-emerald-400/14" : "bg-white/[0.025] hover:bg-white/[0.04]"}`}
                 >
                   <div className="flex items-center gap-3 min-w-0">

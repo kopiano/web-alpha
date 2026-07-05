@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import { Search, Smile, Image, Send, ChevronDown, FileText, Download, AlignJustify, Plus } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
@@ -40,6 +40,45 @@ function buildContact(u: ChatUser, lastMsg: string, lastTime: string): Contact {
 }
 
 const TEAM_AVATAR = teamAvatar
+
+const ContactItem = memo(function ContactItem({
+  contact,
+  active,
+  onSelect,
+  online,
+}: {
+  contact: Contact;
+  active: boolean;
+  onSelect: (id: number) => void;
+  online: boolean;
+}) {
+  return (
+    <button
+      onClick={() => onSelect(contact.id)}
+      className={`w-full flex items-center gap-3 md:gap-4 px-4 md:px-5 text-left transition-all duration-300 contact-btn ${active ? "active scale-[1.01]" : ""}`}
+      style={{height:"64px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:active?"rgba(0,0,0,0.25)":"transparent",backdropFilter:active?"blur(20px)":"none",WebkitBackdropFilter:active?"blur(20px)":"none",boxShadow:active?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}
+    >
+      <div className="relative shrink-0">
+        <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold overflow-hidden shadow-lg ring-1 ring-white/10"
+          style={contact.userData?.avatar?{boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}:{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.15)"}}>
+          {contact.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
+          <span className={contact.userData?.avatar?"hidden":""}>{contact.avatar}</span>
+        </div>
+        {online&&<span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]"/>}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex justify-between items-baseline">
+          <p className="text-[15px] font-medium truncate" style={{color:active?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.8)"}}>{contact.name}</p>
+          <span className="text-[10px] text-white/25 font-mono shrink-0 ml-1.5">{contact.time}</span>
+        </div>
+        <div className="flex justify-between items-center mt-0.5">
+          <p className="text-[12px] truncate" style={{color:active?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.25)"}}>{contact.lastMsg || ""}</p>
+          {contact.unread>0&&<span className={`w-[16px] h-[16px] rounded-full grid place-items-center text-[8px] font-medium text-white/35 border border-white/20 leading-none shrink-0 ml-1.5 ${active?"hidden":""}`}>{contact.unread>99?"99+":contact.unread}</span>}
+        </div>
+      </div>
+    </button>
+  );
+});
 
 const ChatPage = () => {
   const { user, openAuth } = useAuth();
@@ -237,7 +276,7 @@ const ChatPage = () => {
   useEffect(()=>{if(!me){setLoading(false);return;}loadAll();},[me]);
 
   /* ─── Switch contact → load private messages ─── */
-  const switchContact = (contactId: number) => {
+  const switchContact = useCallback((contactId: number) => {
     const idx = contacts.findIndex(c=>c.id===contactId);
     if(idx<0) return;
     setActiveIdx(idx);
@@ -254,7 +293,7 @@ const ChatPage = () => {
     }
     loadForUser(contactId);
     if (window.innerWidth < 768) setShowMobileContacts(false);
-  };
+  }, [contacts, loadForUser]);
 
   /* ─── Send ─── */
   const sendMsg = useCallback((type: string, content: string, fileName?: string, fileData?: string) => {
@@ -288,7 +327,7 @@ const ChatPage = () => {
   }
   const online = (c: Contact) => c.online;
   const activeContactId = activeIdx >= 0 ? contacts[activeIdx]?.id : null
-  const filtered = contacts
+  const filtered = useMemo(() => contacts
     .filter(c=>c.name.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a,b) => {
       const aOn = online(a) ? 1 : 0
@@ -311,7 +350,7 @@ const ChatPage = () => {
       const bAv = b.userData?.avatar ? 1 : 0
       if (aAv !== bAv) return bAv - aAv
       return a.name.localeCompare(b.name)
-    });
+    }), [contacts, searchQuery]);
   const contact = contacts[activeIdx];
 
   useEffect(()=>{if(activeIdx!==-2)activeContactIdRef.current=contact?.id||0;},[contact,activeIdx]);
@@ -421,34 +460,9 @@ const ChatPage = () => {
               {/* Personal section */}
               <div className="px-4 md:px-5 pt-4 md:pt-6 pb-2 md:pb-3" style={{fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Personal</div>
 
-              {filtered.map((c,i)=>{
-              const isActive = c.id === contacts[activeIdx]?.id;
-              const on=online(c);
-              return (
-                <button key={c.id} onClick={()=>switchContact(c.id)}
-                  className={`w-full flex items-center gap-3 md:gap-4 px-4 md:px-5 text-left transition-all duration-300 contact-btn ${isActive?"active scale-[1.01]":""}`}
-                  style={{height:"64px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:isActive?"rgba(0,0,0,0.25)":"transparent",backdropFilter:isActive?"blur(20px)":"none",WebkitBackdropFilter:isActive?"blur(20px)":"none",boxShadow:isActive?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}>
-                  <div className="relative shrink-0">
-                    <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold overflow-hidden shadow-lg ring-1 ring-white/10"
-                      style={c.userData?.avatar?{boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}:{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.15)"}}>
-                      {c.userData?.avatar?<img src={c.userData.avatar.startsWith('http')?c.userData.avatar:resolveAvatar(c.userData.avatar)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
-                      <span className={c.userData?.avatar?"hidden":""}>{c.avatar}</span>
-                    </div>
-                    {on&&<span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]"/>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-baseline">
-                      <p className="text-[15px] font-medium truncate" style={{color:isActive?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.8)"}}>{c.name}</p>
-                      <span className="text-[10px] text-white/25 font-mono shrink-0 ml-1.5">{c.time}</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-0.5">
-                      <p className="text-[12px] truncate" style={{color:isActive?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.25)"}}>{c.lastMsg || ""}</p>
-                      {c.unread>0&&<span className={`w-[16px] h-[16px] rounded-full grid place-items-center text-[8px] font-medium text-white/35 border border-white/20 leading-none shrink-0 ml-1.5 ${isActive?"hidden":""}`}>{c.unread>99?"99+":c.unread}</span>}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+              {filtered.map((c) => (
+                <ContactItem key={c.id} contact={c} active={c.id === contacts[activeIdx]?.id} onSelect={switchContact} online={online(c)} />
+              ))}
             </>}
           </div>
 

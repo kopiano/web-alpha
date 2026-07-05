@@ -206,9 +206,9 @@ export const VisitorTable = ({ className = "" }: VisitorTableProps) => {
               <div>User</div><div className="text-center">IP</div><div className="text-center">Location</div><div className="text-center">Device · Browser</div><div className="text-center">Duration</div><div className="text-center">Visits</div><div className="text-center">Last Seen</div><div className="text-center">Status</div>
             </div>
             <div className="overflow-hidden rounded-[1.75rem] border border-white/[0.08] min-w-[980px]">
-              {current.map((v, i) => (
+              {current.map((v) => (
                 <div
-                  key={v.id ?? `${v.ip}-${i}`}
+                  key={v.id ?? v.ip ?? v.last_seen ?? v.user_name ?? "visitor"}
                   className="grid min-w-[980px] grid-cols-[1.2fr_1fr_1.25fr_1.2fr_0.8fr_0.7fr_0.9fr_0.8fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors bg-white/[0.025] hover:bg-white/[0.04]"
                 >
                   <div className="flex items-center gap-3 min-w-0 self-center">
