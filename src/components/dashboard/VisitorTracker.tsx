@@ -200,8 +200,14 @@ export const VisitorTracker = () => {
       // Push new-visitor notification once per session when location is first known
       if (!notifSentRef.current && country) {
         notifSentRef.current = true;
-        const loc = city && city !== country ? `${city}, ${country}` : country;
-        pushNotification(`New visitor from ${loc}`);
+        const loc = location || (city && city !== country ? `${city}, ${country}` : country) || ip;
+        pushNotification({
+          kind: "new_visitor",
+          actor: loc,
+          title: "new visitor",
+          text: `New visitor from ${loc}`,
+          dedupeKey: `new_visitor:${visitorId}`,
+        });
       }
       // Notify VisitorCounter to re-read location data
       window.dispatchEvent(new CustomEvent("visitor-profile-updated"));
@@ -239,7 +245,7 @@ export const VisitorTracker = () => {
       window.removeEventListener("pagehide", handlePageHide);
       void sendHeartbeat();
     };
-  }, [location.pathname, username]);
+  }, [location.pathname, pushNotification, username]);
 
   return null;
 };

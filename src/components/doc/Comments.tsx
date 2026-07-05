@@ -102,7 +102,7 @@ export const CommentsSection = ({
             const author = comments.find((c) => getCommentId(c) === id)?.name
               ?? comments.flatMap((c) => c.replies ?? []).find((r) => getCommentId(r) === id)?.name
               ?? "comment";
-            pushNotification(`Liked ${author}'s comment`);
+            pushNotification({ kind: "like", actor: loggedInUser?.username || "Someone", object: author, title: "liked a comment", text: `Liked ${author}'s comment` });
           }
         }
       })
@@ -166,7 +166,7 @@ export const CommentsSection = ({
         console.error("Failed to refresh comments after post:", error);
         toast.error(getErrorMessage(error, "Failed to refresh comments"));
       });
-      pushNotification(`New comment by ${form.name.trim()}`);
+      pushNotification({ kind: "comment", actor: form.name.trim(), title: "commented", text: `New comment by ${form.name.trim()}` });
       toast.success("Comment posted");
     } catch (error) {
       console.error("Failed to post comment:", error);
@@ -198,7 +198,7 @@ export const CommentsSection = ({
         console.error("Failed to refresh comments after reply:", error);
         toast.error(getErrorMessage(error, "Failed to refresh comments"));
       });
-      pushNotification(`New reply by ${replyUsername.trim()}`);
+      pushNotification({ kind: "reply", actor: replyUsername.trim(), title: "replied your comment", text: `New reply by ${replyUsername.trim()}` });
       toast.success("Reply posted");
     } catch (error) {
       console.error("Failed to post reply:", error);

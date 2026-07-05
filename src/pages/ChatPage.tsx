@@ -377,7 +377,7 @@ const ChatPage = () => {
       <Sidebar/>
 
       {/* Main glass panel */}
-      <div className="relative z-10 w-full max-w-[1600px] h-screen md:h-[calc(100vh-72px)] flex flex-col md:flex-row ml-0 lg:ml-24 mr-0 lg:mr-[30px] pb-0 rounded-none md:rounded-[20px] lg:rounded-[32px] overflow-hidden"
+      <div className="relative z-10 w-full max-w-[1600px] h-[100svh] md:h-[calc(100vh-72px)] flex flex-col md:flex-row ml-0 lg:ml-24 mr-0 lg:mr-[30px] pb-0 rounded-none md:rounded-[20px] lg:rounded-[32px] overflow-hidden"
         style={{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(30px) saturate(180%)",WebkitBackdropFilter:"blur(30px) saturate(180%)",border:"1px solid rgba(255,255,255,0.12)",boxShadow:"0 32px 80px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)"}}>
 
         {/* Mobile drawer overlay */}
@@ -497,7 +497,7 @@ const ChatPage = () => {
         </div>
 
         {/* CENTER — Chat area */}
-        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"} md:flex pb-[72px] lg:pb-0`}
+        <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden ${showMobileContacts ? "hidden md:flex" : "flex"} md:flex pb-[88px] lg:pb-0`}
           style={{background:"rgba(255,255,255,0.01)"}}>
           <div className="px-5 py-3 flex items-center gap-3 shrink-0" style={{borderBottom:"1px solid rgba(255,255,255,0.05)",background:"rgba(255,255,255,0.015)"}}>
             {/* Mobile back / toggle contacts button */}
@@ -622,7 +622,7 @@ const ChatPage = () => {
             <button onClick={sendImg} className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-violet-500 to-cyan-400 text-white">Send</button>
           </div>}
 
-          <div className="px-3 md:px-4 pb-3 md:pb-4 pt-2 shrink-0">
+          <div className="px-3 md:px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] md:pb-4 pt-2 shrink-0">
             <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 h-[50px] md:h-[56px] rounded-full"
               style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(30px)",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 8px 32px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
               <div className="relative">

@@ -44,7 +44,7 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
       if (avatarFile) formData.append("avatar", avatarFile);
 
       await updateSettings(formData);
-      pushNotification(`${username.trim()} updated settings`);
+      pushNotification({ kind: "settings_update", actor: username.trim(), title: "updated settings", text: `${username.trim()} updated settings` });
       toast.success("Settings saved");
       onSaved();
       onClose();
@@ -60,7 +60,7 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
     <div className="fixed inset-0 z-[99999] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="relative w-[400px] p-8 rounded-2xl animate-dropdown-in"
+        className="relative w-[calc(100vw-24px)] max-w-[400px] max-h-[calc(100vh-24px)] overflow-y-auto p-5 md:p-8 rounded-2xl animate-dropdown-in"
         style={{
           background: "linear-gradient(135deg, rgba(20,14,30,0.95), rgba(30,18,48,0.92))",
           backdropFilter: "blur(40px)",
@@ -102,7 +102,7 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 rounded-xl text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20 focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
+                className="w-full h-10 pl-9 pr-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20 focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
               />
             </div>
           </div>
@@ -116,7 +116,7 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 rounded-xl text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20 focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
+                className="w-full h-10 pl-9 pr-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20 focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
               />
             </div>
           </div>
@@ -133,7 +133,7 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
                 placeholder="Leave blank to keep"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 rounded-xl text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20 focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
+                className="w-full h-10 pl-9 pr-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20 focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
               />
             </div>
           </div>
@@ -141,7 +141,7 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-10 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-neon-purple to-neon-cyan hover:opacity-90 disabled:opacity-50 transition-opacity active:scale-[0.98] flex items-center justify-center gap-2"
+            className="w-full h-10 rounded-xl text-base md:text-xs font-semibold text-white bg-gradient-to-r from-neon-purple to-neon-cyan hover:opacity-90 disabled:opacity-50 transition-opacity active:scale-[0.98] flex items-center justify-center gap-2"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             {loading ? "Saving..." : "Save Changes"}

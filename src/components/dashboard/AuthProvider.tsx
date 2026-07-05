@@ -45,7 +45,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const newUser = res.data.data as User;
       setUser(newUser);
       if (newUser && !prevUserRef.current) {
-        pushNotification(`${newUser.username} signed in`);
+        pushNotification({
+          kind: "auth_login",
+          actor: newUser.username,
+          title: "signed in",
+          text: `${newUser.username} signed in`,
+          dedupeKey: `auth_login:${newUser.id}`,
+        });
       }
       prevUserRef.current = newUser;
     } catch {
@@ -74,7 +80,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           localStorage.removeItem("token");
           setUser(null);
           prevUserRef.current = null;
-          if (username) pushNotification(`${username} signed out`);
+          if (username) {
+            pushNotification({
+              kind: "auth_logout",
+              actor: username,
+              title: "signed out",
+              text: `${username} signed out`,
+              dedupeKey: `auth_logout:${username.toLowerCase()}`,
+            });
+          }
           toast.success("Signed out");
         },
         refreshUser,

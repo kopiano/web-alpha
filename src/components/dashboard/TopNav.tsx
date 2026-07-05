@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, memo, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Bell, X, ChevronDown } from "lucide-react";
 import { VisitorCounter } from "./VisitorCounter";
@@ -16,8 +16,50 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+const NotificationRow = memo(function NotificationRow({
+  notification,
+}: {
+  notification: ReturnType<typeof useNotifications>["notifications"][number];
+}) {
+  const timeLabel = useMemo(() => formatRelativeTime(notification.time), [notification.time]);
+
+  return (
+    <div
+      className={`group w-full text-left px-3 py-2.5 rounded-xl transition-all duration-200 grid grid-cols-[auto_1fr_auto] gap-3 items-start ${
+        notification.unread ? "hover:bg-white/8" : "hover:bg-white/[0.03]"
+      }`}
+    >
+      <span
+        className={`mt-1 w-2 h-2 rounded-full shrink-0 transition-all duration-200 ${
+          notification.unread
+            ? "bg-[#8b5cf6] shadow-[0_0_8px_rgba(139,92,246,0.6)]"
+            : "bg-white/20"
+        }`}
+      />
+      <div className="min-w-0">
+        {notification.actor ? (
+          <p className={`text-[11px] leading-5 break-words ${notification.unread ? "text-white/88" : "text-white/45"}`}>
+            <span className={`font-semibold ${notification.unread ? "text-violet-300" : "text-white/55"}`}>{notification.actor}</span>
+            <span className="text-white/70"> {notification.title}</span>
+            {notification.object ? (
+              <>
+                <span className="text-white/70"> </span>
+                <span className={`font-semibold ${notification.unread ? "text-cyan-300" : "text-white/55"}`}>{notification.object}</span>
+              </>
+            ) : null}
+          </p>
+        ) : (
+          <p className={`text-[11px] leading-5 break-words ${notification.unread ? "text-white/90 font-medium" : "text-white/45"}`}>{notification.title}</p>
+        )}
+      </div>
+      <p className="text-[10px] text-white/30 shrink-0 text-right whitespace-nowrap pt-0.5">{timeLabel}</p>
+    </div>
+  );
+});
+
 export const TopNav = () => {
   const [notifOpen, setNotifOpen] = useState(false);
+  const [expandedNotifications, setExpandedNotifications] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
@@ -26,6 +68,10 @@ export const TopNav = () => {
   const avatarRef = useRef<HTMLButtonElement>(null);
   const { user, openAuth, logout, refreshUser } = useAuth();
   const { notifications, unreadCount, markAllRead } = useNotifications();
+  const visibleNotifications = useMemo(
+    () => notifications.slice(0, expandedNotifications ? 50 : 6),
+    [notifications, expandedNotifications],
+  );
 
   const updateDropdownPos = useCallback(() => {
     if (bellRef.current) {
@@ -36,6 +82,16 @@ export const TopNav = () => {
       });
     }
   }, []);
+
+  const openNotifications = useCallback(() => {
+    setExpandedNotifications(false);
+    setNotifOpen(true);
+  }, []);
+
+  const closeNotifications = useCallback(() => {
+    setNotifOpen(false);
+    markAllRead();
+  }, [markAllRead]);
 
   useEffect(() => {
     if (notifOpen) {
@@ -114,7 +170,7 @@ export const TopNav = () => {
           ref={bellRef}
           className="w-10 h-10 md:w-11 md:h-11 rounded-full grid place-items-center relative active:scale-90 transition-all duration-200"
           style={{ background: "rgba(195,195,210,0.12)", backdropFilter: "blur(50px) saturate(180%)", WebkitBackdropFilter: "blur(50px) saturate(180%)", border: "0.5px solid rgba(255,255,255,0.15)" }}
-          onClick={() => setNotifOpen(!notifOpen)}
+          onClick={() => (notifOpen ? closeNotifications() : openNotifications())}
         >
           <Bell size={15} className="text-white/65" />
           {unreadCount > 0 && (
@@ -229,17 +285,18 @@ export const TopNav = () => {
         createPortal(
           <div className="fixed inset-0 z-[99999]">
             {/* Backdrop */}
-            <div className="absolute inset-0" onClick={() => { setNotifOpen(false); markAllRead(); }} />
+            <div className="absolute inset-0" onClick={closeNotifications} />
             {/* Dropdown */}
             <div
-              className="absolute w-80 glass-strong rounded-2xl p-2 animate-dropdown-in overflow-hidden"
+              className="absolute w-[min(92vw,20rem)] glass-strong rounded-2xl p-2 overflow-hidden transition-opacity duration-150 will-change-transform"
               style={{
                 top: `${dropdownPos.top}px`,
                 right: `${dropdownPos.right}px`,
+                height: expandedNotifications && notifications.length > 6 ? "min(74vh, 640px)" : "auto",
               }}
             >
               <div className="flex items-center justify-between px-3 py-2">
-                <p className="text-xs font-semibold">Notifications</p>
+                <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-white/70">Notifications</p>
                 <button
                   className="text-[10px] text-white/40 hover:text-white transition-colors"
                   onClick={() => setNotifOpen(false)}
@@ -247,33 +304,21 @@ export const TopNav = () => {
                   <X size={12} />
                 </button>
               </div>
-              <div className="space-y-0.5 max-h-[320px] overflow-y-auto">
+              <div className={`space-y-0.5 overflow-y-auto pr-1 ${expandedNotifications && notifications.length > 6 ? "h-[calc(100%-68px)]" : "max-h-[320px]"}`}>
                 {notifications.length === 0 ? (
                   <p className="text-[11px] text-white/30 text-center py-6">No notifications yet</p>
                 ) : (
-                  notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors flex items-start gap-3"
-                    >
-                      <span
-                        className={`mt-1 w-2 h-2 rounded-full shrink-0 ${
-                          n.unread
-                            ? "bg-neon-cyan shadow-[0_0_6px_hsl(var(--neon-cyan))]"
-                            : "bg-white/20"
-                        }`}
-                      />
-                      <div className="min-w-0">
-                        <p className="text-xs text-white/80 leading-relaxed">{n.text}</p>
-                        <p className="text-[10px] text-white/30 mt-0.5">{formatRelativeTime(n.time)}</p>
-                      </div>
-                    </div>
+                  visibleNotifications.map((n) => (
+                    <NotificationRow key={n.id} notification={n} />
                   ))
                 )}
               </div>
               <div className="px-3 pt-2 pb-1 border-t border-white/5 mt-1">
-                <button className="text-[10px] text-neon-cyan hover:text-white transition-colors w-full text-center">
-                  View all notifications
+                <button
+                  className="text-[10px] text-neon-cyan hover:text-white transition-colors w-full text-center"
+                  onClick={() => setExpandedNotifications((v) => !v)}
+                >
+                  {expandedNotifications && notifications.length > 6 ? "Show fewer" : "View all notifications"}
                 </button>
               </div>
             </div>

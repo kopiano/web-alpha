@@ -76,7 +76,13 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         }
         await register(formData)
         toast.success("Account created successfully");
-        pushNotification(`${username.trim()} registered`);
+        pushNotification({
+          kind: "auth_register",
+          actor: username.trim(),
+          title: "registered",
+          text: `${username.trim()} registered`,
+          dedupeKey: `auth_register:${username.trim().toLowerCase()}`,
+        });
         setMode("login");
         setAvatar(null);
         setAvatarPreview(null);
@@ -93,7 +99,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center">
       <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative w-[400px] glass-strong rounded-2xl p-8 animate-dropdown-in">
+      <div className="relative w-[calc(100vw-24px)] max-w-[400px] max-h-[calc(100vh-24px)] overflow-y-auto glass-strong rounded-2xl p-5 md:p-8 animate-dropdown-in">
         <button
           className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
           onClick={onClose}
@@ -166,7 +172,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
                 placeholder="your username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 rounded-xl text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
+                className="w-full h-10 pl-9 pr-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
                   focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
               />
             </div>
@@ -183,7 +189,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
+                  className="w-full h-10 px-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
                     focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
                 />
               </div>
@@ -201,7 +207,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 rounded-xl text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
+                className="w-full h-10 pl-9 pr-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
                   focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
               />
             </div>
@@ -218,7 +224,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-10 rounded-xl text-xs font-semibold text-white
+            className="w-full h-10 rounded-xl text-base md:text-xs font-semibold text-white
               bg-gradient-to-r from-neon-purple to-neon-cyan
               hover:opacity-90 disabled:opacity-50 transition-opacity active:scale-[0.98] flex items-center justify-center gap-2"
           >

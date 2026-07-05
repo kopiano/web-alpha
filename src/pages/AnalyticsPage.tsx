@@ -8,12 +8,14 @@ import { MonthlyExpenseChart } from "@/components/dashboard/MonthlyExpenseChart"
 import { MerchantRanking } from "@/components/dashboard/MerchantRanking";
 import { Particles } from "@/components/dashboard/Particles";
 import { useAuth } from "@/components/dashboard/AuthProvider";
+import { useNotifications } from "@/components/dashboard/NotificationProvider";
 import { importTransactions, getTransactionMonths } from "@/api/transactions";
 import { Upload, Loader2, LogIn, AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AnalyticsPage() {
   const { user, openAuth } = useAuth();
+  const { push: pushNotification } = useNotifications();
   const authLoading = user === undefined;
   const isGuest = user === null;
   const [selectedMonth, setSelectedMonth] = useState("");
@@ -88,6 +90,14 @@ export default function AnalyticsPage() {
           duration: 5000,
         }
       );
+      pushNotification({
+        kind: "csv_upload",
+        actor: user?.username || "Someone",
+        object: "CSV",
+        title: "imported CSV successfully",
+        text: `Imported ${data?.imported || 0} transaction records`,
+        dedupeKey: `csv_upload:${user?.id ?? "guest"}:${data?.imported || 0}:${selectedMonth || "all"}`,
+      });
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "导入失败";
       toast.error("导入失败", { description: msg });
@@ -320,6 +330,14 @@ export default function AnalyticsPage() {
                 import('@/api/transactions').then(({ deleteTransactions }) => {
                   deleteTransactions().then(() => {
                     setRefreshKey((k) => k + 1);
+                    pushNotification({
+                      kind: "transaction_cleared",
+                      actor: user?.username || "Someone",
+                      object: "transactions",
+                      title: "cleared transactions",
+                      text: "All transaction data cleared",
+                      dedupeKey: `transaction_cleared:${user?.id ?? "guest"}:${Date.now()}`,
+                    });
                     toast.success("All transaction data cleared");
                   }).catch(() => toast.error("Clear failed"));
                 });

@@ -141,12 +141,29 @@ export const ExpensePieChart = ({ className = "" }: Props) => {
             </span>
           )}
           <div className="flex rounded-full p-0.5" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            {(["month", "year"] as const).map((m) => (
-              <button key={m} onClick={() => setMode(m)}
-                className="text-[10px] font-semibold px-3 py-1.5 rounded-full transition-all duration-200"
-                style={{ background: mode === m ? "rgba(255,255,255,0.12)" : "transparent", color: mode === m ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)" }}
-              >{m === "month" ? "当月" : "全年"}</button>
-            ))}
+            <button
+              type="button"
+              onClick={() => setMode("month")}
+              className="text-[10px] font-semibold px-3 py-1.5 rounded-full transition-all duration-200"
+              style={{ background: mode === "month" ? "rgba(255,255,255,0.12)" : "transparent", color: mode === "month" ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)" }}
+            >
+              当月
+            </button>
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              className="text-[10px] font-semibold px-3 py-1.5 rounded-full transition-all duration-200 cursor-not-allowed"
+              style={{
+                background: "transparent",
+                color: "rgba(255,255,255,0.18)",
+                opacity: 0.55,
+                border: "1px solid transparent",
+              }}
+              title="全年视图暂不可切换"
+            >
+              全年
+            </button>
           </div>
         </div>
       </div>
