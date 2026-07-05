@@ -22,6 +22,10 @@ function musicFileUrl(file: string) {
   return `${base}/api/v1/music/file/${encodeURIComponent(file)}`;
 }
 
+function getMusicPositionKey(trackFile: string) {
+  return `music-position:${trackFile}`;
+}
+
 const playerGlassStyle = {
   background: "#ffffff24",
   backdropFilter: "blur(32px) saturate(200%)",
@@ -147,7 +151,9 @@ export const MusicPlayer = () => {
     };
     const onTime = () => {
       setCurrentTime(audio.currentTime);
-      try { localStorage.setItem("music-time", String(Math.floor(audio.currentTime))); } catch {}
+      const current = playlistRef.current[trackIdxRef.current];
+      if (!current) return;
+      try { localStorage.setItem(getMusicPositionKey(current.file), String(Math.floor(audio.currentTime))); } catch {}
     };
     const onDur = () => setDuration(audio.duration || 0);
 
@@ -174,10 +180,24 @@ export const MusicPlayer = () => {
     playRequestRef.current += 1;
     audio.src = musicFileUrl(t.file);
     audio.load();
-    audio.currentTime = 0;
     setCurrentTime(0);
     setDuration(0);
     setBuffered(0);
+    const savedTime = (() => {
+      try { return parseInt(localStorage.getItem(getMusicPositionKey(t.file)) || "0") || 0; } catch { return 0; }
+    })();
+    if (savedTime > 0) {
+      const restore = () => {
+        try {
+          audio.currentTime = Math.min(savedTime, Math.max(0, (audio.duration || 0) - 1));
+        } catch {}
+      };
+      if (audio.readyState >= 1) {
+        restore();
+      } else {
+        audio.addEventListener("loadedmetadata", restore, { once: true });
+      }
+    }
     if (playing) {
       const requestId = ++playRequestRef.current;
       void audio.play().catch(() => {
@@ -232,6 +252,10 @@ export const MusicPlayer = () => {
     if (audio.currentTime > 3) { audio.currentTime = 0; return; }
     audio.currentTime = 0;
     playRequestRef.current += 1;
+    const current = playlistRef.current[trackIdxRef.current];
+    if (current) {
+      try { localStorage.removeItem(getMusicPositionKey(current.file)); } catch {}
+    }
     setTrackIdx((prev) => (prev === 0 ? playlist.length - 1 : prev - 1));
   }, [playlist.length]);
 
@@ -240,6 +264,10 @@ export const MusicPlayer = () => {
     const audio = audioRef.current;
     if (audio) audio.currentTime = 0;
     playRequestRef.current += 1;
+    const current = playlistRef.current[trackIdxRef.current];
+    if (current) {
+      try { localStorage.removeItem(getMusicPositionKey(current.file)); } catch {}
+    }
     setTrackIdx((prev) => (prev + 1) % playlist.length);
   }, [playlist.length]);
 
