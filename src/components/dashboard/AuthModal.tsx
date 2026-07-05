@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react"
-import { User, Lock, Loader2, Camera } from "lucide-react"
+import { User, Lock, Loader2, Camera, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 import { login, register } from "@/api/auth"
 import { useNotifications } from "./NotificationProvider"
@@ -20,7 +20,38 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
   const [avatar, setAvatar] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const getAuthErrorMessage = useCallback((err: any, fallback: string, intent: "login" | "signup" = mode) => {
+    const status = err?.response?.status;
+    const data = err?.response?.data;
+    const raw = String(data?.message || data?.msg || data?.error || err?.message || "").trim();
+    const lower = raw.toLowerCase();
+
+    if (!err?.response) return "服务器未响应，请检查网络连接后重试";
+    if (status === 400 || status === 422) {
+      if (lower.includes("username") && lower.includes("password")) return "用户名和密码都不能为空";
+      if (lower.includes("username")) return "用户名不能为空或格式不正确";
+      if (lower.includes("password")) return "密码不能为空或格式不正确";
+      if (lower.includes("email")) return "邮箱格式不正确";
+      if (lower.includes("avatar")) return "头像上传失败，请更换图片后重试";
+      if (intent === "signup" && (lower.includes("exist") || lower.includes("taken") || lower.includes("duplicate") || lower.includes("already"))) {
+        if (lower.includes("email")) return "邮箱已被占用";
+        if (lower.includes("username")) return "用户名已被占用";
+        return "用户名或邮箱已被占用";
+      }
+      return raw || "提交内容有误，请检查后重试";
+    }
+    if (status === 401) return "用户名或密码错误";
+    if (status === 403) return "账号无权限执行此操作";
+    if (status === 409) return "该用户名或邮箱已被占用";
+    if (status === 429) return "操作过于频繁，请稍后再试";
+    if (status >= 500) return "服务器接口代码错误，请稍后再试";
+    if (lower.includes("username") && lower.includes("exists")) return "用户名已被占用";
+    if (lower.includes("email") && lower.includes("exists")) return "邮箱已被占用";
+    return raw || fallback;
+  }, [mode]);
 
   const handleAvatarChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -41,8 +72,12 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!username.trim() || !password.trim()) {
-      toast.error("Username and password are required");
+    if (!username.trim()) {
+      toast.error("用户名不能为空");
+      return;
+    }
+    if (!password.trim()) {
+      toast.error("密码不能为空");
       return;
     }
 
@@ -51,7 +86,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
       if (mode === "login") {
         const res = await login({ username: username.trim(), password });
         if (res?.data?.code !== 200) {
-          toast.error(res?.data?.message || "Login failed");
+          toast.error(getAuthErrorMessage({ response: { status: 400, data: res?.data } }, "登录失败", "login"));
           return;
         }
         const token = res?.data?.data?.token;
@@ -74,7 +109,11 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
           const compressedFile = new File([compressed], avatar.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" })
           formData.append("avatar", compressedFile)
         }
-        await register(formData)
+        const regRes = await register(formData)
+        if (regRes?.data?.code !== 200) {
+          toast.error(getAuthErrorMessage({ response: { status: 400, data: regRes?.data } }, "注册失败", "signup"));
+          return;
+        }
         toast.success("Account created successfully");
         pushNotification({
           kind: "auth_register",
@@ -88,7 +127,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         setAvatarPreview(null);
       }
     } catch (err: any) {
-      const message = err?.response?.data?.message || err?.message || "Network error - please check your connection";
+      const message = getAuthErrorMessage(err, "登录/注册失败，请稍后再试", mode);
       toast.error(message);
       console.error("Auth error:", err);
     } finally {
@@ -172,6 +211,12 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
                 placeholder="your username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                name={`auth-username-${mode}`}
+                data-form-type="other"
                 className="w-full h-10 pl-9 pr-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
                   focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
               />
@@ -184,14 +229,16 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
                 Email <span className="text-white/20">(optional)</span>
               </label>
               <div className="relative">
-                <input
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="off"
+                name="auth-email"
+                className="w-full h-10 px-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
                     focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
-                />
+              />
               </div>
             </div>
           )}
@@ -203,19 +250,30 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
             <div className="relative">
               <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                name="auth-password"
+                data-form-type={mode === "login" ? "password" : "new-password"}
                 className="w-full h-10 pl-9 pr-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
                   focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
             </div>
           </div>
 
           {mode === "login" && (
             <div className="text-right">
-              <button type="button" className="text-[10px] text-white/30 hover:text-neon-cyan transition-colors">
+              <button type="button" disabled className="text-[10px] text-white/20 cursor-not-allowed transition-colors" title="暂未开放">
                 Forgot password?
               </button>
             </div>

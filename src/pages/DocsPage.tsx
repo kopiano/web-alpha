@@ -130,6 +130,16 @@ export default function DocsPage() {
       return ids;
     });
 
+  const readPersistedLikedIds = () => {
+    try {
+      const raw = localStorage.getItem("docs_liked_comment_ids");
+      const parsed = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(parsed) ? parsed.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0) : []);
+    } catch {
+      return new Set<number>();
+    }
+  };
+
   const loadComments = async () => {
     try {
       const res = await fetchComments();
@@ -138,7 +148,10 @@ export default function DocsPage() {
       setRawComments(list);
       setComments(list.map(normalizeComment));
       // Only sync liked Set when fresh data arrives from server
-      setLiked(new Set(collectLikedIds(list)));
+      const serverLiked = new Set(collectLikedIds(list));
+      const persistedLiked = readPersistedLikedIds();
+      const merged = new Set<number>([...serverLiked, ...persistedLiked]);
+      setLiked(merged);
     } catch (error) {
       toast.error("Failed to load comments");
     }

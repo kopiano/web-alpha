@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { MessageCircle, Heart, Reply, Send, Smile } from "lucide-react";
 import { EmojiPop } from "@/components/doc/EmojiPop";
 import { MiniMd } from "@/components/doc/DocRenderer";
@@ -26,6 +26,37 @@ const formatCommentTime = (date: Date) => {
 const getCommentId = (comment: Comment) =>
   Number(comment.id ?? (comment as any).comment_id ?? (comment as any).commentId ?? (comment as any).ID ?? 0);
 
+const LIKED_KEY = "docs_liked_comment_ids";
+
+const readPersistedLikedIds = (): Set<number> => {
+  try {
+    const raw = localStorage.getItem(LIKED_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0) : []);
+  } catch {
+    return new Set();
+  }
+};
+
+const writePersistedLikedIds = (ids: Set<number>) => {
+  try {
+    localStorage.setItem(LIKED_KEY, JSON.stringify([...ids]));
+  } catch {
+    // ignore storage failures
+  }
+};
+
+const findCommentById = (list: Comment[], targetId: number): Comment | null => {
+  for (const comment of list) {
+    if (getCommentId(comment) === targetId) return comment;
+    if (comment.replies?.length) {
+      const nested = findCommentById(comment.replies, targetId);
+      if (nested) return nested;
+    }
+  }
+  return null;
+};
+
 /* ─── Comments Section ─── */
 interface CommentsSectionProps {
   comments: Comment[];
@@ -52,7 +83,38 @@ export const CommentsSection = ({
   liked, setLiked, showEmoji, setShowEmoji, showReplyEmoji, setShowReplyEmoji, commentEndRef, refreshComments, loggedInUser,
 }: CommentsSectionProps) => {
   const pendingLikesRef = useRef<Set<number>>(new Set());
+  const persistedLikedRef = useRef<Set<number>>(readPersistedLikedIds());
+  const mainEmojiRef = useRef<HTMLDivElement>(null);
+  const replyEmojiRef = useRef<HTMLDivElement>(null);
   const { push: pushNotification } = useNotifications();
+
+  useEffect(() => {
+    const merged = new Set<number>([...persistedLikedRef.current, ...liked]);
+    if (merged.size !== liked.size) {
+      persistedLikedRef.current = merged;
+      writePersistedLikedIds(merged);
+      setLiked(merged);
+    }
+    // only sync once on mount / when incoming server state changes materially
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comments]);
+
+  useEffect(() => {
+    if (!showEmoji && showReplyEmoji === null) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (showEmoji && mainEmojiRef.current && target && !mainEmojiRef.current.contains(target)) {
+        setShowEmoji(false);
+      }
+      if (showReplyEmoji !== null && replyEmojiRef.current && target && !replyEmojiRef.current.contains(target)) {
+        setShowReplyEmoji(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [showEmoji, showReplyEmoji, setShowEmoji, setShowReplyEmoji]);
 
   const updateLikeCount = (list: Comment[], targetId: number, nextLikes: number): Comment[] =>
     list.map((c) => {
@@ -66,10 +128,7 @@ export const CommentsSection = ({
     if (pendingLikesRef.current.has(id)) return;
 
     const isLiked = liked.has(id);
-    const currentLikes =
-      comments.find((c) => getCommentId(c) === id)?.likes ??
-      comments.flatMap((c) => c.replies ?? []).find((r) => getCommentId(r) === id)?.likes ??
-      0;
+    const currentLikes = findCommentById(comments, id)?.likes ?? 0;
     const optimisticLikes = Math.max(0, currentLikes + (isLiked ? -1 : 1));
     const action = isLiked ? "unlikes" : "likes";
 
@@ -77,6 +136,8 @@ export const CommentsSection = ({
     setLiked(p => {
       const n = new Set(p);
       if (n.has(id)) { n.delete(id); } else { n.add(id); }
+      persistedLikedRef.current = n;
+      writePersistedLikedIds(n);
       return n;
     });
     setComments(prev => updateLikeCount(prev, id, optimisticLikes));
@@ -99,9 +160,7 @@ export const CommentsSection = ({
           }
           // Notify on like (not unlike)
           if (!isLiked) {
-            const author = comments.find((c) => getCommentId(c) === id)?.name
-              ?? comments.flatMap((c) => c.replies ?? []).find((r) => getCommentId(r) === id)?.name
-              ?? "comment";
+            const author = findCommentById(comments, id)?.name ?? "comment";
             pushNotification({ kind: "like", actor: loggedInUser?.username || "Someone", object: author, title: "liked a comment", text: `Liked ${author}'s comment` });
           }
         }
@@ -111,6 +170,8 @@ export const CommentsSection = ({
         setLiked(p => {
           const n = new Set(p);
           if (isLiked) n.add(id); else n.delete(id);
+          persistedLikedRef.current = n;
+          writePersistedLikedIds(n);
           return n;
         });
         setComments(prev => updateLikeCount(prev, id, currentLikes));
@@ -242,7 +303,11 @@ export const CommentsSection = ({
               className="w-full bg-transparent px-0 py-2 text-[12px] outline-none text-white/70 placeholder:text-white/15 resize-none pr-8" />
             <button onClick={() => setShowEmoji(!showEmoji)}
               className="absolute right-0 bottom-2.5 w-6 h-6 grid place-items-center text-white/20 hover:text-white/50 transition-all"><Smile size={14} /></button>
-            {showEmoji && <EmojiPop onSelect={e => setForm(p => ({ ...p,content: p.content + e }))} onClose={() => setShowEmoji(false)} />}
+            {showEmoji && (
+              <div ref={mainEmojiRef} className="absolute right-0 bottom-full mb-2 z-50">
+                <EmojiPop onSelect={e => setForm(p => ({ ...p,content: p.content + e }))} onClose={() => setShowEmoji(false)} />
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-end pt-1">
             <button onClick={pubComment}
@@ -303,7 +368,9 @@ export const CommentsSection = ({
                     className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 grid place-items-center shadow-lg hover:scale-105 transition-all"><Send size={12} /></button>
                 </div>
                 {showReplyEmoji === getCommentId(c) && (
-                  <EmojiPop onSelect={e => setReplyText(p => ({ ...p,content: p.content + e }))} onClose={() => setShowReplyEmoji(null)} />
+                  <div ref={replyEmojiRef} className="absolute left-0 bottom-full mb-2 z-50">
+                    <EmojiPop onSelect={e => setReplyText(p => ({ ...p,content: p.content + e }))} onClose={() => setShowReplyEmoji(null)} />
+                  </div>
                 )}
               </div>
             )}

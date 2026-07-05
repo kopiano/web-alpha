@@ -102,3 +102,4 @@ vite打包后index.js如果超过500KB就需要优化
 * Mike replied your comment
 ```
 用户主动查看即已读,通知进入可视区域几百毫秒后标记已读
+通知或提示要具体点
