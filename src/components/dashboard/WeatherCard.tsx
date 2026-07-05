@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { CloudSun, Sunrise, Sunset } from "lucide-react"
 import { fetchWeather } from "@/api/weather"
 import { useAuth } from "@/components/dashboard/AuthProvider"
@@ -92,15 +92,14 @@ export const WeatherCard = () => {
   const { user } = useAuth()
   const loggedIn = !!user
 
+  // Guest → show mock immediately; Logged in → fetch real data (deferred)
   useEffect(() => {
     if (!loggedIn) {
-      // Guest → show mock immediately
       setWeek(getWeekFromMonday())
       return
     }
-
-    // Logged in → fetch real data, no mock fallback
-    fetchWeather()
+    const timer = setTimeout(() => {
+      fetchWeather()
       .then((res) => {
         const list: any[] = res.data?.data
         if (!list || !Array.isArray(list) || list.length === 0) return
@@ -146,6 +145,8 @@ export const WeatherCard = () => {
         )
       })
       .catch(() => { /* no mock fallback for logged-in users */ })
+    }, 1000)
+    return () => clearTimeout(timer)
   }, [loggedIn])
 
   const today = week.find((d) => d.current !== undefined)

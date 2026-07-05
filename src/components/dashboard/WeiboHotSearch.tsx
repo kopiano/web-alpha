@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useDeferredEffect } from "@/hooks/useDeferredEffect"
 import { getHotSearch, get36krHot } from "@/api/hotSearch"
 import { RefreshCw, Globe, Tags } from "lucide-react"
 
@@ -122,9 +123,18 @@ export const WeiboHotSearch = () => {
     }
   }
 
-  useEffect(() => {
+  // Initial load deferred (background)
+  useDeferredEffect(() => {
     setLoading(true)
     fetchData(tab)
+  }, [], 2000)
+
+  // Tab switch immediate
+  useEffect(() => {
+    if (tab !== "weibo") {
+      setLoading(true)
+      fetchData(tab)
+    }
   }, [tab])
 
   const tabLabel = tab === "weibo" ? "微博" : "36kr"

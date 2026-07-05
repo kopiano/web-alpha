@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Receipt, TrendingUp, TrendingDown, Minus, RefreshCw, AlertCircle, UserRound, MoreHorizontal, ListFilter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { getTransactions, filterTransactions } from "@/api/transactions";
+import { getTransactions } from "@/api/transactions";
 import { useTilt } from "@/hooks/useTilt";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 
@@ -131,17 +131,15 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
     setLoading(true);
     setError(null);
     try {
-      let res;
-      // 有年月筛选时使用 POST，否则使用 GET
-      if (year || month) {
-        res = await filterTransactions(year || "", month || "", typeFilter || "");
-      } else {
-        res = await getTransactions({
-          page,
-          page_size: PAGE_SIZE,
-          type: typeFilter || undefined,
-        });
-      }
+      const res = await getTransactions({
+        page,
+        page_size: PAGE_SIZE,
+        year: year || undefined,
+        month: month || undefined,
+        type: typeFilter || undefined,
+        sort_key: sortKey,
+        sort_dir: sortDir,
+      });
       const data = res.data?.data;
       if (data) {
         setTransactions(data.list || []);
@@ -155,7 +153,7 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
     } finally {
       setLoading(false);
     }
-  }, [year, month, page, isGuest, refreshTrigger, typeFilter]);
+  }, [year, month, page, isGuest, refreshTrigger, typeFilter, sortKey, sortDir]);
 
   useEffect(() => {
     if (isGuest) return;
@@ -182,7 +180,7 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
     return total;
   }, [isGuest, guestTransactions.length, total]);
 
-  const displayLoading = !isGuest && loading;
+  const displayLoading = !isGuest && loading && transactions.length === 0;
   const displayError = !isGuest ? error : null;
   const isEmpty = !isGuest && !loading && !error && transactions.length === 0 && total === 0;
   const isGuestEmpty = isGuest && guestTransactions.length === 0;
@@ -200,7 +198,12 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
   }, [displayTransactions, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(displayTotal / PAGE_SIZE));
-  const current = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const visibleTransactions = useMemo(() => {
+    if (isGuest) {
+      return sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    }
+    return transactions;
+  }, [isGuest, page, sorted, transactions]);
 
   const toggleSort = (key: "time" | "amount") => {
     if (sortKey === key) {
@@ -321,7 +324,10 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
         </div>
 
       {/* ═══ Transaction Table ═══ */}
-      <div className="glass glass-hover noise rounded-[2rem] p-6 overflow-hidden animate-fade-in">
+      <div
+        className="glass glass-hover noise rounded-[2rem] p-6 overflow-hidden animate-fade-in flex flex-col"
+        style={{ height: "calc(100vh - 95px)" }}
+      >
         <div className="flex items-center justify-between gap-4 mb-5">
           <div>
             <p className="text-xs text-white/40 font-medium tracking-widest uppercase">Transactions</p>
@@ -340,15 +346,16 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
         </div>
 
         {/* Loading state */}
+        <div className="flex-1 min-h-0 flex flex-col">
         {displayLoading ? (
-          <div className="space-y-3" style={{ minHeight: "252px" }}>
+          <div className="space-y-3 h-full overflow-y-auto scrollbar-thin">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-[38px] rounded-2xl bg-white/[0.03] animate-pulse" style={{ animationDelay: `${i * 0.05}s` }} />
             ))}
           </div>
         ) : displayError ? (
           /* Error state */
-          <div className="flex flex-col items-center justify-center gap-3" style={{ minHeight: "252px" }}>
+          <div className="flex flex-col items-center justify-center gap-3 h-full">
             <AlertCircle size={32} className="text-rose-400/40" />
             <p className="text-sm text-rose-400/60">{displayError}</p>
             <button onClick={fetchData} className="px-4 py-2 rounded-xl text-xs font-medium bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 transition-all">
@@ -357,21 +364,22 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
           </div>
         ) : isEmpty ? (
           /* Empty state (logged-in, no data) */
-          <div className="flex flex-col items-center justify-center gap-3" style={{ minHeight: "252px" }}>
+          <div className="flex flex-col items-center justify-center gap-3 h-full">
             <Receipt size={32} className="text-white/10" />
             <p className="text-sm text-white/30">暂无交易记录</p>
             <p className="text-[10px] text-white/15">点击"导入 CSV"按钮导入微信账单</p>
           </div>
         ) : displayTransactions.length === 0 && isGuestEmpty ? (
           /* Empty guest state */
-          <div className="flex flex-col items-center justify-center gap-3" style={{ minHeight: "252px" }}>
+          <div className="flex flex-col items-center justify-center gap-3 h-full">
             <Receipt size={32} className="text-white/10" />
             <p className="text-sm text-white/30">暂无匹配记录</p>
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto scrollbar-thin">
-              <div className="grid min-w-[980px] grid-cols-[0.55fr_0.75fr_0.55fr_0.3fr_0.45fr_0.3fr_0.3fr_0.35fr_0.25fr_0.25fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
+            <div className="flex flex-col flex-1 min-h-0">
+              <div className="overflow-x-auto scrollbar-thin">
+                <div className="grid min-w-[980px] grid-cols-[0.55fr_0.75fr_0.55fr_0.3fr_0.45fr_0.3fr_0.3fr_0.35fr_0.25fr_0.25fr] gap-0 px-4 pb-3 text-[10px] font-semibold tracking-wider uppercase text-white/30">
                 <button className="text-left flex items-center gap-1 hover:text-white/50 transition-colors" onClick={() => toggleSort("time")}>
                   交易时间 {sortKey === "time" && (sortDir === "desc" ? "↓" : "↑")}
                 </button>
@@ -422,9 +430,10 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
                 <div className="text-center">备注</div>
                 <div className="text-center">操作</div>
               </div>
+              </div>
 
-              <div className="overflow-hidden rounded-[1.75rem] border border-white/[0.08] min-w-[980px]" style={{ minHeight: "252px", transition: "min-height 0.3s ease" }}>
-                {current.map((tx, i) => {
+              <div className="overflow-y-auto overflow-x-hidden rounded-[1.75rem] border border-white/[0.08] min-w-[980px] flex-1 min-h-0 scrollbar-thin" style={{ transition: "min-height 0.3s ease" }}>
+                {visibleTransactions.map((tx, i) => {
                   const catColor = CAT_COLORS[tx.category] || "#94a3b8";
                   const typeCfg = TYPE_CONFIG[tx.type] || TYPE_CONFIG.expense;
                   const isExpense = tx.type === "expense";
@@ -480,22 +489,23 @@ export const TransactionTable = ({ selectedMonth, className = "", refreshTrigger
             <div className="mt-4 flex items-center justify-between">
               <div className="text-xs text-white/30">Page {page} of {totalPages} · {displayTotal} records</div>
               <div className="flex items-center gap-2">
-                <button className="h-8 w-8 rounded-full grid place-items-center transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed"
-                  style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.06)", boxShadow: "0 2px 8px rgba(255,255,255,0.06)" }}
-                  disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.14)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}
-                ><ChevronLeft className="h-4 w-4" style={{ color: page === 1 ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)" }} /></button>
-                <button className="h-8 w-8 rounded-full grid place-items-center transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed"
-                  style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.06)", boxShadow: "0 2px 8px rgba(255,255,255,0.06)" }}
-                  disabled={page === totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.14)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}
-                ><ChevronRight className="h-4 w-4" style={{ color: page === totalPages ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)" }} /></button>
+                <button
+                  className="h-8 w-8 rounded-full grid place-items-center transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed hover:bg-white/[0.14] active:scale-90"
+                  style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.06)" }}
+                  disabled={page <= 1}
+                  onClick={() => setPage(page - 1)}
+                ><ChevronLeft className="h-4 w-4" style={{ color: page <= 1 ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)" }} /></button>
+                <button
+                  className="h-8 w-8 rounded-full grid place-items-center transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed hover:bg-white/[0.14] active:scale-90"
+                  style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.06)" }}
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(page + 1)}
+                ><ChevronRight className="h-4 w-4" style={{ color: page >= totalPages ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)" }} /></button>
               </div>
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   );

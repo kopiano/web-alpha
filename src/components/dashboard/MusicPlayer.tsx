@@ -244,7 +244,7 @@ export const MusicPlayer = () => {
 
       {/* Collapsed button — slides in from right */}
       <div style={{
-        position: "fixed", top: "37px", right: collapsed ? "150px" : "16px", zIndex: 5000,
+        position: "fixed", top: "23px", right: collapsed ? "150px" : "16px", zIndex: 5000,
         opacity: collapsed ? 1 : 0,
         pointerEvents: collapsed ? "auto" : "none",
         transition: "right 0.6s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.5s ease 0.1s",
@@ -259,7 +259,7 @@ export const MusicPlayer = () => {
 
       {/* Expanded player — scales toward left on collapse */}
       <div style={{
-        position: "fixed", left: "calc(50% - 236px)", top: "37px", zIndex: 5000,
+        position: "fixed", left: "calc(50% - 250px)", top: "23px", zIndex: 5000,
         opacity: collapsed ? 0 : 1,
         pointerEvents: collapsed ? "none" : "auto",
         transformOrigin: "left center",

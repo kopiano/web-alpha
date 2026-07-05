@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useDeferredEffect } from "@/hooks/useDeferredEffect";
 import { Plus, Check, Trash2, Circle, Loader2, Globe } from "lucide-react";
 import { createTodo, getTodos, updateTodo, deleteTodo } from "@/api/hotSearch";
 
@@ -29,7 +30,7 @@ export const TodoCard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
+  useDeferredEffect(() => {
     getTodos()
       .then((res) => {
         const raw = res.data?.data ?? res.data ?? []
