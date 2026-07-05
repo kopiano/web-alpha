@@ -9,7 +9,7 @@ import { MerchantRanking } from "@/components/dashboard/MerchantRanking";
 import { Particles } from "@/components/dashboard/Particles";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useNotifications } from "@/components/dashboard/NotificationProvider";
-import { importTransactions, getTransactionMonths } from "@/api/transactions";
+import { importTransactions, deleteTransactions, getTransactionMonths } from "@/api/transactions";
 import { Upload, Loader2, LogIn, AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -327,20 +327,18 @@ export default function AnalyticsPage() {
               </button>
               <button onClick={() => {
                 setClearConfirmOpen(false);
-                import('@/api/transactions').then(({ deleteTransactions }) => {
-                  deleteTransactions().then(() => {
-                    setRefreshKey((k) => k + 1);
-                    pushNotification({
-                      kind: "transaction_cleared",
-                      actor: user?.username || "Someone",
-                      object: "transactions",
-                      title: "cleared transactions",
-                      text: "All transaction data cleared",
-                      dedupeKey: `transaction_cleared:${user?.id ?? "guest"}:${Date.now()}`,
-                    });
-                    toast.success("All transaction data cleared");
-                  }).catch(() => toast.error("Clear failed"));
-                });
+                deleteTransactions().then(() => {
+                  setRefreshKey((k) => k + 1);
+                  pushNotification({
+                    kind: "transaction_cleared",
+                    actor: user?.username || "Someone",
+                    object: "transactions",
+                    title: "cleared transactions",
+                    text: "All transaction data cleared",
+                    dedupeKey: `transaction_cleared:${user?.id ?? "guest"}:${Date.now()}`,
+                  });
+                  toast.success("All transaction data cleared");
+                }).catch(() => toast.error("Clear failed"));
               }}
                 className="flex-1 py-2.5 rounded-xl text-[12px] font-medium transition-all duration-200"
                 style={{ background: "rgba(255,80,80,0.12)", color: "rgba(255,100,100,0.85)" }}

@@ -60,11 +60,14 @@ export default function DocsPage() {
   };
   const faqAccent = FAQ_CAT_COLORS[faqActiveCat] || "#94a3b8";
 
-  const loggedInCommentUser = user ? {
-    username: user.username,
-    email: user.email,
-    avatarUrl: resolveAvatar(user.avatar),
-  } : null;
+  const loggedInCommentUser = useMemo(() => {
+    if (!user) return null;
+    return {
+      username: user.username,
+      email: user.email,
+      avatarUrl: resolveAvatar(user.avatar),
+    };
+  }, [user?.username, user?.email, user?.avatar, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -119,7 +122,7 @@ export default function DocsPage() {
       parentId: item.parent_id ?? item.parentId ?? null,
       replies: (item.replies ?? []).map(normalizeComment),
     };
-  }, [formatDisplayTime, getAvatarGradient, loggedInCommentUser]);
+  }, [formatDisplayTime, getAvatarGradient, loggedInCommentUser?.username, loggedInCommentUser?.email, loggedInCommentUser?.avatarUrl]);
 
   // Recursively collect IDs of comments the current user has liked
   const collectLikedIds = (cmts: any[]): number[] =>

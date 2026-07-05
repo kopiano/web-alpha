@@ -12,8 +12,16 @@ export function createComment(data) {
   })
 }
 
-export async function likesComment(id, action) {
-  return request.post(`/comment/${id}/likes`, { action }, {
+export function likeComment(id) {
+  return request.put(`/comment/${id}/like`, null, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
+export function unlikeComment(id) {
+  return request.delete(`/comment/${id}/like`, {
     headers: {
       'Content-Type': 'application/json',
     },

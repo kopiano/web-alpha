@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { MessageCircle, Heart, Reply, Send, Smile } from "lucide-react";
 import { EmojiPop } from "@/components/doc/EmojiPop";
 import { MiniMd } from "@/components/doc/DocRenderer";
-import { createComment, likesComment } from "@/api/comment";
+import { createComment, likeComment, unlikeComment } from "@/api/comment";
 import { useNotifications } from "@/components/dashboard/NotificationProvider";
 import { toast } from "sonner";
 import type { Comment } from "@/components/doc/docsData";
@@ -83,6 +83,8 @@ export const CommentsSection = ({
   liked, setLiked, showEmoji, setShowEmoji, showReplyEmoji, setShowReplyEmoji, commentEndRef, refreshComments, loggedInUser,
 }: CommentsSectionProps) => {
   const pendingLikesRef = useRef<Set<number>>(new Set());
+  const desiredStateRef = useRef<Map<number, boolean>>(new Map());
+  const confirmedStateRef = useRef<Map<number, { liked: boolean; likes: number }>>(new Map());
   const persistedLikedRef = useRef<Set<number>>(readPersistedLikedIds());
   const mainEmojiRef = useRef<HTMLDivElement>(null);
   const replyEmojiRef = useRef<HTMLDivElement>(null);
@@ -98,6 +100,21 @@ export const CommentsSection = ({
     // only sync once on mount / when incoming server state changes materially
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comments]);
+
+  useEffect(() => {
+    const snapshot = new Map<number, { liked: boolean; likes: number }>();
+    const collect = (list: Comment[]) => {
+      list.forEach((comment) => {
+        const id = getCommentId(comment);
+        if (id > 0) {
+          snapshot.set(id, { liked: liked.has(id), likes: comment.likes ?? 0 });
+        }
+        if (comment.replies?.length) collect(comment.replies);
+      });
+    };
+    collect(comments);
+    confirmedStateRef.current = snapshot;
+  }, [comments, liked]);
 
   useEffect(() => {
     if (!showEmoji && showReplyEmoji === null) return;
@@ -123,65 +140,85 @@ export const CommentsSection = ({
       return c;
     });
 
-  const toggleLike = (id: number) => {
-    // Guard against duplicate requests while a like/unlike is in flight
-    if (pendingLikesRef.current.has(id)) return;
+  const getConfirmedSnapshot = (id: number) => confirmedStateRef.current.get(id) ?? { liked: liked.has(id), likes: findCommentById(comments, id)?.likes ?? 0 };
 
-    const isLiked = liked.has(id);
-    const currentLikes = findCommentById(comments, id)?.likes ?? 0;
-    const optimisticLikes = Math.max(0, currentLikes + (isLiked ? -1 : 1));
-    const action = isLiked ? "unlikes" : "likes";
-
-    // Optimistic UI
-    setLiked(p => {
-      const n = new Set(p);
-      if (n.has(id)) { n.delete(id); } else { n.add(id); }
-      persistedLikedRef.current = n;
-      writePersistedLikedIds(n);
-      return n;
+  const applyLocalLikeState = (id: number, nextLiked: boolean) => {
+    const baseline = getConfirmedSnapshot(id);
+    const nextLikes = Math.max(0, baseline.likes + (nextLiked === baseline.liked ? 0 : (nextLiked ? 1 : -1)));
+    setLiked(prev => {
+      const next = new Set(prev);
+      if (nextLiked) next.add(id); else next.delete(id);
+      persistedLikedRef.current = next;
+      writePersistedLikedIds(next);
+      return next;
     });
-    setComments(prev => updateLikeCount(prev, id, optimisticLikes));
+    setComments(prev => updateLikeCount(prev, id, nextLikes));
+    return nextLikes;
+  };
 
-    // Track in-flight request
+  const syncLikeState = async (id: number) => {
+    if (pendingLikesRef.current.has(id)) return;
+    const desired = desiredStateRef.current.get(id);
+    if (typeof desired !== "boolean") return;
+
+    const confirmed = getConfirmedSnapshot(id);
+    if (desired === confirmed.liked) return;
+
     pendingLikesRef.current = new Set([...pendingLikesRef.current, id]);
+    const nextAction = desired ? "like" : "unlike";
 
-    likesComment(id, action)
-      .then((res) => {
-        const payload = res?.data?.data ?? res?.data ?? {};
-        const serverLikes = payload.like_count ?? payload.likes ?? payload.likeCount ?? payload.count;
-        if (typeof serverLikes === "number") {
-          // Only accept server value if it moved in the expected direction,
-          // otherwise keep the optimistic count (server may have a bug).
-          const movedCorrectly = isLiked
-            ? serverLikes < currentLikes   // unlike → count should decrease
-            : serverLikes > currentLikes;   // like → count should increase
-          if (movedCorrectly) {
-            setComments(prev => updateLikeCount(prev, id, serverLikes));
-          }
-          // Notify on like (not unlike)
-          if (!isLiked) {
-            const author = findCommentById(comments, id)?.name ?? "comment";
-            pushNotification({ kind: "like", actor: loggedInUser?.username || "Someone", object: author, title: "liked a comment", text: `Liked ${author}'s comment` });
-          }
-        }
-      })
-      .catch((error) => {
-        // Rollback on failure
-        setLiked(p => {
-          const n = new Set(p);
-          if (isLiked) n.add(id); else n.delete(id);
-          persistedLikedRef.current = n;
-          writePersistedLikedIds(n);
-          return n;
-        });
-        setComments(prev => updateLikeCount(prev, id, currentLikes));
-        toast.error(getErrorMessage(error, "Failed to update reaction"));
-      })
-      .finally(() => {
-        const next = new Set(pendingLikesRef.current);
-        next.delete(id);
-        pendingLikesRef.current = next;
+    try {
+      if (desired) {
+        await likeComment(id);
+      } else {
+        await unlikeComment(id);
+      }
+
+      const latestDesired = desiredStateRef.current.get(id);
+      const nextConfirmedLikes = Math.max(0, confirmed.likes + (desired ? 1 : -1));
+      confirmedStateRef.current.set(id, { liked: desired, likes: nextConfirmedLikes });
+      setComments(prev => updateLikeCount(prev, id, nextConfirmedLikes));
+
+      if (latestDesired !== desired) {
+        // user clicked again while the request was in flight, send the latest state only
+        pendingLikesRef.current.delete(id);
+        void syncLikeState(id);
+        return;
+      }
+
+      if (desired) {
+        const author = findCommentById(comments, id)?.name ?? "comment";
+        pushNotification({ kind: "like", actor: loggedInUser?.username || "Someone", object: author, title: "liked a comment", text: `Liked ${author}'s comment` });
+      }
+    } catch (error) {
+      const fallback = getConfirmedSnapshot(id);
+      desiredStateRef.current.set(id, fallback.liked);
+      setLiked(prev => {
+        const next = new Set(prev);
+        if (fallback.liked) next.add(id); else next.delete(id);
+        persistedLikedRef.current = next;
+        writePersistedLikedIds(next);
+        return next;
       });
+      setComments(prev => updateLikeCount(prev, id, fallback.likes));
+      toast.error(getErrorMessage(error, nextAction === "like" ? "Failed to like" : "Failed to unlike"));
+    } finally {
+      const next = new Set(pendingLikesRef.current);
+      next.delete(id);
+      pendingLikesRef.current = next;
+    }
+  };
+
+  const toggleLike = (id: number) => {
+    if (!loggedInUser) {
+      toast.error("Please log in to like comments");
+      return;
+    }
+    const currentLiked = liked.has(id);
+    const nextLiked = !currentLiked;
+    desiredStateRef.current.set(id, nextLiked);
+    applyLocalLikeState(id, nextLiked);
+    void syncLikeState(id);
   };
 
   const makeCommentPayload = (
@@ -335,15 +372,19 @@ export const CommentsSection = ({
                   <div className="text-[12px] text-white/60 leading-relaxed">{MiniMd(c.content)}</div>
                   <div className=
                     "flex items-center gap-5 mt-2.5">
-                    <button onClick={() => toggleLike(getCommentId(c))}
+                    <button
+                      onClick={() => toggleLike(getCommentId(c))}
+                      disabled={!loggedInUser}
                       className={`group relative flex items-center gap-1.5 text-[11px] transition-all duration-200 border border-transparent px-2 py-1 rounded-full overflow-hidden ${
-                        liked.has(getCommentId(c))
+                        !loggedInUser
+                          ? "cursor-not-allowed bg-white/[0.02] text-white/20 border-white/[0.04]"
+                          : liked.has(getCommentId(c))
                           ? "bg-rose-400/18 text-rose-100 shadow-[0_0_18px_rgba(251,113,133,0.24)] border-rose-400/25"
                           : "bg-white/[0.03] text-white/40 hover:text-white/80 hover:bg-white/[0.06] hover:border-white/10"
                       }`}
                     >
-                      <span className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity ${liked.has(getCommentId(c)) ? "bg-gradient-to-r from-rose-400/28 to-fuchsia-400/14" : "bg-gradient-to-r from-white/5 to-white/0"}`} />
-                      <Heart size={12} fill={liked.has(getCommentId(c)) ? "#fb7185" : "none"} className={`relative z-10 transition-transform duration-200 ${liked.has(getCommentId(c)) ? "scale-110" : "group-hover:scale-105"}`} />
+                      <span className={`absolute inset-0 opacity-0 transition-opacity ${loggedInUser && liked.has(getCommentId(c)) ? "group-hover:opacity-100 bg-gradient-to-r from-rose-400/28 to-fuchsia-400/14" : loggedInUser ? "group-hover:opacity-100 bg-gradient-to-r from-white/5 to-white/0" : ""}`} />
+                      <Heart size={12} fill={loggedInUser && liked.has(getCommentId(c)) ? "#fb7185" : "none"} className={`relative z-10 transition-transform duration-200 ${loggedInUser && liked.has(getCommentId(c)) ? "scale-110" : loggedInUser ? "group-hover:scale-105" : ""}`} />
                       <span className="relative z-10 tabular-nums">{c.likes}</span>
                     </button>
                     <button onClick={() => setReplyTo(replyTo === getCommentId(c) ? null : getCommentId(c))}
@@ -390,14 +431,18 @@ export const CommentsSection = ({
                         </div>
                         <p className="text-[11px] text-white/55 leading-relaxed">{r.content}</p>
                         <div className="flex items-center gap-3 mt-1">
-                    <button onClick={() => toggleLike(getCommentId(r))}
+                    <button
+                            onClick={() => toggleLike(getCommentId(r))}
+                            disabled={!loggedInUser}
                             className={`group relative flex items-center gap-1 text-[10px] transition-all duration-200 border border-transparent px-2 py-1 rounded-full overflow-hidden ${
-                              liked.has(getCommentId(r))
+                              !loggedInUser
+                                ? "cursor-not-allowed bg-white/[0.02] text-white/20 border-white/[0.04]"
+                                : liked.has(getCommentId(r))
                                 ? "bg-rose-400/18 text-rose-100 shadow-[0_0_14px_rgba(251,113,133,0.24)] border-rose-400/25"
                                 : "bg-white/[0.025] text-white/35 hover:text-white/75 hover:bg-white/[0.05] hover:border-white/10"
                             }`}>
-                            <span className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity ${liked.has(getCommentId(r)) ? "bg-gradient-to-r from-rose-400/28 to-fuchsia-400/12" : "bg-gradient-to-r from-white/5 to-white/0"}`} />
-                            <Heart size={10} fill={liked.has(getCommentId(r)) ? "#fb7185" : "none"} className={`relative z-10 transition-transform duration-200 ${liked.has(getCommentId(r)) ? "scale-110" : "group-hover:scale-105"}`} /> <span className="relative z-10 tabular-nums">{r.likes}</span>
+                            <span className={`absolute inset-0 opacity-0 transition-opacity ${loggedInUser && liked.has(getCommentId(r)) ? "group-hover:opacity-100 bg-gradient-to-r from-rose-400/28 to-fuchsia-400/12" : loggedInUser ? "group-hover:opacity-100 bg-gradient-to-r from-white/5 to-white/0" : ""}`} />
+                            <Heart size={10} fill={loggedInUser && liked.has(getCommentId(r)) ? "#fb7185" : "none"} className={`relative z-10 transition-transform duration-200 ${loggedInUser && liked.has(getCommentId(r)) ? "scale-110" : loggedInUser ? "group-hover:scale-105" : ""}`} /> <span className="relative z-10 tabular-nums">{r.likes}</span>
                           </button>
                         </div>
                       </div>

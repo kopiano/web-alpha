@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react"
-import { User, Lock, Loader2, Camera, Eye, EyeOff } from "lucide-react"
+import { User, Loader2, Camera, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 import { login, register } from "@/api/auth"
 import { useNotifications } from "./NotificationProvider"
@@ -201,7 +201,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
           )}
 
           <div>
-            <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1.5 font-medium">
+            <label className="block text-[10px] text-white/40 uppercase tracking-[0.18em] mb-1.5 font-medium">
               Username
             </label>
             <div className="relative">
@@ -217,15 +217,16 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
                 spellCheck={false}
                 name={`auth-username-${mode}`}
                 data-form-type="other"
-                className="w-full h-10 pl-9 pr-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
-                  focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
+                className="w-full h-10 pl-9 pr-3 rounded-xl bg-white/5 border border-white/[0.06] text-[13px] md:text-[12px] leading-none font-medium tracking-[0.01em] text-white/90 font-sans
+                  placeholder:text-white/22 placeholder:font-normal placeholder:tracking-[0.01em]
+                  focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.08] focus:text-white transition-all duration-200"
               />
             </div>
           </div>
 
           {mode === "signup" && (
             <div>
-              <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1.5 font-medium">
+              <label className="block text-[10px] text-white/40 uppercase tracking-[0.18em] mb-1.5 font-medium">
                 Email <span className="text-white/20">(optional)</span>
               </label>
               <div className="relative">
@@ -236,29 +237,30 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="off"
                 name="auth-email"
-                className="w-full h-10 px-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
-                    focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
+                className="w-full h-10 px-3 rounded-xl bg-white/5 border border-white/[0.06] text-[13px] md:text-[12px] leading-none font-medium tracking-[0.01em] text-white/90 font-sans
+                    placeholder:text-white/22 placeholder:font-normal placeholder:tracking-[0.01em]
+                    focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.08] focus:text-white transition-all duration-200"
               />
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1.5 font-medium">
+            <label className="block text-[10px] text-white/40 uppercase tracking-[0.18em] mb-1.5 font-medium">
               Password
             </label>
             <div className="relative">
-              <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 name="auth-password"
                 data-form-type={mode === "login" ? "password" : "new-password"}
-                className="w-full h-10 pl-9 pr-3 rounded-xl text-base md:text-xs text-white bg-white/5 border border-white/[0.06] placeholder:text-white/20
-                  focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.07] transition-all"
+                className="w-full h-10 px-3 pr-10 rounded-xl bg-white/5 border border-white/[0.06] text-[13px] md:text-[12px] leading-none font-medium tracking-[0.08em] text-white/90 font-sans
+                  placeholder:text-white/22 placeholder:font-normal placeholder:tracking-[0.01em]
+                  focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.08] focus:text-white transition-all duration-200"
               />
               <button
                 type="button"

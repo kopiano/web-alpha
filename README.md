@@ -65,7 +65,7 @@ Target: web-alpha-xxxx.pages.dev
     * 闪动是页码变化后又把整块表格切回了 loading 或者重新挂载了表体
     * 改成了只在空表初次加载时才进入 loading 状态。
 ### 懒加载减少首屏加载
-* 路由使用懒加载(必须)：const Chat = lazy(() => import("./pages/Chat"))
+* 路由使用懒加载(必须)：const Chat = lazy(() => import("./pages/Chat"))【不太行哦，这样会点击sidebar按钮后页面闪动，改为页面静默预加载】
 * 首次只下载首页需要的 JS，其他页面按需加载
 * 组件懒加载：如用户打开图表/md编辑器再加载：
     * 不要：import Map from "./Map"
