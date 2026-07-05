@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { CloudSun } from "lucide-react"
+import { fetchWeather } from "@/api/weather"
 
 interface WeatherDay {
   day: string
@@ -12,6 +13,30 @@ interface WeatherDay {
   current?: number
   aqi: number
   humidity: number
+}
+
+/* ─── Condition → emoji mapping ─── */
+const CONDITION_MAP: Record<string, { icon: string; iconColor: string; bgGradient: string }> = {
+  "Sunny":              { icon: "☀️", iconColor: "text-amber-300", bgGradient: "from-amber-500/10 to-orange-500/5" },
+  "Clear":              { icon: "☀️", iconColor: "text-amber-300", bgGradient: "from-amber-500/10 to-orange-500/5" },
+  "Mostly Sunny":       { icon: "🌤️", iconColor: "text-amber-100", bgGradient: "from-sky-500/10 to-amber-400/5" },
+  "Partly Cloudy":      { icon: "⛅", iconColor: "text-amber-200", bgGradient: "from-amber-400/10 to-yellow-500/5" },
+  "Cloudy":             { icon: "☁️", iconColor: "text-white/50",  bgGradient: "from-white/5 to-white/[0.02]" },
+  "Overcast":           { icon: "☁️", iconColor: "text-white/50",  bgGradient: "from-white/5 to-white/[0.02]" },
+  "Light Rain Shower":  { icon: "🌧️", iconColor: "text-sky-300",   bgGradient: "from-sky-500/15 to-blue-500/10" },
+  "Light Rain":         { icon: "🌧️", iconColor: "text-sky-300",   bgGradient: "from-sky-500/15 to-blue-500/10" },
+  "Moderate Rain":      { icon: "🌧️", iconColor: "text-sky-300",   bgGradient: "from-sky-500/15 to-blue-500/10" },
+  "Heavy Rain":         { icon: "🌧️", iconColor: "text-sky-300",   bgGradient: "from-sky-500/15 to-blue-500/10" },
+  "Thunderstorm":       { icon: "⛈️", iconColor: "text-indigo-300", bgGradient: "from-indigo-500/15 to-sky-500/10" },
+  "Light Snow":         { icon: "🌨️", iconColor: "text-sky-100",   bgGradient: "from-sky-500/10 to-white/5" },
+  "Snow":               { icon: "❄️", iconColor: "text-sky-100",   bgGradient: "from-sky-500/10 to-white/5" },
+  "Foggy":              { icon: "🌫️", iconColor: "text-white/40",  bgGradient: "from-white/5 to-white/[0.02]" },
+  "Hazy":               { icon: "🌫️", iconColor: "text-white/40",  bgGradient: "from-white/5 to-white/[0.02]" },
+  "Windy":              { icon: "💨", iconColor: "text-cyan-300",   bgGradient: "from-cyan-500/10 to-white/5" },
+};
+
+function conditionToStyle(condition: string) {
+  return CONDITION_MAP[condition] || { icon: "🌤️", iconColor: "text-amber-100", bgGradient: "from-sky-500/10 to-amber-400/5" }
 }
 
 function getWeekFromMonday(): WeatherDay[] {
@@ -52,7 +77,23 @@ export const WeatherCard = () => {
   const [week, setWeek] = useState<WeatherDay[]>([])
 
   useEffect(() => {
-    setWeek(getWeekFromMonday())
+    const mockWeek = getWeekFromMonday()
+    setWeek(mockWeek)
+
+    fetchWeather()
+      .then((res) => {
+        const data = res.data?.data
+        if (!data || data.temp_current === undefined) return
+        const style = conditionToStyle(data.condition || "")
+        setWeek((prev) =>
+          prev.map((d) =>
+            d.current !== undefined
+              ? { ...d, current: data.temp_current, high: data.temp_high, low: data.temp_low, aqi: data.aqi ?? d.aqi, ...style }
+              : d,
+          ),
+        )
+      })
+      .catch(() => { /* fallback to mock */ })
   }, [])
 
   const today = week.find((d) => d.current !== undefined)
