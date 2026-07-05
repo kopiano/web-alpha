@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import { useState, useRef, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
@@ -16,9 +16,10 @@ import { ArticleView } from "@/components/doc/ArticleView";
 import { TimelineTab } from "@/components/doc/TimelineTab";
 import { ProfileTab } from "@/components/doc/ProfileTab";
 import FaqTab from "@/components/doc/FaqTab";
-import { NewDocEditor } from "@/components/doc/NewDocEditor";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { resolveAvatar } from "@/lib/avatar";
+
+const NewDocEditor = lazy(() => import("@/components/doc/NewDocEditor").then((mod) => ({ default: mod.NewDocEditor })));
 
 /* ─── Main ─── */
 export default function DocsPage() {
@@ -465,7 +466,9 @@ export default function DocsPage() {
 
           <div className="flex-1 overflow-y-auto scrollbar-none px-6 py-5 space-y-5">
             {showNewEditor ? (
-              <NewDocEditor onClose={() => setShowNewEditor(false)} onSaved={refresh} />
+              <Suspense fallback={null}>
+                <NewDocEditor onClose={() => setShowNewEditor(false)} onSaved={refresh} />
+              </Suspense>
             ) : (
               bodyContent
             )}

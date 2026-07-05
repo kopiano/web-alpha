@@ -407,7 +407,7 @@ const ChatPage = () => {
                   style={{height:"68px",borderBottom:"1px solid rgba(255,255,255,0.05)",background:activeIdx===-2?"rgba(0,0,0,0.25)":"transparent",backdropFilter:activeIdx===-2?"blur(20px)":"none",WebkitBackdropFilter:activeIdx===-2?"blur(20px)":"none",boxShadow:activeIdx===-2?"inset 0 1px 0 rgba(255,255,255,0.06)":"none"}}>
                   <div className="w-[52px] h-[52px] rounded-full overflow-hidden shrink-0 flex items-center justify-center"
                     style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}}>
-                    <img src={TEAM_AVATAR} alt="Team" className="w-full h-full object-cover"/>
+                    <img src={TEAM_AVATAR} alt="Team" className="w-full h-full object-cover" loading="lazy" decoding="async"/>
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <div className="flex justify-between items-baseline">
@@ -431,7 +431,7 @@ const ChatPage = () => {
                   <div className="relative shrink-0">
                     <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold overflow-hidden shadow-lg ring-1 ring-white/10"
                       style={c.userData?.avatar?{boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}:{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.15)"}}>
-                      {c.userData?.avatar?<img src={c.userData.avatar.startsWith('http')?c.userData.avatar:resolveAvatar(c.userData.avatar)} alt="" className="w-full h-full object-cover" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
+                      {c.userData?.avatar?<img src={c.userData.avatar.startsWith('http')?c.userData.avatar:resolveAvatar(c.userData.avatar)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
                       <span className={c.userData?.avatar?"hidden":""}>{c.avatar}</span>
                     </div>
                     {on&&<span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]"/>}
@@ -472,7 +472,7 @@ const ChatPage = () => {
                 <>
                   <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden shrink-0"
                     style={meAvatar?{}:{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.18)"}}>
-                    {meAvatar?<img src={meAvatar} alt="" className="w-full h-full object-cover"/>:meInit}
+                    {meAvatar?<img src={meAvatar} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async"/>:meInit}
                   </div>
                   <div className="flex-1 min-w-0"><p className="text-[14px] font-medium text-white/85">{meName}</p><p className="text-[11px] text-emerald-400/60">Online</p></div>
                 </>
@@ -502,7 +502,7 @@ const ChatPage = () => {
               <>
                 <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 flex items-center justify-center"
                   style={{background:"linear-gradient(135deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3))",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}}>
-                  <img src={TEAM_AVATAR} alt="Team" className="w-full h-full object-cover"/>
+                  <img src={TEAM_AVATAR} alt="Team" className="w-full h-full object-cover" loading="lazy" decoding="async"/>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-white/90">{teamConv.name}</p>
@@ -513,7 +513,7 @@ const ChatPage = () => {
                     <div key={m.user_id} className="w-7 h-7 rounded-full border-2 border-[#0c0c14] overflow-hidden grid place-items-center text-[8px] font-bold ring-1 ring-white/10"
                       style={m.avatar?{}:{background:"rgba(255,255,255,0.10)"}}>
                       {m.avatar
-                        ? <img src={resolveAvatar(m.avatar)||''} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement; t.style.display='none'; t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
+                        ? <img src={resolveAvatar(m.avatar)||''} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{const t=e.target as HTMLImageElement; t.style.display='none'; t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
                         : <span>{m.username?.slice(0,2).toUpperCase()||"?"}</span>
                       }
                     </div>
@@ -526,7 +526,7 @@ const ChatPage = () => {
                 <div className="relative shrink-0">
                   <div className="w-9 h-9 rounded-full grid place-items-center text-[10px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden"
                     style={contact?.userData?.avatar?{}:{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)"}}>
-                    {contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
+                    {contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
                     <span className={contact?.userData?.avatar?"hidden":""}>{contact?.avatar||"??"}</span>
                   </div>
                   {contact&&online(contact)&&<span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]"/>}
@@ -554,13 +554,13 @@ const ChatPage = () => {
               const prevSame=i>0&&messages[i-1]?.sender===m.sender;
               const showAv=!prevSame;
               const avEl=isMe
-                ?(meAvatar?<img src={meAvatar} alt="" className="w-full h-full object-cover"/>:<span>{meInit}</span>)
+                ?(meAvatar?<img src={meAvatar} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async"/>:<span>{meInit}</span>)
                 :(activeIdx===-2
                   ? (m.senderAvatar
-                    ? <img src={resolveAvatar(m.senderAvatar)||''} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
+                    ? <img src={resolveAvatar(m.senderAvatar)||''} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
                     : <span>{(m.username||'?').slice(0,2).toUpperCase()}</span>)
                   : (contact?.userData?.avatar
-                    ? <img src={resolveAvatar(contact.userData.avatar)||''} alt="" className="w-full h-full object-cover" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(contact?.name||'?').slice(0,2).toUpperCase()}</span>`)}}/>
+                    ? <img src={resolveAvatar(contact.userData.avatar)||''} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(contact?.name||'?').slice(0,2).toUpperCase()}</span>`)}}/>
                     : <span>{contact?.avatar||"?"}</span>));
               return (
                 <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"} ${isMe?"msg-anim-me":"msg-anim"}`}>
@@ -570,7 +570,7 @@ const ChatPage = () => {
                       {m.type==="text"||m.type==="emoji"&&m.content.length>2?<div className={`px-5 py-3 text-[13px] leading-relaxed rounded-[3rem] ${isMe?"rounded-br-lg text-white/95":"rounded-bl-lg text-white/88"}`}
                         style={isMe?{background:"linear-gradient(135deg, #7c3aed, #06b6d4)",boxShadow:"0 6px 20px -6px rgba(124,58,237,0.4), inset 0 1px 0 rgba(255,255,255,0.15)"}:{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.06)",boxShadow:"0 4px 12px -4px rgba(0,0,0,0.15)"}}>{m.content}</div>
                       :m.type==="emoji"?<div className="text-[40px] leading-none select-none">{m.content}</div>
-                      :m.type==="image"?<img src={m.content} alt="" className="max-w-[280px] rounded-2xl object-cover cursor-pointer hover:scale-[1.02] transition-transform"/>
+                      :m.type==="image"?<img src={m.content} alt="" className="max-w-[280px] rounded-2xl object-cover cursor-pointer hover:scale-[1.02] transition-transform" loading="lazy" decoding="async"/>
                       :m.type==="file"?<div className="flex items-center gap-3 px-4 py-3 rounded-[20px] max-w-[280px]" style={{background:"rgba(255,255,255,0.05)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.06)"}}>
                         <FileText size={16} className="text-violet-400 shrink-0"/><div className="flex-1 min-w-0"><p className="text-[11px] font-medium truncate">{m.fileName}</p></div>
                         {m.fileData&&<a href={m.fileData} download={m.fileName} className="w-7 h-7 rounded-lg grid place-items-center hover:bg-white/10"><Download size={12} className="text-white/30 hover:text-white/60"/></a>}
@@ -602,7 +602,7 @@ const ChatPage = () => {
           </div>
 
           {previewImg&&<div className="mx-5 mb-1 p-3 rounded-2xl flex items-center gap-3" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.06)"}}>
-            <img src={previewImg} alt="" className="w-12 h-12 rounded-xl object-cover"/>
+            <img src={previewImg} alt="" className="w-12 h-12 rounded-xl object-cover" loading="lazy" decoding="async"/>
             <span className="text-[11px] text-white/50 flex-1">Image ready</span>
             <button onClick={()=>setPreviewImg(null)} className="text-white/20 hover:text-white/60 text-xs px-2">✕</button>
             <button onClick={sendImg} className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-violet-500 to-cyan-400 text-white">Send</button>

@@ -8,7 +8,7 @@ export const ProfileTab = () => {
         {/* Avatar */}
         <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-500 via-purple-500 to-cyan-400 p-[3px] shadow-[0_0_40px_-8px_hsla(270,95%,60%,0.4)] mb-4">
           <div className="w-full h-full rounded-full bg-[#050505] flex items-center justify-center overflow-hidden">
-            <img src={logo} alt="coulsonzero" className="w-full h-full object-cover" />
+            <img src={logo} alt="coulsonzero" className="w-full h-full object-cover" loading="lazy" decoding="async" />
           </div>
         </div>
 
@@ -74,6 +74,8 @@ export const ProfileTab = () => {
           src="https://ghchart.rshah.org/coulsonzero"
           alt="coulsonzero's GitHub contributions chart"
           className="w-full max-w-full rounded-xl"
+          loading="lazy"
+          decoding="async"
           style={{ filter: "invert(1) hue-rotate(180deg) saturate(1.5)" }}
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = "none";

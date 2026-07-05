@@ -48,7 +48,7 @@ Target: web-alpha-xxxx.pages.dev
 
 ## 性能优化
 
-### 接口请求优化：
+### 接口请求优化
 * 后端使用缓存从2000ms->30ms
 * 不要页面10个接口同时请求，而是重要接口先请求其它接口后台加载
 * 数据表分页：不要get1000条，而是GET?page=1&pageSize=10分页获取
@@ -70,7 +70,7 @@ Target: web-alpha-xxxx.pages.dev
 * 组件懒加载：如用户打开图表/md编辑器再加载：
     * 不要：import Map from "./Map"
     * 而是：const Map = lazy(() => import("./Map"))
-* 图片懒加载：<img loading="lazy" src={url} />, 图片很多时提升非常明显
+* 图片懒加载：<img loading="lazy" decoding="async" src={url} />, 还有异步解码，图片很多时提升非常明显
 * webp: 图片格式，比png/jpg小很多, png5MB, webp300KB(后端存储还是用png好吧？)
 * svg图标代替png：png120kb, 改为svg3kb
 

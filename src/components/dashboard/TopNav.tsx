@@ -150,7 +150,7 @@ export const TopNav = () => {
               {/* Avatar */}
               <div className="w-7 h-7 md:w-8 md:h-8 rounded-full shrink-0 overflow-hidden" style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt={user?.username} className="w-full h-full object-cover" onError={() => setAvatarErr(true)} />
+                  <img src={avatarUrl} alt={user?.username} className="w-full h-full object-cover" loading="lazy" decoding="async" onError={() => setAvatarErr(true)} />
                 ) : (
                   <div className="w-full h-full grid place-items-center text-[10px] md:text-xs font-semibold text-white/80 bg-gradient-to-br from-violet-500 to-indigo-500">
                     {(user?.username || "?").charAt(0).toUpperCase()}
