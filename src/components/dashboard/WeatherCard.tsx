@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { CloudSun } from "lucide-react"
 import { fetchWeather } from "@/api/weather"
+import { useAuth } from "@/components/dashboard/AuthProvider"
 
 interface WeatherDay {
   day: string
@@ -75,28 +76,67 @@ function getWeekFromMonday(): WeatherDay[] {
 
 export const WeatherCard = () => {
   const [week, setWeek] = useState<WeatherDay[]>([])
+  const { user } = useAuth()
+  const loggedIn = !!user
 
   useEffect(() => {
-    const mockWeek = getWeekFromMonday()
-    setWeek(mockWeek)
+    if (!loggedIn) {
+      // Guest → show mock immediately
+      setWeek(getWeekFromMonday())
+      return
+    }
 
+    // Logged in → fetch real data, no mock fallback
     fetchWeather()
       .then((res) => {
-        const data = res.data?.data
-        if (!data || data.temp_current === undefined) return
-        const style = conditionToStyle(data.condition || "")
-        setWeek((prev) =>
-          prev.map((d) =>
-            d.current !== undefined
-              ? { ...d, current: data.temp_current, high: data.temp_high, low: data.temp_low, aqi: data.aqi ?? d.aqi, ...style }
-              : d,
-          ),
+        const list: any[] = res.data?.data
+        if (!list || !Array.isArray(list) || list.length === 0) return
+
+        // Build map: "YYYY-MM-DD" → API day data
+        const apiMap = new Map<string, any>()
+        for (const d of list) {
+          const ds = d.date?.slice(0, 10)
+          if (ds) apiMap.set(ds, d)
+        }
+
+        const todayStr = new Date().toISOString().slice(0, 10)
+        const mockWeek = getWeekFromMonday()
+
+        // Compute current week's Monday
+        const now = new Date()
+        const dayOfWeek = now.getDay()
+        const monday = new Date(now)
+        monday.setDate(now.getDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek))
+
+        setWeek(
+          mockWeek.map((slot, i) => {
+            const slotDate = new Date(monday)
+            slotDate.setDate(monday.getDate() + i)
+            const slotDateStr = slotDate.toISOString().slice(0, 10)
+            const apiDay = apiMap.get(slotDateStr)
+            if (!apiDay) return slot // fallback to mock
+
+            const style = conditionToStyle(apiDay.condition || "")
+            const isToday = slotDateStr === todayStr
+            return {
+              ...slot,
+              ...style,
+              current: isToday ? (apiDay.temp_current ?? slot.current) : undefined,
+              low: apiDay.temp_low ?? slot.low,
+              high: apiDay.temp_high ?? slot.high,
+              aqi: apiDay.aqi ?? slot.aqi,
+              humidity: slot.humidity,
+            }
+          }),
         )
       })
-      .catch(() => { /* fallback to mock */ })
-  }, [])
+      .catch(() => { /* no mock fallback for logged-in users */ })
+  }, [loggedIn])
 
   const today = week.find((d) => d.current !== undefined)
+
+  // Logged in but no data yet (loading or API failed) → render nothing
+  if (loggedIn && week.length === 0) return null
 
   function aqiLevel(aqi: number) {
     if (aqi <= 50) return { label: "优", color: "text-emerald-400", bar: "bg-emerald-400" }
