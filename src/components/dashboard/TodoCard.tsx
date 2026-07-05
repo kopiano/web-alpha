@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useDeferredEffect } from "@/hooks/useDeferredEffect";
 import { Plus, Check, Trash2, Circle, Loader2, Globe } from "lucide-react";
 import { createTodo, getTodos, updateTodo, deleteTodo } from "@/api/hotSearch";
+import { useAuth } from "@/components/dashboard/AuthProvider";
 
 interface Todo {
   id: number;
@@ -23,12 +24,15 @@ const priorityBadge: Record<string, string> = {
 };
 
 export const TodoCard = () => {
+  const { user } = useAuth();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState("");
   const [selectedPriority, setSelectedPriority] = useState<Todo["priority"]>("medium");
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  const scopeKey = useMemo(() => user?.id ?? "guest", [user?.id]);
 
   useDeferredEffect(() => {
     getTodos()
@@ -38,7 +42,7 @@ export const TodoCard = () => {
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
-  }, [])
+  }, [scopeKey])
 
   const add = async () => {
     const text = input.trim();
@@ -71,19 +75,18 @@ export const TodoCard = () => {
   const total = todos.length;
 
   return (
-    <div className="glass glass-hover noise rounded-3xl p-6">
+    <div className="glass glass-hover noise rounded-[28px] p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-[50%]
-bg-gradient-to-br from-neon-pink to-neon-purple grid place-items-center shadow-lg">
+          <div className="w-9 h-9 rounded-[16px] bg-gradient-to-br from-neon-pink to-neon-purple grid place-items-center shadow-[0_10px_24px_rgba(236,72,153,0.22)]">
             <Circle size={12} fill="currentColor" className="text-white/80" />
           </div>
           <div>
-            <p className="text-xs text-white/40 font-medium tracking-widest uppercase">
+            <p className="text-[10px] text-white/40 font-medium tracking-[0.18em] uppercase">
               Tasks
             </p>
-            <h4 className="text-sm font-semibold">To Do</h4>
+            <h4 className="text-[14px] font-semibold tracking-[-0.01em] text-white/90">To Do</h4>
           </div>
         </div>
         <span className="text-[10px] text-white/30 tabular-nums">
@@ -98,9 +101,8 @@ bg-gradient-to-br from-neon-pink to-neon-purple grid place-items-center shadow-l
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
-          placeholder="Add a task..."
-          className="flex-1 bg-white/5 rounded-xl
-px-3 py-2 text-xs outline-none placeholder:text-white/20 focus:bg-white/8 focus:ring-1 focus:ring-neon-purple/20 transition-all"
+          placeholder={user ? "Add a task for your account..." : "Add a guest task..."}
+          className="flex-1 h-11 bg-white/[0.045] rounded-2xl px-4 text-[13px] tracking-[0.01em] text-white/88 outline-none placeholder:text-white/18 border border-white/[0.06] focus:bg-white/[0.065] focus:border-white/12 focus:ring-1 focus:ring-neon-purple/15 transition-all"
         />
         <button
           onClick={() => {
@@ -108,7 +110,7 @@ px-3 py-2 text-xs outline-none placeholder:text-white/20 focus:bg-white/8 focus:
             const idx = order.indexOf(selectedPriority);
             setSelectedPriority(order[(idx + 1) % order.length]);
           }}
-          className={`w-16 py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${
+          className={`w-[72px] h-11 px-3 rounded-2xl text-[10px] font-semibold uppercase tracking-[0.12em] border transition-all ${
             selectedPriority === "high"
               ? "bg-rose-500/20 text-rose-300 border-rose-400/30"
               : selectedPriority === "medium"
@@ -121,10 +123,9 @@ px-3 py-2 text-xs outline-none placeholder:text-white/20 focus:bg-white/8 focus:
         <button
           onClick={add}
           disabled={submitting}
-          className="w-8 h-8 rounded-[50%]
-bg-gradient-to-br from-neon-purple to-neon-cyan grid place-items-center hover:scale-105 active:scale-95 transition-transform shadow-lg disabled:opacity-50"
+          className="w-11 h-11 rounded-2xl bg-gradient-to-br from-neon-purple to-neon-cyan grid place-items-center hover:scale-[1.03] active:scale-95 transition-transform shadow-[0_12px_30px_rgba(139,92,246,0.28)] disabled:opacity-50"
         >
-          {submitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+          {submitting ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
         </button>
       </div>
 
@@ -151,7 +152,7 @@ bg-gradient-to-br from-neon-purple to-neon-cyan grid place-items-center hover:sc
           todos.map((t) => (
             <div
               key={t.id}
-              className={`flex items-center gap-3 p-2.5 rounded-xl
+              className={`flex items-center gap-3 p-3 rounded-2xl
 transition-all duration-200 group ${
                 !t.active ? "opacity-40" : "hover:bg-white/5"
               }`}
@@ -175,7 +176,7 @@ transition-all duration-200 group ${
 
               {/* Title */}
               <span
-                className={`text-xs flex-1 transition-all ${
+                className={`text-[13px] leading-snug flex-1 transition-all ${
                   !t.active
                     ? "line-through text-white/25"
                     : "text-white/80"
@@ -186,12 +187,12 @@ transition-all duration-200 group ${
 
               {/* Priority dot */}
               <span
-                className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityColors[t.priority]}`}
+                className={`w-2 h-2 rounded-full shrink-0 ${priorityColors[t.priority]}`}
               />
 
               {/* Priority badge */}
               <span
-                className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0 ${
+                className={`text-[9px] font-medium px-2 py-0.5 rounded-full border shrink-0 uppercase tracking-[0.08em] ${
                   priorityBadge[t.priority]
                 }`}
               >

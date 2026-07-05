@@ -329,7 +329,7 @@ export const MusicPlayer = () => {
         transform: collapsed ? "scale(0.08) translateX(120px)" : "scale(1) translateX(0)",
         transition: "transform 0.65s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.45s ease",
       }}>
-        <div className="noise px-5 py-2.5 flex items-center gap-4 shadow-[0_20px_60px_-10px rgba(0,0,0,0.7)]"
+        <div className="noise px-4 flex items-center gap-4 shadow-[0_20px_60px_-10px rgba(0,0,0,0.7)]"
           style={{ ...playerGlassStyle, borderRadius: "3rem" }}>
         {/* Album art */}
         <button onClick={doCollapse} className="shrink-0 focus:outline-none -ml-1.5">
