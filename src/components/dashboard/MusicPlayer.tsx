@@ -106,6 +106,7 @@ export const MusicPlayer = () => {
   const preloadRef = useRef<HTMLAudioElement | null>(null);
   const playlistRef = useRef<Track[]>([]);
   const trackIdxRef = useRef(0);
+  const playRequestRef = useRef(0);
 
   useEffect(() => { playlistRef.current = playlist; }, [playlist]);
   useEffect(() => { trackIdxRef.current = trackIdx; try { localStorage.setItem("music-track", String(trackIdx)); } catch {} }, [trackIdx]);
@@ -167,7 +168,24 @@ export const MusicPlayer = () => {
       };
       checkReady();
     }
-    if (playing) audio.play().catch(() => setPlaying(false));
+    if (playing) {
+      const requestId = ++playRequestRef.current;
+      const tryPlay = async () => {
+        try {
+          if (audio.readyState < 2) {
+            await new Promise<void>((resolve) => {
+              const onCanPlay = () => resolve();
+              audio.addEventListener("canplay", onCanPlay, { once: true });
+            });
+          }
+          if (requestId !== playRequestRef.current) return;
+          await audio.play();
+        } catch {
+          if (requestId === playRequestRef.current) setPlaying(false);
+        }
+      };
+      void tryPlay();
+    }
   }, [trackIdx, playlist]);
 
   /* ─── Preload next track ─── */
@@ -192,8 +210,29 @@ export const MusicPlayer = () => {
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (playing) { audio.pause(); setPlaying(false); }
-    else { audio.play().then(() => setPlaying(true)).catch(() => {}); }
+    if (playing) {
+      playRequestRef.current += 1;
+      audio.pause();
+      setPlaying(false);
+      return;
+    }
+    setPlaying(true);
+    const requestId = ++playRequestRef.current;
+    const start = async () => {
+      try {
+        if (audio.readyState < 2) {
+          await new Promise<void>((resolve) => {
+            const onCanPlay = () => resolve();
+            audio.addEventListener("canplay", onCanPlay, { once: true });
+          });
+        }
+        if (requestId !== playRequestRef.current) return;
+        await audio.play();
+      } catch {
+        if (requestId === playRequestRef.current) setPlaying(false);
+      }
+    };
+    void start();
   }, [playing]);
 
   const handlePrev = useCallback(() => {
@@ -349,7 +388,7 @@ export const MusicPlayer = () => {
               </div>
               <div className="p-2 max-h-[260px] overflow-y-auto scrollbar-none">
                 {playlist.map((t, i) => (
-                  <button key={i} onClick={()=>{setTrackIdx(i);if(!playing){setTimeout(()=>{audioRef.current?.play().then(()=>setPlaying(true)).catch(()=>{});},0);}setShowPlaylist(false);}}
+                  <button key={i} onClick={()=>{setTrackIdx(i); if (!playing) setPlaying(true); setShowPlaylist(false);}}
                     className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-3 transition-all duration-200 ${i===trackIdx?"bg-white/[0.08]":"hover:bg-white/[0.05]"}`}>
                     <div className={`w-7 h-7 rounded-[50%] grid place-items-center shrink-0 text-[10px] font-bold ${i===trackIdx?"bg-white/20 text-white":"text-white/40 bg-white/[0.08]"}`}>
                       {i===trackIdx&&playing?<span className="flex gap-[2px] items-center"><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"0ms",animationDuration:"0.6s"}}/><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"150ms",animationDuration:"0.6s"}}/><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"300ms",animationDuration:"0.6s"}}/></span>:String(i+1).padStart(2,"0")}
