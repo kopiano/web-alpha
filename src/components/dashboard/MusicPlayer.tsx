@@ -83,6 +83,7 @@ export const MusicPlayer = () => {
   const [duration, setDuration] = useState(0);
   const [showVolume, setShowVolume] = useState(false);
   const [showPlaylist, setShowPlaylist] = useState(false);
+  const [currentStarted, setCurrentStarted] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem("music-player-collapsed") === "1"; } catch { return false; }
   });
@@ -118,6 +119,7 @@ export const MusicPlayer = () => {
     audioRef.current = audio;
 
     const onLoaded = () => setDuration(audio.duration || 0);
+    const onPlaying = () => setCurrentStarted(true);
     const onEnded = () => {
       const list = playlistRef.current;
       if (list.length > 0) {
@@ -135,6 +137,7 @@ export const MusicPlayer = () => {
     const onDur = () => setDuration(audio.duration || 0);
 
     audio.addEventListener("loadedmetadata", onLoaded);
+    audio.addEventListener("playing", onPlaying);
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("durationchange", onDur);
@@ -142,6 +145,7 @@ export const MusicPlayer = () => {
     return () => {
       audio.pause();
       audio.removeEventListener("loadedmetadata", onLoaded);
+      audio.removeEventListener("playing", onPlaying);
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("durationchange", onDur);
@@ -158,6 +162,7 @@ export const MusicPlayer = () => {
     const savedTime = (() => { try { return parseInt(localStorage.getItem("music-time") || "0") || 0; } catch { return 0; } })();
     setCurrentTime(0);
     setDuration(0);
+    setCurrentStarted(false);
     if (savedTime > 0) {
       const checkReady = () => {
         if (audio.readyState >= 1) {
@@ -190,7 +195,7 @@ export const MusicPlayer = () => {
 
   /* ─── Preload next track ─── */
   useEffect(() => {
-    if (!playlist.length || !playing) return;
+    if (!playlist.length || !playing || !currentStarted) return;
     const nextIdx = (trackIdx + 1) % playlist.length;
     const nextTrack = playlist[nextIdx];
     if (!nextTrack) return;
@@ -201,7 +206,7 @@ export const MusicPlayer = () => {
     next.load();
     preloadRef.current = next;
     return () => { next.pause(); next.src = ""; if (prev && prev !== next) { prev.pause(); prev.src = ""; } };
-  }, [trackIdx, playing, playlist]);
+  }, [trackIdx, playing, currentStarted, playlist]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = muted ? 0 : volume;
