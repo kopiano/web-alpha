@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Eye, Globe, Users } from "lucide-react";
-import { getVisitorStats } from "@/api/visitor";
+import { getVisitors } from "@/api/visitor";
 
 const VISITOR_ID_KEY = "visitor_id";
 const DEVICE_FINGERPRINT_KEY = "device_fingerprint";
@@ -57,7 +57,7 @@ export const VisitorCounter = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await getVisitorStats({
+        const res = await getVisitors({
           visitor_id: readVisitorId(),
           fingerprint: readFingerprint(),
         });
