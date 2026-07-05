@@ -1,4 +1,5 @@
 import { BookOpen, Code2, Cloud, Database, Terminal, Zap, Bookmark } from "lucide-react";
+import { EMOJI_LIST } from "@/config/chat";
 
 /* ─── Fallback local md import (used when backend is unreachable) ─── */
 export const mdModules = import.meta.glob("/src/docs/**/*.md", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
@@ -99,13 +100,7 @@ export interface Comment {
   parentId: number | null; replies?: Comment[]; avatarClassName?: string; avatarUrl?: string | null;
 }
 
-export const EMOJI_LIST = [
-  "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇",
-  "🙂", "😉", "😍", "😘", "😋", "😎", "🤩", "🥳", "🤔", "🤗",
-  "👍", "👌", "👏", "🙌", "💪", "🙏", "🎉", "✨", "🔥", "🚀",
-  "🌩️", "🌨️", "🌧️", "🌦️", "🌥️", "🌤️", "⛈️", "⛅", "☁️", "🌍",
-  "🥉","🥈","🥇","🏅","🥬","🍇","🍉"
-];
+export { EMOJI_LIST };
 
 export const INITIAL_COMMENTS: Comment[] = [
   { id: 1, name: "Alex Morgan", email: "alex@morgan.dev", website: "alex.dev", avatar: "AM", time: "2 hours ago", content: "**Great article!** The blur example helped a lot 🚀 _Really appreciate it._", likes: 12, parentId: null, replies: [

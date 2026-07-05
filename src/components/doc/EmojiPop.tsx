@@ -1,4 +1,4 @@
-import { EMOJI_LIST } from "@/components/doc/docsData";
+import { EMOJI_LIST } from "@/config/chat";
 
 /* ─── Emoji Picker ─── */
 export const EmojiPop = ({ onSelect, onClose }: { onSelect: (e: string) => void; onClose: () => void }) => (
