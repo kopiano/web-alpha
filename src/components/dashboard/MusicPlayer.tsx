@@ -355,8 +355,8 @@ export const MusicPlayer = () => {
 
         <div className="min-w-0 w-36 flex flex-col justify-center" style={{opacity:collapsed?0:1,transition:"opacity 0.4s ease 0.05s"}}>
           <MarqueeLine title={track.title} artist={track.artist} />
-          <div className="mt-1 h-[4px] rounded-full bg-white/20 overflow-hidden cursor-pointer" onClick={seek}>
-            <div className="relative h-full rounded-full bg-white/[0.05]">
+          <div className="relative mt-1 h-4 rounded-full cursor-pointer group" onClick={seek}>
+            <div className="absolute inset-y-1/2 left-0 right-0 -translate-y-1/2 h-[3px] rounded-full bg-white/[0.10] overflow-hidden">
               <div
                 className="absolute inset-y-0 left-0 rounded-full bg-white/20 transition-[width] duration-500 ease-out"
                 style={{
@@ -385,6 +385,15 @@ export const MusicPlayer = () => {
                 }}
               />
             </div>
+            <span
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.95)] pointer-events-none"
+              style={{
+                left: `${Math.min(100, Math.max(0, progress * 100))}%`,
+                opacity: progress > 0 ? 1 : 0,
+                zIndex: 30,
+                transition: "left 0.25s linear, opacity 0.2s ease",
+              }}
+            />
           </div>
           <div className="flex justify-between mt-0.5">
             <span className="text-[8px] text-white/25 tabular-nums">{formatTime(currentTime)}</span>
