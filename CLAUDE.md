@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Tech Stack
 
-- **Framework**: React 18 + TypeScript + Vite
+- **Framework**: React 18 + TypeScript + Vite 8
 - **Package manager**: pnpm
 - **Routing**: react-router-dom
 - **Styling**: Tailwind CSS + custom CSS with glass-morphism utilities
@@ -23,8 +23,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Charts**: echarts
 - **map**: maplibre-gl + CartoDB
 
-
-### Environment
-- `.env.development` — `VITE_API_BASE_URL=/api/v1` (proxied through Vite dev server)
-- `.env.production` — `VITE_API_BASE_URL=https://alpha.coulsonzero.shop:5000/api/v1`
-- `@` path alias resolves to `src/`
+## notice

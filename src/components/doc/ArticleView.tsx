@@ -1,8 +1,10 @@
-import { useMemo } from "react";
-import { BookOpen, Eye, FileText, Edit3, Save } from "lucide-react";
+import { useState } from "react";
+import { BookOpen, Eye, FileText, Edit3, Save, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { renderMarkdown } from "@/components/doc/DocRenderer";
 import { CommentsSection } from "@/components/doc/Comments";
 import { saveMd } from "@/components/doc/docsData";
+import { saveDoc } from "@/api/doc";
 import type { Comment } from "@/components/doc/docsData";
 import type { Article } from "@/components/doc/docsData";
 
@@ -47,7 +49,31 @@ export const ArticleView = ({
   liked, setLiked, showEmoji, setShowEmoji, showReplyEmoji, setShowReplyEmoji, commentEndRef, loggedInUser,
   TAG_COLORS, TAG_ICONS,
 }: ArticleViewProps) => {
+  const [saving, setSaving] = useState(false);
   if (!sel) return null;
+
+  const handleSave = async () => {
+    const p = sel.path;
+    if (!p) return;
+    setSaving(true);
+    try {
+      await saveDoc({ path: p, tag: sel.tag.toLowerCase(), title: sel.title, content: editContent });
+      saveMd(p, editContent);
+      setArticleMd(editContent);
+      setIsEditing(false);
+      setViewMode("preview");
+      toast.success("Document updated");
+    } catch {
+      // Keep localStorage save as fallback
+      saveMd(p, editContent);
+      setArticleMd(editContent);
+      setIsEditing(false);
+      setViewMode("preview");
+      toast.error("Failed to sync to server, saved locally");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="max-w-3xl">
@@ -94,10 +120,12 @@ export const ArticleView = ({
           )}
           {isEditing && (
             <button
-              onClick={() => { const p = sel?.path; if (p) saveMd(p, editContent); setArticleMd(editContent); setIsEditing(false); setViewMode("preview"); }}
-              className="px-3 py-1.5 rounded-lg text-[10px] font-semibold text-white transition-all flex items-center gap-1.5"
+              onClick={handleSave}
+              disabled={saving}
+              className="px-3 py-1.5 rounded-lg text-[10px] font-semibold text-white transition-all flex items-center gap-1.5 disabled:opacity-50"
               style={{ background: "linear-gradient(135deg, rgba(76,201,240,0.25), rgba(123,47,247,0.2))",border: "1px solid rgba(76,201,240,0.2)" }}>
-              <Save size={12} /> Save
+              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              {saving ? "Saving..." : "Save"}
             </button>
           )}
         </div>

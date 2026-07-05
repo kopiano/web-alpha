@@ -7,3 +7,4 @@ export function fetchDocList() {
 export function saveDoc(data) {
   return request.post('/doc/save', data)
 }
+
