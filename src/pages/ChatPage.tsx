@@ -68,7 +68,9 @@ const ChatPage = () => {
   const loadAllRef = useRef<() => void>(() => {});
 
   const me = user;
-  const meName = me?.username||"Quest";
+  const authLoading = user === undefined;
+  const isGuest = user === null;
+  const meName = isGuest ? "Quest" : (me?.username||"");
   const meId = me?.id||0;
   const meInit = initials(meName);
   const meAvatar = me?.avatar ? resolveAvatar(me.avatar) : null;
@@ -371,7 +373,7 @@ const ChatPage = () => {
           {/* Contact list */}
           <div className="flex-1 overflow-y-auto csb">
             {loading?<div className="space-y-2 px-5 py-4">{[1,2,3,4].map(i=><div key={i} className="h-[84px] flex items-center gap-4"><div className="w-[52px] h-[52px] rounded-full bg-white/[0.03] animate-pulse shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 w-3/4 rounded bg-white/[0.03] animate-pulse"/><div className="h-2 w-1/2 rounded bg-white/[0.02] animate-pulse"/></div></div>)}</div>
-            :filtered.length===0?<div className="text-center py-10 text-white/20 text-[12px]">{contacts.length===0?(<span>Login to view contacts — <button onClick={()=>openAuth("login")} className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">Login →</button></span>):"No matches"}</div>
+            :filtered.length===0?<div className="text-center py-10 text-white/20 text-[12px]">{contacts.length===0?(isGuest?<span>Login to view contacts — <button onClick={()=>openAuth("login")} className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">Login →</button></span>:<span className="text-white/10">{authLoading?"":"No contacts"}</span>):"No matches"}</div>
             :<>
               {/* Team section */}
               <div className="px-4 md:px-5 pt-4 md:pt-6 pb-2 md:pb-3 text-base md:text-lg" style={{fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Team</div>
@@ -453,7 +455,9 @@ const ChatPage = () => {
           {/* Bottom profile */}
           <div className="px-5 py-4" style={{borderTop:"1px solid rgba(255,255,255,0.05)"}}>
             <div className="flex items-center gap-4" style={{height:"52px"}}>
-              {!me ? (
+              {authLoading ? (
+                <div className="w-[52px] h-[52px] rounded-full bg-white/[0.04] animate-pulse shrink-0"/>
+              ) : isGuest ? (
                 <>
                   <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold shadow-lg ring-1 ring-white/10 shrink-0"
                     style={{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.12)"}}>
@@ -543,7 +547,7 @@ const ChatPage = () => {
           {/* Messages */}
           <div className="flex-1 overflow-y-auto csb px-5 py-4 space-y-1.5 transition-opacity duration-300">
             {loading?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/10 animate-pulse">Loading...</p></div>
-            :(!contact||contact.id===0)&&activeIdx!==-2?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{!me ? "Login to start chatting" : "Select a contact to start chatting"}</p>{!me && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
+            :(!contact||contact.id===0)&&activeIdx!==-2?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{isGuest ? "Login to start chatting" : (authLoading ? "" : "Select a contact to start chatting")}</p>{isGuest && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
             :messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
             :messages.map((m,i)=>{
               const isMe=m.sender==="me";

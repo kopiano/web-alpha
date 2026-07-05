@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { CloudSun } from "lucide-react"
+import { CloudSun, Sunrise, Sunset } from "lucide-react"
 import { fetchWeather } from "@/api/weather"
 import { useAuth } from "@/components/dashboard/AuthProvider"
 
@@ -14,6 +14,8 @@ interface WeatherDay {
   current?: number
   aqi: number
   humidity: number
+  sunrise?: string
+  sunset?: string
 }
 
 /* ─── Condition → emoji mapping ─── */
@@ -74,6 +76,17 @@ function getWeekFromMonday(): WeatherDay[] {
   })
 }
 
+function to24h(t: string) {
+  if (!t) return t
+  const [m, p] = t.split(" ")
+  if (!m || !p) return t
+  let [h, mi] = m.split(":")
+  let hr = parseInt(h, 10)
+  if (p === "PM" && hr !== 12) hr += 12
+  if (p === "AM" && hr === 12) hr = 0
+  return `${String(hr).padStart(2, "0")}:${mi}`
+}
+
 export const WeatherCard = () => {
   const [week, setWeek] = useState<WeatherDay[]>([])
   const { user } = useAuth()
@@ -125,7 +138,9 @@ export const WeatherCard = () => {
               low: apiDay.temp_low ?? slot.low,
               high: apiDay.temp_high ?? slot.high,
               aqi: apiDay.aqi ?? slot.aqi,
-              humidity: slot.humidity,
+              humidity: apiDay.humidity !== undefined ? Number(apiDay.humidity) : slot.humidity,
+              sunrise: apiDay.sunrise || undefined,
+              sunset: apiDay.sunset || undefined,
             }
           }),
         )
@@ -176,19 +191,31 @@ bg-gradient-to-br from-sky-400 to-cyan-300 grid place-items-center shadow-[0_0_1
         )}
       </div>
 
-      {/* AQI only */}
+      {/* AQI bar + sunrise/sunset + humidity */}
       {today && (
         <div className="flex items-center gap-4 mb-5 px-1">
-          <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-semibold ${aqiLevel(today.aqi).color}`}>
-              AQI {today.aqi} {aqiLevel(today.aqi).label}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className={`text-[10px] font-semibold ${aqiLevel(today.aqi).color} whitespace-nowrap`}>
+              AQI {today.aqi}
             </span>
-            <div className="w-16 h-1 rounded-full bg-white/5 overflow-hidden">
+            <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden max-w-[100px]">
               <div
-                className={`h-full rounded-full ${aqiLevel(today.aqi).bar}`}
-                style={{ width: `${Math.min(today.aqi, 150)}%` }}
+                className={`h-full rounded-full transition-all duration-500 ${aqiLevel(today.aqi).bar}`}
+                style={{ width: `${Math.min((today.aqi / 300) * 100, 100)}%` }}
               />
             </div>
+            {today.sunrise && today.sunset && (
+              <div className="flex items-center gap-2 ml-1.5">
+                <Sunrise size={12} className="text-amber-400/70" />
+                <span className="text-[10px] font-medium text-white/50 tabular-nums">{to24h(today.sunrise)}</span>
+                <Sunset size={12} className="text-indigo-400/70" />
+                <span className="text-[10px] font-medium text-white/50 tabular-nums">{to24h(today.sunset)}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[11px] text-sky-300/70">💧</span>
+            <span className="text-[11px] font-medium text-white/60">{today.humidity}%</span>
           </div>
         </div>
       )}
