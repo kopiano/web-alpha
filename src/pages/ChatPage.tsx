@@ -5,6 +5,7 @@ import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useOnlineStatus, type WsMessage } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
 import { fetchConversationMessages, sendChatMessage, getChatUserInfo, createConversation, getTeamInfo, markConversationRead } from "@/api/chat";
+import { EMOJI_LIST } from "@/config/chat";
 import teamAvatar from "@/assets/teamGroup.png";
 // import { getUsers } from "@/api/user";
 
@@ -15,7 +16,6 @@ interface Contact { id: number; name: string; avatar: string; lastMsg: string; t
 interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; fileName?: string; fileSize?: string; fileData?: string; username?: string; senderAvatar?: string; }
 
 const AVATAR_GRADS = ["from-violet-500 to-cyan-400","from-pink-500 to-violet-500","from-cyan-400 to-blue-500","from-emerald-400 to-cyan-400","from-fuchsia-500 to-pink-500","from-violet-500 to-fuchsia-500","from-blue-400 to-cyan-400"];
-const EMOJI_LIST = ["😀","😃","😄","😁","😆","😅","😂","🤣","😊","😇","🙂","😉","😍","😘","😋","😎","🤩","🥳","🤔","🤗","👍","👌","👏","🙌","💪","🙏","🎉","✨","🔥","🚀","💯","❤️"];
 
 function initials(n: string) { return n?.slice(0,2).toUpperCase()||"??"; }
 function timeFmt(ts: string) {
