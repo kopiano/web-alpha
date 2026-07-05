@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Eye, FileText, Edit3, Save, Loader2 } from "lucide-react";
+import { BookOpen, Eye, FileText, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { renderMarkdown } from "@/components/doc/DocRenderer";
 import { CommentsSection } from "@/components/doc/Comments";
@@ -67,7 +67,6 @@ export const ArticleView = ({
       toast.success("Document updated");
       onSaved?.();
     } catch {
-      // Keep localStorage save as fallback
       saveMd(p, editContent);
       setArticleMd(editContent);
       setIsEditing(false);
@@ -93,7 +92,7 @@ export const ArticleView = ({
           {/* Preview / Raw toggle */}
           <div className="flex rounded-xl p-0.5 gap-0.5" style={{ background: "rgba(255,255,255,0.04)",border: "1px solid rgba(255,255,255,0.05)" }}>
             <button
-              onClick={() => { if (isEditing) { const p = sel?.path; if (p) saveMd(p, editContent); setArticleMd(editContent); setIsEditing(false); } else if (editContent) setArticleMd(editContent); setViewMode("preview"); }}
+              onClick={() => { setArticleMd(editContent || articleMd || sel.content); setViewMode("preview"); }}
               className={`px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all duration-200 flex items-center gap-1.5 ${viewMode === "preview"
                   ? "text-white shadow-[0_0_15px_rgba(76,201,240,0.2)] border border-blue-400/20"
                   : "text-white/40 hover:text-white/70"
@@ -102,7 +101,7 @@ export const ArticleView = ({
               <Eye size={12} /> Preview
             </button>
             <button
-              onClick={() => setViewMode("raw")}
+              onClick={() => { setEditContent(articleMd || sel.content); setViewMode("raw"); }}
               className={`px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all duration-200 flex items-center gap-1.5 ${viewMode === "raw"
                   ? "text-white shadow-[0_0_15px_rgba(76,201,240,0.2)] border border-blue-400/20"
                   : "text-white/40 hover:text-white/70"
@@ -112,16 +111,8 @@ export const ArticleView = ({
             </button>
           </div>
 
-          {/* Edit / Save */}
-          {viewMode === "raw" && !isEditing && (
-            <button
-              onClick={() => { setIsEditing(true); setEditContent(articleMd); }}
-              className="px-3 py-1.5 rounded-lg text-[10px] font-medium text-white/60 hover:text-white border border-white/[0.06] hover:border-blue-400/20 transition-all flex items-center gap-1.5"
-              style={{ background: "rgba(255,255,255,0.03)" }}>
-              <Edit3 size={12} /> Edit
-            </button>
-          )}
-          {isEditing && (
+          {/* Save (visible in raw mode — directly editable) */}
+          {viewMode === "raw" && (
             <button
               onClick={handleSave}
               disabled={saving}
@@ -140,18 +131,12 @@ export const ArticleView = ({
           renderedContent
         ) : (
           <div className="rounded-2xl overflow-hidden border" style={{ borderColor: "rgba(255,255,255,0.06)",background: "rgba(0,0,0,0.25)" }}>
-            {isEditing ? (
-              <textarea
-                value={editContent}
-                onChange={e => setEditContent(e.target.value)}
-                className="w-full min-h-[400px] p-5 text-[13px] leading-[1.7] outline-none resize-none scrollbar-none"
-                style={{ background: "transparent",color: "rgba(255,255,255,0.8)",fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}
-              />
-            ) : (
-              <pre className="p-5 text-[13px] leading-[1.7] overflow-x-auto scrollbar-none" style={{ color: "rgba(255,255,255,0.7)",fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
-                {articleMd || sel.md}
-              </pre>
-            )}
+            <textarea
+              value={editContent}
+              onChange={e => setEditContent(e.target.value)}
+              className="w-full min-h-[400px] p-5 text-[13px] leading-[1.7] outline-none resize-none scrollbar-none"
+              style={{ background: "transparent",color: "rgba(255,255,255,0.8)",fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}
+            />
           </div>
         )}
       </div>
