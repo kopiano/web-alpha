@@ -31,6 +31,8 @@ export type Article = {
   tag: string;
   readTime: string;
   date: string;
+  createdAt: string;
+  updatedAt: string;
   time?: string;
   path: string;
   updatedDaysAgo: number;
@@ -53,6 +55,8 @@ export const LOCAL_ARTICLES: Article[] = mdEntries.map(([path, content], i) => {
     tag,
     readTime: `${Math.max(1, Math.floor((content.length / 3000) * 5) || 5)} min`,
     date: "2026-06-15",
+    createdAt: "2026-06-15 00:00:00",
+    updatedAt: "2026-06-15 00:00:00",
     path: path.replace("/src/", ""),
     updatedDaysAgo: Math.floor(Math.random() * 14) + 1,
     md: loadMd(path, content),

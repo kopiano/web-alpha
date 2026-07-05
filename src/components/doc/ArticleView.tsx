@@ -54,6 +54,15 @@ export const ArticleView = ({
   const [saving, setSaving] = useState(false);
   if (!sel) return null;
 
+  const formatDisplayTime = (value?: string) => {
+    if (!value) return "—";
+    const normalized = value.includes("T") ? value : value.replace(" ", "T");
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) return value;
+    const pad = (part: number) => String(part).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
   const handleSave = async () => {
     const p = sel.path;
     if (!p) return;
@@ -85,7 +94,7 @@ export const ArticleView = ({
           <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1 rounded-full border ${TAG_COLORS[sel.tag] || ""}`}>
             {(() => { const Icon = TAG_ICONS[sel.tag] || BookOpen; return <Icon size={12} />; })()}{sel.tag}
           </span>
-          <span className="text-[11px] text-white/40">{sel.author} · {sel.date} · {sel.readTime}</span>
+          <span className="text-[11px] text-white/40">{sel.author} · {sel.readTime}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -126,6 +135,10 @@ export const ArticleView = ({
       </div>
 
       {/* Render area */}
+      <div className="mt-1 mb-5 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-white/35">
+        <span>Created At: <span className="text-white/70">{formatDisplayTime(sel.createdAt || sel.time || sel.date)}</span></span>
+        <span>Updated At: <span className="text-white/70">{formatDisplayTime(sel.updatedAt || sel.time || sel.date)}</span></span>
+      </div>
       <div className="transition-all duration-300">
         {viewMode === "preview" ? (
           renderedContent

@@ -9,7 +9,7 @@ import {
   Music,
   ListMusic,
 } from "lucide-react";
-import { getMusic } from "@/api/hotSearch";
+import { getMusic } from "@/api/music";
 
 interface Track {
   title: string;

@@ -5,6 +5,15 @@ import {
   LOCAL_ARTICLES, Article,
 } from "@/components/doc/docsData";
 
+const normalizeDocTime = (value?: string) => {
+  if (!value) return "";
+  const normalized = value.includes("T") ? value : value.replace(" ", "T");
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value;
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
 /* ─── Hook: fetch docs from backend, fallback to local ─── */
 export function useArticles() {
   const [articles, setArticles] = useState<Article[]>(LOCAL_ARTICLES);
@@ -25,6 +34,8 @@ export function useArticles() {
               tag: tagName,
               readTime: `${Math.max(1, Math.floor((item.content?.length || 0) / 3000 * 5) || 5)} min`,
               date: item.time ? item.time.slice(0, 10) : "2026-06-27",
+              createdAt: normalizeDocTime(item.createdAt || item.time),
+              updatedAt: normalizeDocTime(item.updatedAt || item.time),
               time: item.time || "",
               path: item.path || "",
               updatedDaysAgo: Math.floor(Math.random() * 14) + 1,
@@ -36,7 +47,10 @@ export function useArticles() {
               content: item.content || "",
             }));
           });
-          setArticles(flat.length > 0 ? flat : LOCAL_ARTICLES);
+          const sorted = flat.length > 0
+            ? [...flat].sort((a, b) => (b.updatedAt || b.date || "").localeCompare(a.updatedAt || a.date || ""))
+            : LOCAL_ARTICLES;
+          setArticles(sorted);
         }
       })
       .catch(() => {})

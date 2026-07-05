@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useDeferredEffect } from "@/hooks/useDeferredEffect";
 import { Plus, Check, Trash2, Circle, Loader2, Globe } from "lucide-react";
-import { createTodo, getTodos, updateTodo, deleteTodo } from "@/api/hotSearch";
+import { createTodo, getTodos, updateTodo, deleteTodo } from "@/api/task";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 
 interface Todo {

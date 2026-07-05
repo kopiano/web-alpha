@@ -6,8 +6,8 @@ import request from './request'
  * @param {string} params.year  - 按年份过滤，如 "2026"
  * @param {string} params.month - 按月份过滤，如 "06"
  * @param {string} params.tag   - 按标签过滤
- * @returns {Promise} GET /timeline
+ * @returns {Promise} GET /api/v1/doc/list
  */
 export function getTimeline(params = {}) {
-  return request.get('/timeline', { params })
+  return request.get('/doc/list', { params })
 }

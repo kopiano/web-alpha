@@ -1,21 +1,21 @@
 import request from './request'
 
 export function login(data) {
-  return request.post('/login', data)
+  return request.post('/auth/login', data)
 }
 
 export function register(data) {
-  return request.post('/register', data)
+  return request.post('/auth//register', data)
 }
 
 export function getMe() {
-  return request.get('/me')
+  return request.get('/auth//me')
 }
 
 export function logout() {
-  return request.post('/logout')
+  return request.post('/auth/logout')
 }
 
 export function updateSettings(formData) {
-  return request.post('/setting_user', formData)
+  return request.post('/auth/setting_user', formData)
 }

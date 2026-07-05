@@ -39,11 +39,15 @@ export const TimelineTab = ({
   const [timelineYear, setTimelineYear] = useState("2026");
   const [timelineMonth, setTimelineMonth] = useState("");
 
+  const getSortKey = (article: Article) => article.updatedAt || article.time || article.date || "";
+  const getYear = (article: Article) => (getSortKey(article).slice(0, 4) || article.date?.slice(0, 4) || "2026");
+  const getMonth = (article: Article) => (getSortKey(article).slice(5, 7) || article.date?.slice(5, 7) || "01");
+
   // ---- Fallback: 旧版 flat 文章过滤逻辑 ----
   const availableMonths = [...new Set(
     articles
-      .filter((a) => a.date?.slice(0, 4) === timelineYear)
-      .map((a) => a.date?.slice(5, 7))
+      .filter((a) => getYear(a) === timelineYear)
+      .map((a) => getMonth(a))
   )].sort();
 
   const timelineArticles = useMemo(() => {
@@ -57,24 +61,24 @@ export const TimelineTab = ({
           entries.push(...m.entries);
         }
       }
-      return entries.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+      return entries.sort((a, b) => getSortKey(b).localeCompare(getSortKey(a)));
     }
     // 旧版 flat fallback
     return [...filteredArticles]
       .filter((a) => {
-        const y = a.date?.slice(0, 4);
-        const m = a.date?.slice(5, 7);
+        const y = getYear(a);
+        const m = getMonth(a);
         if (timelineMonth && `${y}-${m}` !== `${timelineYear}-${timelineMonth}`) return false;
         if (!timelineMonth && y !== timelineYear) return false;
         return true;
       })
-      .sort(() => -1);
+      .sort((a, b) => getSortKey(b).localeCompare(getSortKey(a)));
   }, [timelineGroups, filteredArticles, timelineYear, timelineMonth]);
 
   // ---- 年份列表 ----
   const years = useMemo(() => {
     if (availYears && availYears.length > 0) return availYears;
-    return [...new Set(articles.map((a) => a.date?.slice(0, 4)))].sort().reverse();
+    return [...new Set(articles.map((a) => getYear(a)))].sort().reverse();
   }, [availYears, articles]);
 
   // ---- 月份列表（新版分组模式） ----
@@ -95,7 +99,7 @@ export const TimelineTab = ({
       .map((m) => ({
         month: m.month,
         monthName: MONTH_NAMES[m.month] ?? m.month,
-        entries: m.entries.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "")),
+        entries: m.entries.sort((a, b) => getSortKey(b).localeCompare(getSortKey(a))),
       }));
   }, [timelineGroups, timelineYear, timelineMonth]);
 
@@ -204,7 +208,7 @@ export const TimelineTab = ({
                         {/* 日期 */}
                         <div className="shrink-0 text-right pr-5" style={{ width: "100px" }}>
                           <span className="text-[10px] text-white/30 font-mono tracking-tight">
-                            {article.date}
+                            {article.updatedAt || article.time || article.date}
                           </span>
                         </div>
                         {/* 圆点 */}
@@ -237,9 +241,9 @@ export const TimelineTab = ({
                                 {article.title}
                               </h4>
                             </div>
-                            <div className="flex items-center gap-3 shrink-0">
-                              <span className="text-[9px] text-white/25 whitespace-nowrap">
-                                updated {article.updatedDaysAgo}d ago
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-[9px] text-white/25 whitespace-nowrap">
+                                updated {article.updatedAt || article.date}
                               </span>
                               <div className="w-7 h-7 rounded-full grid place-items-center border border-white/[0.08] bg-white/[0.03] transition-all duration-400 group-hover:border-blue-400/30 group-hover:bg-blue-400/10 group-hover:shadow-[0_0_14px_rgba(76,201,240,0.25)]">
                                 <ArrowRight
@@ -249,7 +253,6 @@ export const TimelineTab = ({
                               </div>
                             </div>
                           </div>
-                          <p className="text-[9px] text-white/20 mt-2 font-mono">{article.path}</p>
                         </div>
                       </div>
                     );
@@ -322,7 +325,6 @@ export const TimelineTab = ({
                           </div>
                         </div>
                       </div>
-                      <p className="text-[9px] text-white/20 mt-2 font-mono">{article.path}</p>
                     </div>
                   </div>
                 );

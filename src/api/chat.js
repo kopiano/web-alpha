@@ -1,6 +1,3 @@
-
-
-
 import request from './request'
 
 /** GET /api/v1/chat/user_info — 联系人列表 + 团队信息 */
