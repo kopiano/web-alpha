@@ -49,7 +49,6 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
     )
     wsRef.current = ws
 
-    ws.onopen = () => console.log("[WS] connected")
     ws.onmessage = (e) => {
       try {
         const d: WsMessage = JSON.parse(e.data)

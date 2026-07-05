@@ -37,7 +37,6 @@ export default function AnalyticsPage() {
       if (!selectedMonth) setSelectedMonth(guestMonths[0]);
       return;
     }
-    console.log("[Analytics] start fetching months...");
     setLoadingMonths(true);
     getTransactionMonths()
       .then((res) => {

@@ -150,7 +150,6 @@ export const VisitorTable = ({ className = "" }: VisitorTableProps) => {
         });
         const payload = res.data?.data ?? res.data ?? {};
         const list = unwrapList(payload);
-        console.log("[VisitorTable] raw visitor items:", list);
         setItems(Array.isArray(list) ? list.map(normalizeVisitor) : []);
         setServerPaging({
           total: readTotal(payload),
@@ -212,7 +211,7 @@ export const VisitorTable = ({ className = "" }: VisitorTableProps) => {
                   className="grid min-w-[980px] grid-cols-[1.2fr_1fr_1.25fr_1.2fr_0.8fr_0.7fr_0.9fr_0.8fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors bg-white/[0.025] hover:bg-white/[0.04]"
                 >
                   <div className="flex items-center gap-3 min-w-0 self-center">
-                    <div className={`w-9 h-9 rounded-full shrink-0 bg-gradient-to-br ${getAvatarGradient(String(v.id ?? v.ip ?? i))} grid place-items-center text-[10px] font-bold overflow-hidden text-white`}>
+                    <div className={`w-9 h-9 rounded-full shrink-0 bg-gradient-to-br ${getAvatarGradient(String(v.id ?? v.ip ?? v.user_name ?? v.last_seen ?? "visitor"))} grid place-items-center text-[10px] font-bold overflow-hidden text-white`}>
                       {resolveAvatar(v.avatar) ? (
                         <img src={resolveAvatar(v.avatar)!} alt="" className="h-full w-full object-cover" />
                       ) : (
