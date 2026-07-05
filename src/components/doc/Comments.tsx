@@ -354,8 +354,8 @@ export const CommentsSection = ({
       </div>
 
       <div className="space-y-6 mb-8">
-        {comments.map(c => (
-          <div key={c.id}>
+        {comments.map((c, idx) => (
+          <div key={`comment-${getCommentId(c) || idx}`}>
             <div className="group">
               <div className="flex items-start gap-3">
                 <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${c.avatarClassName || "from-violet-400 to-cyan-400"} grid place-items-center text-[9px] font-bold shrink-0 text-white overflow-hidden`}>
@@ -432,8 +432,8 @@ export const CommentsSection = ({
             )}
             {c.replies && c.replies.length > 0 && (
               <div className="ml-11 mt-3 space-y-3">
-                {c.replies.map(r => (
-                  <div key={r.id}>
+                {c.replies.map((r, ridx) => (
+                  <div key={`reply-${getCommentId(r) || ridx}`}>
                     <div className="flex items-start gap-2.5">
                       <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${r.avatarClassName || "from-pink-400 to-violet-400"} grid place-items-center text-[8px] font-bold shrink-0 text-white overflow-hidden`}>
                         {r.avatarUrl ? (

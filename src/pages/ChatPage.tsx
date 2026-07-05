@@ -209,7 +209,7 @@ const ChatPage = () => {
         initialContactIdx = -2
         firstConvId = body.team ? `g_${body.team.id}` : ""
       }
-      setContacts(cs.length ? cs : [{ id: 0, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }])
+      setContacts(cs.length ? cs : [{ id: -1, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }])
       setActiveIdx(initialContactIdx)
       if (initialContactIdx >= 0) {
         activeContactIdRef.current = firstContactId
@@ -270,7 +270,7 @@ const ChatPage = () => {
           setMessages(parsed)
         }).catch(e => console.error("Load team messages failed:", e))
       }
-    }).catch(e => { console.error("Load contacts failed:", e); setContacts([{ id: 0, name: "⚠", avatar: "!", lastMsg: me ? "Backend not reachable" : "Login to chat", time: "", lastTimeRaw: "", unread: 0, online: false }]); getTeamInfo().then(tres=>{const t=tres.data?.data;if(t?.id)setTeamConv({id:t.id,name:t.name||"Team",members:t.members||[]})}).catch(()=>{}); })
+    }).catch(e => { console.error("Load contacts failed:", e); setContacts([{ id: -2, name: "⚠", avatar: "!", lastMsg: me ? "Backend not reachable" : "Login to chat", time: "", lastTimeRaw: "", unread: 0, online: false }]); getTeamInfo().then(tres=>{const t=tres.data?.data;if(t?.id)setTeamConv({id:t.id,name:t.name||"Team",members:t.members||[]})}).catch(()=>{}); })
       .finally(() => setLoading(false))
   }, [me?.id])
   // 同步 loadAllRef，避免 WebSocket 闭包中的 TDZ 问题
@@ -500,8 +500,8 @@ const ChatPage = () => {
               {/* Personal section */}
               <div className="px-4 md:px-5 pt-4 md:pt-6 pb-2 md:pb-3" style={{fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Personal</div>
 
-              {filtered.map((c) => (
-                <ContactItem key={c.id} contact={c} active={c.id === contacts[activeIdx]?.id} onSelect={switchContact} online={online(c)} />
+              {filtered.map((c, idx) => (
+                <ContactItem key={`contact-${c.id}-${c.convId || "none"}-${idx}`} contact={c} active={c.id === contacts[activeIdx]?.id} onSelect={switchContact} online={online(c)} />
               ))}
             </>}
           </div>
@@ -563,8 +563,8 @@ const ChatPage = () => {
                   <p className="text-[10px] text-white/20">{teamConv.members.length} members</p>
                 </div>
                 <div className="flex items-center -space-x-2 shrink-0 ml-2">
-                  {teamConv.members.slice(0, 5).map((m: any) => (
-                    <div key={m.user_id} className="w-7 h-7 rounded-full border-2 border-[#0c0c14] overflow-hidden grid place-items-center text-[8px] font-bold ring-1 ring-white/10"
+                  {teamConv.members.slice(0, 5).map((m: any, idx) => (
+                    <div key={`team-member-${m.user_id ?? m.username ?? idx}`} className="w-7 h-7 rounded-full border-2 border-[#0c0c14] overflow-hidden grid place-items-center text-[8px] font-bold ring-1 ring-white/10"
                       style={m.avatar?{}:{background:"rgba(255,255,255,0.10)"}}>
                       {m.avatar ? (
                         <>
@@ -627,7 +627,7 @@ const ChatPage = () => {
                       </>
                     : <span>{contact?.avatar||"?"}</span>));
               return (
-                <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"} ${isMe?"msg-anim-me":"msg-anim"}`}>
+                <div key={`msg-${m.id ?? i}`} className={`flex ${isMe?"justify-end":"justify-start"} ${isMe?"msg-anim-me":"msg-anim"}`}>
                   <div className={`flex items-start gap-2.5 max-w-[88%] md:max-w-[72%] ${isMe?"":"flex-row-reverse"}`}>
                     {/* Message content — me: left of avatar / them: right of avatar */}
                     <div className={`flex flex-col ${isMe?"items-end":"items-start"} gap-0.5 min-w-0`}>
