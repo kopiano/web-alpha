@@ -46,3 +46,32 @@ Target: web-alpha-xxxx.pages.dev
 3. Actions -> New workflow -> Set up a workflow yourself -> .github/workflows/pages.yml
 4. 点击`Run workflow`按钮
 
+## 性能优化
+
+### 接口请求优化：
+* 后端使用缓存从2000ms->30ms
+* 不要页面10个接口同时请求，而是重要接口先请求其它接口后台加载
+* 数据表分页：不要get1000条，GET?page=1&pageSize=20
+### 音乐播放器优化
+* 不要一次性获取所有mp3，而是获取列表，然后逐个获取
+* 点击播放时，才获取当前播放mp3的url
+* 下一首后台预加载
+### 减少首屏加载
+* 路由使用懒加载(必须)：const Chat = lazy(() => import("./pages/Chat"))
+* 首次只下载首页需要的 JS，其他页面按需加载
+* 组件懒加载：如用户打开图表/md编辑器再加载：
+    * 不要：import Map from "./Map"
+    * 而是：const Map = lazy(() => import("./Map"))
+* 图片懒加载：<img loading="lazy" src={url} />, 图片很多时提升非常明显
+* webp: 图片格式，比png/jpg小很多, png5MB, webp300KB(后端存储还是用png好吧？)
+* svg图标代替png：png120kb, 改为svg3kb
+
+### React组件优化
+* 使用useMemo避免重复计算：例如聊天联系人有1000个，只有一个变化不要全部刷新React.memo(ContactItem)即可
+* 使用useCallback避免重复渲染
+* key用id而不是index
+### js包优化
+vite打包后index.js如果超过500KB就需要优化
+* 组件库按需加载
+* 删除没用的库
+* 引用不要省略js名称

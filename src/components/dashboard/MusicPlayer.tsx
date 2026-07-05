@@ -14,7 +14,12 @@ import { getMusic } from "@/api/hotSearch";
 interface Track {
   title: string;
   artist: string;
-  src: string;
+  file: string;
+}
+
+function musicFileUrl(file: string) {
+  const base = import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "";
+  return `${base}/api/v1/music/file/${encodeURIComponent(file)}`;
 }
 
 const playerGlassStyle = {
@@ -85,6 +90,7 @@ export const MusicPlayer = () => {
     try { return parseInt(localStorage.getItem("music-track") || "0") || 0; } catch { return 0; }
   });
 
+
   useEffect(() => {
     getMusic().then((res) => {
       const data = res.data?.data || res.data || [];
@@ -97,6 +103,7 @@ export const MusicPlayer = () => {
   }, [collapsed]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const preloadRef = useRef<HTMLAudioElement | null>(null);
   const playlistRef = useRef<Track[]>([]);
   const trackIdxRef = useRef(0);
 
@@ -145,7 +152,7 @@ export const MusicPlayer = () => {
     const audio = audioRef.current;
     const t = playlist[trackIdx];
     if (!audio || !t) return;
-    audio.src = t.src;
+    audio.src = musicFileUrl(t.file);
     audio.load();
     const savedTime = (() => { try { return parseInt(localStorage.getItem("music-time") || "0") || 0; } catch { return 0; } })();
     setCurrentTime(0);
@@ -162,6 +169,21 @@ export const MusicPlayer = () => {
     }
     if (playing) audio.play().catch(() => setPlaying(false));
   }, [trackIdx, playlist]);
+
+  /* ─── Preload next track ─── */
+  useEffect(() => {
+    if (!playlist.length || !playing) return;
+    const nextIdx = (trackIdx + 1) % playlist.length;
+    const nextTrack = playlist[nextIdx];
+    if (!nextTrack) return;
+    const prev = preloadRef.current;
+    const next = new Audio();
+    next.preload = "auto";
+    next.src = musicFileUrl(nextTrack.file);
+    next.load();
+    preloadRef.current = next;
+    return () => { next.pause(); next.src = ""; if (prev && prev !== next) { prev.pause(); prev.src = ""; } };
+  }, [trackIdx, playing, playlist]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = muted ? 0 : volume;
