@@ -160,6 +160,7 @@ const ChatPage = () => {
     getChatUserInfo().then(res => {
       const body = res.data?.data || {};
       const rawContacts: any[] = body.contacts ?? [];
+      const savedSelection = localStorage.getItem("chat_active_contact");
       if (body.team?.id) {
         setTeamConv({ id: body.team.id, name: body.team.name || "Team", members: body.team.members || [] })
       }
@@ -175,23 +176,32 @@ const ChatPage = () => {
           return contact
         })
 
-      // 恢复上次选中的联系人
-      const savedId = localStorage.getItem("chat_active_contact")
+      // 恢复上次选中的联系人或群聊
       let initialContactIdx = -1
       let firstContactId = 0
       let firstConvId = ""
-      if (savedId && cs.length > 0) {
-        const savedIdx = cs.findIndex(c => c.id === Number(savedId))
-        if (savedIdx >= 0) {
-          initialContactIdx = savedIdx
-          firstContactId = cs[savedIdx].id
-          firstConvId = cs[savedIdx].convId || ""
+      const shouldRestoreTeam = savedSelection === "team" && Boolean(body.team?.id)
+      if (!shouldRestoreTeam && savedSelection && cs.length > 0) {
+        const savedId = Number(savedSelection)
+        if (!Number.isNaN(savedId)) {
+          const savedIdx = cs.findIndex(c => c.id === savedId)
+          if (savedIdx >= 0) {
+            initialContactIdx = savedIdx
+            firstContactId = cs[savedIdx].id
+            firstConvId = cs[savedIdx].convId || ""
+          }
         }
+      }
+      if (shouldRestoreTeam) {
+        initialContactIdx = -2
+        firstConvId = body.team ? `g_${body.team.id}` : ""
       }
       setContacts(cs.length ? cs : [{ id: 0, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }])
       setActiveIdx(initialContactIdx)
       if (initialContactIdx >= 0) {
         activeContactIdRef.current = firstContactId
+        activeConvIdRef.current = firstConvId
+      } else if (initialContactIdx === -2) {
         activeConvIdRef.current = firstConvId
       }
 
@@ -229,6 +239,23 @@ const ChatPage = () => {
             }
           }).catch(e => console.error("Create conversation failed:", e))
         }
+      } else if (initialContactIdx === -2 && body.team?.id) {
+        fetchConversationMessages(`g_${body.team.id}`, { limit: 500 }).then(res => {
+          const d = res.data?.data
+          if (!d || res.data?.code !== 200) { console.error("Load team messages failed:", res.data?.message); return }
+          const parsed = (d?.messages ?? []).map((m: ChatMsg) => ({
+            id: m.id || ++midRef.current,
+            sender: (m.sender_username || m.username) === my ? "me" : "them",
+            type: (m.type as any) || "text",
+            content: m.content,
+            time: timeFmt(m.created_at || m.CreatedAt || ""),
+            fileName: m.file_name,
+            fileData: m.file_url,
+            username: m.sender_username || m.username || "",
+            senderAvatar: m.sender_avatar || "",
+          }))
+          setMessages(parsed)
+        }).catch(e => console.error("Load team messages failed:", e))
       }
     }).catch(e => { console.error("Load contacts failed:", e); setContacts([{ id: 0, name: "⚠", avatar: "!", lastMsg: me ? "Backend not reachable" : "Login to chat", time: "", lastTimeRaw: "", unread: 0, online: false }]); getTeamInfo().then(tres=>{const t=tres.data?.data;if(t?.id)setTeamConv({id:t.id,name:t.name||"Team",members:t.members||[]})}).catch(()=>{}); })
       .finally(() => setLoading(false))
