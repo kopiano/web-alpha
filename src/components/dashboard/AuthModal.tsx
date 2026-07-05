@@ -96,7 +96,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         }
         localStorage.setItem("token", token);
         toast.success("Signed in successfully");
-        onAuthSuccess?.();
+        await onAuthSuccess?.();
         onClose();
       } else {
         const formData = new FormData()
@@ -125,6 +125,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         setMode("login");
         setAvatar(null);
         setAvatarPreview(null);
+        await onAuthSuccess?.();
       }
     } catch (err: any) {
       const message = getAuthErrorMessage(err, "登录/注册失败，请稍后再试", mode);

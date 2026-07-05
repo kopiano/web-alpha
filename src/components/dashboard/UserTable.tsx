@@ -90,7 +90,26 @@ export const UserTable = ({ className = "" }: UserTableProps) => {
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-full shrink-0 bg-gradient-to-br from-neon-pink via-neon-purple to-neon-blue grid place-items-center text-[10px] font-bold overflow-hidden">
-                      {resolveAvatar(u.avatar) ? <img src={resolveAvatar(u.avatar)!} alt="" className="w-full h-full object-cover" /> : (u.username || "?").charAt(0).toUpperCase()}
+                      {resolveAvatar(u.avatar) ? (
+                        <>
+                          <img
+                            src={resolveAvatar(u.avatar)!}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const img = e.currentTarget as HTMLImageElement;
+                              img.style.display = "none";
+                              const fallback = img.parentElement?.querySelector<HTMLElement>("[data-avatar-fallback]");
+                              if (fallback) fallback.style.display = "grid";
+                            }}
+                          />
+                          <span data-avatar-fallback className="hidden w-full h-full place-items-center">
+                            {(u.username || "?").charAt(0).toUpperCase()}
+                          </span>
+                        </>
+                      ) : (
+                        (u.username || "?").charAt(0).toUpperCase()
+                      )}
                     </div>
                     <p className="text-xs font-semibold truncate">{u.username || "Unknown"}</p>
                   </div>

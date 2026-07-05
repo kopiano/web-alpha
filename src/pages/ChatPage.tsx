@@ -61,8 +61,21 @@ const ContactItem = memo(function ContactItem({
       <div className="relative shrink-0">
         <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold overflow-hidden shadow-lg ring-1 ring-white/10"
           style={contact.userData?.avatar?{boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}:{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.15)"}}>
-          {contact.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
-          <span className={contact.userData?.avatar?"hidden":""}>{contact.avatar}</span>
+          {contact.userData?.avatar ? (
+            <>
+              <img
+                src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)}
+                alt=""
+                className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
+                onError={e=>{const img=e.currentTarget as HTMLImageElement; img.style.display='none'; const fb=img.parentElement?.querySelector<HTMLElement>('[data-avatar-fallback]'); if (fb) fb.style.display='grid';}}
+              />
+              <span data-avatar-fallback className="hidden w-full h-full place-items-center">{contact.avatar}</span>
+            </>
+          ) : (
+            <span>{contact.avatar}</span>
+          )}
         </div>
         {online&&<span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]"/>}
       </div>
@@ -553,9 +566,12 @@ const ChatPage = () => {
                   {teamConv.members.slice(0, 5).map((m: any) => (
                     <div key={m.user_id} className="w-7 h-7 rounded-full border-2 border-[#0c0c14] overflow-hidden grid place-items-center text-[8px] font-bold ring-1 ring-white/10"
                       style={m.avatar?{}:{background:"rgba(255,255,255,0.10)"}}>
-                      {m.avatar
-                        ? <img src={resolveAvatar(m.avatar)||''} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{const t=e.target as HTMLImageElement; t.style.display='none'; t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
-                        : <span>{m.username?.slice(0,2).toUpperCase()||"?"}</span>
+                      {m.avatar ? (
+                        <>
+                          <img src={resolveAvatar(m.avatar)||''} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{const img=e.currentTarget as HTMLImageElement; img.style.display='none'; const fb=img.parentElement?.querySelector<HTMLElement>('[data-avatar-fallback]'); if (fb) fb.style.display='grid';}}/>
+                          <span data-avatar-fallback className="hidden w-full h-full place-items-center">{(m.username||'?').slice(0,2).toUpperCase()}</span>
+                        </>
+                      ) : <span>{m.username?.slice(0,2).toUpperCase()||"?"}</span>
                       }
                     </div>
                   ))}
@@ -567,8 +583,12 @@ const ChatPage = () => {
                 <div className="relative shrink-0">
                   <div className="w-9 h-9 rounded-full grid place-items-center text-[10px] font-bold shadow-lg ring-1 ring-white/10 overflow-hidden"
                     style={contact?.userData?.avatar?{}:{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)"}}>
-                    {contact?.userData?.avatar?<img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:null}
-                    <span className={contact?.userData?.avatar?"hidden":""}>{contact?.avatar||"??"}</span>
+                    {contact?.userData?.avatar ? (
+                      <>
+                        <img src={contact.userData.avatar.startsWith('http')?contact.userData.avatar:resolveAvatar(contact.userData.avatar)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{const img=e.currentTarget as HTMLImageElement; img.style.display='none'; const fb=img.parentElement?.querySelector<HTMLElement>('[data-avatar-fallback]'); if (fb) fb.style.display='grid';}}/>
+                        <span data-avatar-fallback className="hidden w-full h-full place-items-center">{contact?.avatar||"??"}</span>
+                      </>
+                    ) : <span>{contact?.avatar||"??"}</span>}
                   </div>
                   {contact&&online(contact)&&<span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-[3px] border-[#0c0c14] shadow-[0_0_12px_rgba(52,211,153,0.7)]"/>}
                 </div>
@@ -601,7 +621,10 @@ const ChatPage = () => {
                     ? <img src={resolveAvatar(m.senderAvatar)||''} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(m.username||'?').slice(0,2).toUpperCase()}</span>`)}}/>
                     : <span>{(m.username||'?').slice(0,2).toUpperCase()}</span>)
                   : (contact?.userData?.avatar
-                    ? <img src={resolveAvatar(contact.userData.avatar)||''} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{const t=e.target as HTMLImageElement;t.style.display='none';t.parentElement&&(t.parentElement.innerHTML=`<span style="font-size:8px;font-weight:700">${(contact?.name||'?').slice(0,2).toUpperCase()}</span>`)}}/>
+                    ? <>
+                        <img src={resolveAvatar(contact.userData.avatar)||''} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e=>{const img=e.currentTarget as HTMLImageElement; img.style.display='none'; const fb=img.parentElement?.querySelector<HTMLElement>('[data-avatar-fallback]'); if (fb) fb.style.display='grid';}}/>
+                        <span data-avatar-fallback className="hidden w-full h-full place-items-center">{(contact?.name||'?').slice(0,2).toUpperCase()}</span>
+                      </>
                     : <span>{contact?.avatar||"?"}</span>));
               return (
                 <div key={m.id} className={`flex ${isMe?"justify-end":"justify-start"} ${isMe?"msg-anim-me":"msg-anim"}`}>

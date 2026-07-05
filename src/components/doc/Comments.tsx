@@ -359,7 +359,22 @@ export const CommentsSection = ({
             <div className="group">
               <div className="flex items-start gap-3">
                 <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${c.avatarClassName || "from-violet-400 to-cyan-400"} grid place-items-center text-[9px] font-bold shrink-0 text-white overflow-hidden`}>
-                  {c.avatarUrl ? <img src={c.avatarUrl} alt={c.name} className="w-full h-full object-cover" /> : c.avatar}
+                  {c.avatarUrl ? (
+                    <>
+                      <img
+                        src={c.avatarUrl}
+                        alt={c.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const img = e.currentTarget as HTMLImageElement;
+                          img.style.display = "none";
+                          const fallback = img.parentElement?.querySelector<HTMLElement>("[data-avatar-fallback]");
+                          if (fallback) fallback.style.display = "grid";
+                        }}
+                      />
+                      <span data-avatar-fallback className="hidden w-full h-full place-items-center">{c.avatar}</span>
+                    </>
+                  ) : c.avatar}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2.5 mb-1.5">
@@ -421,7 +436,22 @@ export const CommentsSection = ({
                   <div key={r.id}>
                     <div className="flex items-start gap-2.5">
                       <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${r.avatarClassName || "from-pink-400 to-violet-400"} grid place-items-center text-[8px] font-bold shrink-0 text-white overflow-hidden`}>
-                        {r.avatarUrl ? <img src={r.avatarUrl} alt={r.name} className="w-full h-full object-cover" /> : r.avatar}
+                        {r.avatarUrl ? (
+                          <>
+                            <img
+                              src={r.avatarUrl}
+                              alt={r.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const img = e.currentTarget as HTMLImageElement;
+                                img.style.display = "none";
+                                const fallback = img.parentElement?.querySelector<HTMLElement>("[data-avatar-fallback]");
+                                if (fallback) fallback.style.display = "grid";
+                              }}
+                            />
+                            <span data-avatar-fallback className="hidden w-full h-full place-items-center">{r.avatar}</span>
+                          </>
+                        ) : r.avatar}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-2 mb-0.5">

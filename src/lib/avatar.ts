@@ -5,10 +5,10 @@ const backendOrigin = apiBase.replace(/\/api\/v1.*$/, "").replace(/:5000/, ":800
 export function resolveAvatar(avatar: string | null | undefined): string | null {
   if (!avatar) return null
   if (avatar.startsWith("http")) return avatar
-  // Legacy backend avatar paths can 404 when the file is not present.
-  // Fall back to initials/avatar placeholder instead of issuing a broken request.
-  if (avatar.includes("/api/v1/avatar/") || avatar.includes("/src/assets/avatar/")) return null
-  return `${backendOrigin}${avatar}`
+  // Compat: old stored paths like /src/assets/avatar/... → /api/v1/avatar/...
+  const normalized = avatar.replace("/src/assets/avatar", "/api/v1/avatar")
+  if (normalized.startsWith("/api/v1/avatar/")) return `${backendOrigin}${normalized}`
+  return `${backendOrigin}${normalized}`
 }
 
 export function compressImageToBlob(file: File, maxWidth = 256, quality = 0.8): Promise<Blob> {

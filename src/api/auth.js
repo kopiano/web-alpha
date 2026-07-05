@@ -5,11 +5,11 @@ export function login(data) {
 }
 
 export function register(data) {
-  return request.post('/auth//register', data)
+  return request.post('/auth/register', data)
 }
 
 export function getMe() {
-  return request.get('/auth//me')
+  return request.get('/auth/me')
 }
 
 export function logout() {
