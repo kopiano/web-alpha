@@ -35,6 +35,8 @@ const normalizeDocPath = (value?: string) => {
 };
 
 const getVisibilityFilterKey = (userId: number | null) => `docs_visibility_filter:${userId ?? "guest"}`;
+const getActiveCatKey = (userId: number | null) => `docs_active_cat:${userId ?? "guest"}`;
+const getActiveTabKey = (userId: number | null) => `docs_active_tab:${userId ?? "guest"}`;
 
 /* ─── Main ─── */
 export default function DocsPage() {
@@ -42,8 +44,26 @@ export default function DocsPage() {
   const { timelineGroups, availableYears, loading: timelineLoading, refresh: refreshTimeline } = useTimeline({ articles, loading, refresh });
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeCat, setActiveCat] = useState(0);
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeCat, setActiveCat] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem(getActiveCatKey(null));
+      const value = Number(stored);
+      if (Number.isInteger(value) && value >= 0) return value;
+    } catch {
+      // ignore storage failures
+    }
+    return 0;
+  });
+  const [activeTab, setActiveTab] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem(getActiveTabKey(null));
+      const value = Number(stored);
+      if (Number.isInteger(value) && value >= 0 && value <= 3) return value;
+    } catch {
+      // ignore storage failures
+    }
+    return 0;
+  });
   const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [rawComments, setRawComments] = useState<any[]>([]);
@@ -157,11 +177,68 @@ export default function DocsPage() {
     }
   }, [visibilityFilter, user?.id]);
 
+  useEffect(() => {
+    const key = getActiveCatKey(user?.id ?? null);
+    try {
+      const stored = localStorage.getItem(key);
+      const value = Number(stored);
+      if (Number.isInteger(value) && value >= 0) {
+        setActiveCat(value);
+        return;
+      }
+    } catch {
+      // ignore storage failures
+    }
+    setActiveCat(0);
+  }, [user?.id]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(getActiveCatKey(user?.id ?? null), String(activeCat));
+    } catch {
+      // ignore storage failures
+    }
+  }, [activeCat, user?.id]);
+
+  useEffect(() => {
+    const key = getActiveTabKey(user?.id ?? null);
+    try {
+      const stored = localStorage.getItem(key);
+      const value = Number(stored);
+      if (Number.isInteger(value) && value >= 0 && value <= 3) {
+        setActiveTab(value);
+        return;
+      }
+    } catch {
+      // ignore storage failures
+    }
+    setActiveTab(0);
+  }, [user?.id]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(getActiveTabKey(user?.id ?? null), String(activeTab));
+    } catch {
+      // ignore storage failures
+    }
+  }, [activeTab, user?.id]);
+
   const usersById = useMemo(() => {
     const map = new Map<number, any>();
     users.forEach((item) => {
       const id = Number(item.id ?? item.user_id ?? item.ID ?? 0);
-      if (id > 0) map.set(id, item);
+      if (id > 0) {
+        const rawAvatar = item.avatar_url ?? item.avatarUrl ?? item.avatar ?? "";
+        map.set(id, {
+          ...item,
+          id,
+          user_id: id,
+          username: item.username ?? item.name ?? "",
+          avatar: rawAvatar,
+          avatar_url: rawAvatar,
+          avatarUrl: resolveImageAvatar(rawAvatar) || "",
+        });
+      }
     });
     return map;
   }, [users]);

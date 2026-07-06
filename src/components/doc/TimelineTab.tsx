@@ -1,8 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { BookOpen, Activity, ArrowRight, Loader2, Eye, Lock, PencilLine } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { Article } from "@/hooks/useArticles";
 import type { TimelineGroup } from "@/hooks/useTimeline";
+import { resolveAvatar, resolveImageAvatar } from "@/lib/avatar";
+import { getUsers } from "@/api/user";
 
 interface TimelineTabProps {
   filteredArticles: Article[];
@@ -11,6 +13,7 @@ interface TimelineTabProps {
   openArticle?: (article: Article) => void;
   TAG_COLORS: Record<string, string>;
   TAG_ICONS: Record<string, any>;
+  usersById?: Map<number, any>;
   /** API 驱动的分组时间轴数据（可选，有则优先使用） */
   timelineGroups?: TimelineGroup[];
   /** 可用年份列表（可选） */
@@ -45,6 +48,16 @@ const getEditMeta = (editPermission?: number) => {
   return { label: "Owner", Icon: Lock, className: "border-white/10 text-white/35 bg-white/[0.02]" };
 };
 
+const BADGE_WIDTH = "w-[88px]";
+
+const getAvatarSrc = (value?: string) => String(value || "").trim();
+
+const getAvatarLabel = (name?: string, fallback = "G") => {
+  const raw = String(name || "").trim();
+  if (!raw || raw === "游客") return fallback;
+  return raw.slice(0, 2).toUpperCase();
+};
+
 export const TimelineTab = ({
   filteredArticles,
   articles,
@@ -52,17 +65,73 @@ export const TimelineTab = ({
   openArticle,
   TAG_COLORS,
   TAG_ICONS,
+  usersById = new Map(),
   timelineGroups,
   availableYears: availYears,
   loading,
 }: TimelineTabProps) => {
   const [timelineYear, setTimelineYear] = useState("2026");
   const [timelineMonth, setTimelineMonth] = useState("");
+  const [timelineUsers, setTimelineUsers] = useState<Map<number, any>>(new Map());
+
+  useEffect(() => {
+    let mounted = true;
+    getUsers()
+      .then((res) => {
+        const data = res.data?.data ?? res.data ?? [];
+        const list = Array.isArray(data) ? data : [];
+        const map = new Map<number, any>();
+        list.forEach((item: any) => {
+          const id = Number(item.id ?? item.user_id ?? item.ID ?? 0);
+          if (id <= 0) return;
+          const avatar = item.avatar_url ?? item.avatarUrl ?? item.avatar ?? "";
+          map.set(id, {
+            ...item,
+            id,
+            user_id: id,
+            username: item.username ?? item.name ?? "",
+            avatar,
+            avatar_url: avatar,
+            avatarUrl: resolveImageAvatar(avatar) || resolveAvatar(avatar) || "",
+          });
+        });
+        if (mounted) setTimelineUsers(map);
+      })
+      .catch(() => {
+        if (mounted) setTimelineUsers(new Map());
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const getSortKey = (article: Article) => article.updatedAt || article.createdAt || article.time || article.date || "";
   const getYear = (article: Article) => (getSortKey(article).slice(0, 4) || article.date?.slice(0, 4) || "2026");
   const getMonth = (article: Article) => (getSortKey(article).slice(5, 7) || article.date?.slice(5, 7) || "01");
   const docHref = (article: Article, index: number) => `/docs?doc=${encodeURIComponent(String(article.id ?? index))}`;
+  const resolveUserAvatar = (id: number, fallbackName = "", fallbackAvatar = "") => {
+    const user = id > 0 ? (timelineUsers.get(id) || usersById.get(id)) : null;
+    const rawAvatar = user?.avatarUrl || user?.avatar_url || user?.avatar || fallbackAvatar || "";
+    const src = getAvatarSrc(resolveImageAvatar(rawAvatar) || rawAvatar);
+    const label = getAvatarLabel(user?.username || user?.name || fallbackName, id > 0 ? "U" : "G");
+    return { src, label };
+  };
+  const getAvatarItems = (article: Article) => {
+    const contributorIds = Array.isArray(article.contributors)
+      ? article.contributors.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+      : [];
+    const orderedIds = [...new Set(contributorIds)];
+    const fallbackCreatorId = Number(article.userId ?? 0);
+    if (fallbackCreatorId > 0 && !orderedIds.includes(fallbackCreatorId)) orderedIds.unshift(fallbackCreatorId);
+
+    return orderedIds.slice(0, 15).map((id, index) => {
+      const isCreator = index === 0;
+      const fallbackName = isCreator ? (article.author || "") : "";
+      const fallbackAvatar = isCreator ? (article.avatarUrl || article.avatar || "") : (article.editorAvatarUrl || article.editorAvatar || "");
+      const avatar = resolveUserAvatar(id, fallbackName, fallbackAvatar);
+      return { key: String(id), src: avatar.src, label: avatar.label };
+    });
+  };
 
   // ---- Fallback: 旧版 flat 文章过滤逻辑 ----
   const availableMonths = [...new Set(
@@ -253,36 +322,55 @@ export const TimelineTab = ({
                             boxShadow: "0 4px 16px -6px rgba(0,0,0,0.3)",
                           }}
                         >
-                          <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="flex items-center gap-4 min-w-0">
                             <span
-                              className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${
+                              className={`inline-flex items-center justify-center gap-1 text-[9px] font-semibold px-2 py-1 rounded-full border shrink-0 ${BADGE_WIDTH} ${
                                 TAG_COLORS[article.tag] || "border-white/10 text-white/40"
                               }`}
-                              >
-                                <TagIcon size={10} />
-                                {article.tag}
-                              </span>
-                            <h4 className="text-[13px] font-semibold text-white/85 truncate">
+                            >
+                              <TagIcon size={10} />
+                              {article.tag}
+                            </span>
+                            <h4 className="flex-1 min-w-0 text-[13px] font-semibold text-white/85 truncate">
                               {article.title}
                             </h4>
-                          </div>
-                          <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${getVisibilityMeta(article.visibility).className}`}>
-                            {(() => {
-                              const { Icon } = getVisibilityMeta(article.visibility);
-                              return <Icon size={10} />;
-                            })()}
-                            {getVisibilityMeta(article.visibility).label}
-                          </span>
-                          <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${getEditMeta(article.editPermission).className}`}>
-                            {(() => {
-                              const { Icon } = getEditMeta(article.editPermission);
-                              return <Icon size={10} />;
-                            })()}
-                            {getEditMeta(article.editPermission).label}
-                          </span>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-[9px] text-white/25 whitespace-nowrap">
+                            <div className="flex items-center -space-x-2 shrink-0">
+                              {getAvatarItems(article).map((avatar, avatarIndex) => (
+                                <div
+                                  key={`${article.id ?? article.path ?? i}-avatar-${avatarIndex}`}
+                                  className="w-7 h-7 rounded-full overflow-hidden shrink-0 border border-[#0c0c14] bg-white/[0.04] grid place-items-center text-[9px] font-bold text-white/85"
+                                  title={avatar.label}
+                                >
+                                  {avatar.src ? (
+                                    <img
+                                      src={avatar.src}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                      loading="lazy"
+                                      decoding="async"
+                                    />
+                                  ) : (
+                                    <span>{avatar.label}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            <span className={`inline-flex items-center justify-center gap-1 text-[9px] font-semibold px-2 py-1 rounded-full border shrink-0 ${BADGE_WIDTH} ${getVisibilityMeta(article.visibility).className}`}>
+                              {(() => {
+                                const { Icon } = getVisibilityMeta(article.visibility);
+                                return <Icon size={10} />;
+                              })()}
+                              {getVisibilityMeta(article.visibility).label}
+                            </span>
+                            <span className={`inline-flex items-center justify-center gap-1 text-[9px] font-semibold px-2 py-1 rounded-full border shrink-0 ${BADGE_WIDTH} ${getEditMeta(article.editPermission).className}`}>
+                              {(() => {
+                                const { Icon } = getEditMeta(article.editPermission);
+                                return <Icon size={10} />;
+                              })()}
+                              {getEditMeta(article.editPermission).label}
+                            </span>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-[9px] text-white/25 whitespace-nowrap">
                                 updated {formatDocTime(article.updatedAt || article.createdAt || article.date)}
                               </span>
                               <div className="w-7 h-7 rounded-full grid place-items-center border border-white/[0.08] bg-white/[0.03] transition-all duration-400 group-hover:border-blue-400/30 group-hover:bg-blue-400/10 group-hover:shadow-[0_0_14px_rgba(76,201,240,0.25)]">
@@ -344,30 +432,47 @@ export const TimelineTab = ({
                         boxShadow: "0 4px 16px -6px rgba(0,0,0,0.3)",
                       }}
                     >
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <span
-                            className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${
-                              TAG_COLORS[article.tag] || "border-white/10 text-white/40"
-                            }`}
-                          >
-                            <TagIcon size={10} />
-                            {article.tag}
-                          </span>
-                          <h4 className="text-[13px] font-semibold text-white/85 truncate">
-                            {article.title}
-                          </h4>
+                      <div className="flex items-center gap-4 min-w-0">
+                        <span
+                          className={`inline-flex items-center justify-center gap-1 text-[9px] font-semibold px-2 py-1 rounded-full border shrink-0 ${BADGE_WIDTH} ${
+                            TAG_COLORS[article.tag] || "border-white/10 text-white/40"
+                          }`}
+                        >
+                          <TagIcon size={10} />
+                          {article.tag}
+                        </span>
+                        <h4 className="flex-1 min-w-0 text-[13px] font-semibold text-white/85 truncate">
+                          {article.title}
+                        </h4>
+                        <div className="flex items-center -space-x-2 shrink-0">
+                          {getAvatarItems(article).map((avatar, avatarIndex) => (
+                            <div
+                              key={`${article.id ?? article.path ?? i}-avatar-${avatarIndex}`}
+                              className="w-7 h-7 rounded-full overflow-hidden shrink-0 border border-[#0c0c14] bg-white/[0.04] grid place-items-center text-[9px] font-bold text-white/85"
+                              title={avatar.label}
+                            >
+                              {avatar.src ? (
+                                <img
+                                  src={avatar.src}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                              ) : (
+                                <span>{avatar.label}</span>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-[9px] text-white/25 whitespace-nowrap">
-                            updated {formatDocTime(article.updatedAt || article.createdAt || article.date)}
-                          </span>
-                          <div className="w-7 h-7 rounded-full grid place-items-center border border-white/[0.08] bg-white/[0.03] transition-all duration-400 group-hover:border-blue-400/30 group-hover:bg-blue-400/10 group-hover:shadow-[0_0_14px_rgba(76,201,240,0.25)]">
-                            <ArrowRight
-                              size={12}
-                              className="text-white/30 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all"
-                            />
-                          </div>
+                        <span className="text-[9px] text-white/25 whitespace-nowrap">
+                          updated {formatDocTime(article.updatedAt || article.createdAt || article.date)}
+                        </span>
+                        <div className="w-7 h-7 rounded-full grid place-items-center border border-white/[0.08] bg-white/[0.03] transition-all duration-400 group-hover:border-blue-400/30 group-hover:bg-blue-400/10 group-hover:shadow-[0_0_14px_rgba(76,201,240,0.25)]">
+                          <ArrowRight
+                            size={12}
+                            className="text-white/30 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all"
+                          />
                         </div>
                       </div>
                     </div>

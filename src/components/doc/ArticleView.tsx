@@ -455,12 +455,12 @@ export const ArticleView = ({
       {viewMode === "preview" && tocTree.length > 0 && (
         // md index
         <aside className="hidden xl:block fixed right-5 top-1/2 -translate-y-1/2 w-60 z-20">
-          <div className="rounded-[24px] border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-4 shadow-[0_18px_60px_-24px_rgba(0,0,0,0.55)] max-h-[calc(100vh-180px)] overflow-y-auto overflow-x-hidden scrollbar-thin">
+          <div className="rounded-[24px] border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-4 shadow-[0_18px_60px_-24px_rgba(0,0,0,0.55)] max-h-[calc(100vh-300px)] overflow-hidden">
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
               <ListTree size={12} className="text-cyan-300/70" />
               Index
             </div>
-            <div className="mt-4 pr-1">
+            <div className="mt-4 pr-0.5 max-h-[calc(100vh-360px)] overflow-y-auto overflow-x-hidden scrollbar-thin">
               <TreeNodeList nodes={tocTree as any} />
             </div>
           </div>
