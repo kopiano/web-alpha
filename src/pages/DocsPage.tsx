@@ -288,6 +288,21 @@ export default function DocsPage() {
   const formatDisplayTime = useCallback((value: unknown) => {
     const date = value ? new Date(String(value)) : new Date();
     if (Number.isNaN(date.getTime())) return "Just now";
+
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const dayDiff = Math.floor((startOfDay(now) - startOfDay(date)) / 86400000);
+    const diffMinutes = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60000));
+
+    if (dayDiff === 0 || dayDiff === 1) {
+      const hours = Math.floor(diffMinutes / 60);
+      const mins = diffMinutes % 60;
+      if (hours <= 0 && mins <= 0) return "Just now";
+      if (hours <= 0) return `${mins}m ago`;
+      if (mins <= 0) return `${hours}h ago`;
+      return `${hours}h ${mins}m ago`;
+    }
+
     const pad = (part: number) => String(part).padStart(2, "0");
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }, []);

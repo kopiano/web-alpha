@@ -357,12 +357,12 @@ export const CommentsSection = ({
         </div>
       </div>
 
-      <div className="space-y-6 mb-8">
+      <div className="space-y-5 mb-8">
         {comments.map((c, idx) => (
           <div key={`comment-${getCommentId(c) || idx}`}>
-            <div className="group">
-              <div className="flex items-start gap-3">
-                <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${c.avatarClassName || "from-violet-400 to-cyan-400"} grid place-items-center text-[9px] font-bold shrink-0 text-white overflow-hidden`}>
+            <div className="group rounded-[20px] border border-white/[0.05] bg-white/[0.018] px-4 py-4 md:px-5 md:py-4.5 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.7)]">
+              <div className="flex items-start gap-3.5">
+                <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${c.avatarClassName || "from-violet-400 to-cyan-400"} grid place-items-center text-[9px] font-bold shrink-0 text-white overflow-hidden ring-1 ring-white/8`}>
                   {c.avatarUrl ? (
                     <>
                       <img
@@ -381,20 +381,21 @@ export const CommentsSection = ({
                   ) : c.avatar}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-2.5 mb-1.5">
-                    <p className="text-[13px] font-medium text-white/90">{c.name}</p>
-                    {c.email && <span className="text-[10px] text-white/25">{c.email}</span>}
-                    {c.website && <span className="text-[10px] text-blue-300/50">{c.website}</span>}
-                    <span className="text-[10px] text-white/15">·</span>
-                    <span className="text-[10px] text-white/25">{c.time}</span>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1.5">
+                    <p className="text-[13px] font-semibold tracking-[0.01em] text-white/90">{c.name}</p>
+                    {c.email && <span className="text-[10px] text-white/24 tracking-[0.06em]">{c.email}</span>}
+                    {c.website && <span className="text-[10px] text-cyan-300/55 tracking-[0.04em]">{c.website}</span>}
+                    <span className="text-[10px] text-white/14">·</span>
+                    <span className="text-[10px] text-white/28 tracking-[0.04em]">{c.time}</span>
                   </div>
-                  <div className="text-[12px] text-white/60 leading-relaxed [&_pre]:my-3 [&_pre]:overflow-x-auto [&_code]:whitespace-pre-wrap">{renderMarkdown(c.content)}</div>
-                  <div className=
-                    "flex items-center gap-5 mt-2.5">
+                  <div className="text-[12px] leading-[1.78] text-white/68 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_code]:whitespace-pre-wrap [&_p]:mb-2 [&_p]:leading-[1.78] [&_h1]:mb-3 [&_h2]:mb-2.5 [&_h3]:mb-2">
+                    {renderMarkdown(c.content)}
+                  </div>
+                  <div className="flex items-center gap-4 mt-3">
                     <button
                       onClick={() => toggleLike(getCommentId(c))}
                       disabled={!loggedInUser}
-                      className={`group relative flex items-center gap-1.5 text-[11px] transition-all duration-200 border border-transparent px-2 py-1 rounded-full overflow-hidden ${
+                      className={`group relative flex items-center gap-1.5 text-[10px] font-medium tracking-[0.02em] transition-all duration-200 border border-transparent px-2.5 py-1.5 rounded-full overflow-hidden ${
                         !loggedInUser
                           ? "cursor-not-allowed bg-white/[0.02] text-white/20 border-white/[0.04]"
                           : liked.has(getCommentId(c))
@@ -407,23 +408,23 @@ export const CommentsSection = ({
                       <span className="relative z-10 tabular-nums">{c.likes}</span>
                     </button>
                     <button onClick={() => setReplyTo(replyTo === getCommentId(c) ? null : getCommentId(c))}
-                      className="flex items-center gap-1.5 text-white/30 hover:text-blue-400 transition-all text-[11px] border-b border-transparent hover:border-blue-400/30 pb-0.5"><Reply size={12} /> Reply</button>
+                      className="flex items-center gap-1.5 text-white/28 hover:text-blue-300 transition-all text-[10px] font-medium tracking-[0.02em] border-b border-transparent hover:border-blue-300/30 pb-0.5"><Reply size={11} /> Reply</button>
                   </div>
                 </div>
               </div>
             </div>
                   {replyTo === getCommentId(c) && (
-              <div className="ml-11 mt-3 relative">
-                <div className="flex gap-2 animate-slide-up">
+              <div className="ml-12 mt-3 relative">
+                <div className="flex gap-2.5 items-center animate-slide-up">
                   {!loggedInUser && (
                     <input placeholder="Username" value={replyText.username} onChange={e => setReplyText(p => ({ ...p,username: e.target.value }))}
-                      className="w-28 border-b border-white/[0.08] bg-transparent px-0 py-2 text-[12px] outline-none text-white/70 placeholder:text-white/15 focus:border-blue-400/30 transition-colors" />
+                      className="w-28 border-b border-white/[0.08] bg-transparent px-0 py-2 text-[12px] font-medium tracking-[0.01em] outline-none text-white/78 placeholder:text-white/15 focus:border-blue-400/30 transition-colors" />
                   )}
                   <input placeholder="Write a reply..." value={replyText.content} onChange={e => setReplyText(p => ({ ...p,content: e.target.value }))}
                     onKeyDown={e => e.key === "Enter" && pubReply(getCommentId(c))}
-                    className="flex-1 border-b border-white/[0.08] bg-transparent px-0 py-2 text-[12px] outline-none text-white/70 placeholder:text-white/15 focus:border-blue-400/30 transition-colors" />
+                    className="flex-1 border-b border-white/[0.08] bg-transparent px-0 py-2 text-[12px] font-medium tracking-[0.01em] outline-none text-white/78 placeholder:text-white/15 focus:border-blue-400/30 transition-colors" />
                   <button onClick={() => setShowReplyEmoji(showReplyEmoji === getCommentId(c) ? null : getCommentId(c))}
-                    className="w-7 h-7 grid place-items-center text-white/25 hover:text-white/60 transition-all"><Smile size={14} /></button>
+                    className="w-7 h-7 grid place-items-center text-white/22 hover:text-white/60 transition-all"><Smile size={14} /></button>
                     <button onClick={() => pubReply(getCommentId(c))}
                     className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 grid place-items-center shadow-lg hover:scale-105 transition-all"><Send size={12} /></button>
                 </div>
@@ -435,11 +436,11 @@ export const CommentsSection = ({
               </div>
             )}
             {c.replies && c.replies.length > 0 && (
-              <div className="ml-11 mt-3 space-y-3">
+              <div className="ml-12 mt-3 space-y-3">
                 {c.replies.map((r, ridx) => (
                   <div key={`reply-${getCommentId(r) || ridx}`}>
                     <div className="flex items-start gap-2.5">
-                      <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${r.avatarClassName || "from-pink-400 to-violet-400"} grid place-items-center text-[8px] font-bold shrink-0 text-white overflow-hidden`}>
+                      <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${r.avatarClassName || "from-pink-400 to-violet-400"} grid place-items-center text-[8px] font-bold shrink-0 text-white overflow-hidden ring-1 ring-white/8`}>
                         {r.avatarUrl ? (
                           <>
                             <img
@@ -458,17 +459,20 @@ export const CommentsSection = ({
                         ) : r.avatar}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2 mb-0.5">
-                          <p className="text-[12px] font-medium text-white/85">{r.name}</p>
-                          <span className="text-[9px] text-white/25">{r.email}</span>
-                          <span className="text-[9px] text-white/20">{r.time}</span>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
+                          <p className="text-[12px] font-semibold tracking-[0.01em] text-white/86">{r.name}</p>
+                          <span className="text-[9px] text-white/24 tracking-[0.05em]">{r.email}</span>
+                          <span className="text-[9px] text-white/18">·</span>
+                          <span className="text-[9px] text-white/26 tracking-[0.04em]">{r.time}</span>
                         </div>
-                        <div className="text-[11px] text-white/55 leading-relaxed [&_pre]:my-3 [&_pre]:overflow-x-auto [&_code]:whitespace-pre-wrap">{renderMarkdown(r.content)}</div>
-                        <div className="flex items-center gap-3 mt-1">
+                        <div className="text-[11px] leading-[1.72] text-white/62 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_code]:whitespace-pre-wrap [&_p]:mb-2 [&_p]:leading-[1.72]">
+                          {renderMarkdown(r.content)}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1.5">
                     <button
                             onClick={() => toggleLike(getCommentId(r))}
                             disabled={!loggedInUser}
-                            className={`group relative flex items-center gap-1 text-[10px] transition-all duration-200 border border-transparent px-2 py-1 rounded-full overflow-hidden ${
+                            className={`group relative flex items-center gap-1 text-[10px] font-medium tracking-[0.02em] transition-all duration-200 border border-transparent px-2 py-1 rounded-full overflow-hidden ${
                               !loggedInUser
                                 ? "cursor-not-allowed bg-white/[0.02] text-white/20 border-white/[0.04]"
                                 : liked.has(getCommentId(r))
