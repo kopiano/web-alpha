@@ -363,26 +363,21 @@ export const ArticleView = ({
         <span>Updated At: <span className="text-white/70">{formatDisplayTime(sel.updatedAt || sel.createdAt || sel.date)}</span></span>
       </div>
       <div className="relative min-h-[400px]">
-        <div
-          className={`absolute inset-0 transition-all duration-200 ease-out ${viewMode === "preview" ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1 pointer-events-none"}`}
-          style={{ willChange: "opacity, transform" }}
-        >
-          <div className="p-0">
+        {viewMode === "preview" ? (
+          <div className="p-0 transition-all duration-200 ease-out" style={{ willChange: "opacity, transform" }}>
             {renderedContent || (previewMd ? renderMarkdown(previewMd) : null)}
           </div>
-        </div>
-        <div
-          className={`absolute inset-0 transition-all duration-200 ease-out ${viewMode === "raw" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none"}`}
-          style={{ willChange: "opacity, transform" }}
-        >
-          <textarea
-            value={editContent}
-            onChange={e => setEditContent(e.target.value)}
-            readOnly={!canEditContent}
-            className="w-full h-full min-h-[400px] p-5 text-[13px] leading-[1.7] outline-none resize-none scrollbar-none"
-            style={{ background: "transparent", color: "rgba(255,255,255,0.8)", fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}
-          />
-        </div>
+        ) : (
+          <div className="transition-all duration-200 ease-out" style={{ willChange: "opacity, transform" }}>
+            <textarea
+              value={editContent}
+              onChange={e => setEditContent(e.target.value)}
+              readOnly={!canEditContent}
+              className="w-full min-h-[400px] p-5 text-[13px] leading-[1.7] outline-none resize-none scrollbar-none"
+              style={{ background: "transparent", color: "rgba(255,255,255,0.8)", fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Comments */}

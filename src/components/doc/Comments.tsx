@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { MessageCircle, Heart, Reply, Send, Smile } from "lucide-react";
 import { EmojiPop } from "@/components/doc/EmojiPop";
-import { MiniMd } from "@/components/doc/DocRenderer";
+import { renderMarkdown } from "@/components/doc/DocRenderer";
 import { createComment, likeComment, unlikeComment } from "@/api/comment";
 import { useNotifications } from "@/components/dashboard/NotificationProvider";
 import { toast } from "sonner";
@@ -324,28 +324,28 @@ export const CommentsSection = ({
               <div className="flex items-center gap-2">
                 <input placeholder="Username" value={form.name} onChange={e => setForm(p => ({ ...p,name: e.target.value }))}
                   readOnly={!!loggedInUser}
-                  className="w-full bg-transparent px-0 py-2 text-[12px] outline-none text-white/80 placeholder:text-white/15 read-only:text-white/45" />
-                <span className="text-[9px] text-white/20 font-light tracking-wide whitespace-nowrap">(Required)</span>
+                  className="w-full bg-transparent px-0 py-2 text-[13px] font-medium tracking-[0.01em] outline-none text-white/86 placeholder:text-white/12 read-only:text-white/50" />
+                <span className="text-[9px] text-white/18 font-medium tracking-[0.08em] uppercase whitespace-nowrap">(Required)</span>
               </div>
             </div>
             <div className="flex-1 border-b border-white/[0.06] focus-within:border-blue-400/30 transition-colors">
               <input placeholder="Email" value={form.email} onChange={e => setForm(p => ({ ...p,email: e.target.value }))}
                 readOnly={!!loggedInUser}
-                className="w-full bg-transparent px-0 py-2 text-[12px] outline-none text-white/80 placeholder:text-white/15 read-only:text-white/45" />
+                className="w-full bg-transparent px-0 py-2 text-[13px] font-medium tracking-[0.01em] outline-none text-white/86 placeholder:text-white/12 read-only:text-white/50" />
             </div>
             <div className="flex-1 border-b border-white/[0.06] focus-within:border-blue-400/30 transition-colors">
               <input placeholder="Website" value={form.website} onChange={e => setForm(p => ({ ...p,website: e.target.value }))}
-                className="w-full bg-transparent px-0 py-2 text-[12px] outline-none text-white/80 placeholder:text-white/15" />
+                className="w-full bg-transparent px-0 py-2 text-[13px] font-medium tracking-[0.01em] outline-none text-white/86 placeholder:text-white/12" />
             </div>
           </div>
           <div className="relative border-b border-white/[0.06] focus-within:border-blue-400/30 transition-colors">
             <textarea placeholder="Write your comment... (Markdown supported)" value={form.content}
               onChange={e => setForm(p => ({ ...p,content: e.target.value }))} rows={2}
-              className="w-full bg-transparent px-0 py-2 text-[12px] outline-none text-white/70 placeholder:text-white/15 resize-none pr-8" />
+              className="w-full bg-transparent px-0 py-2 text-[13px] leading-[1.7] font-normal tracking-[0.005em] outline-none text-white/80 placeholder:text-white/12 resize-none pr-8" />
             <button onClick={() => setShowEmoji(!showEmoji)}
               className="absolute right-0 bottom-2.5 w-6 h-6 grid place-items-center text-white/20 hover:text-white/50 transition-all"><Smile size={14} /></button>
             {showEmoji && (
-              <div ref={mainEmojiRef} className="absolute right-0 bottom-full mb-2 z-50">
+              <div ref={mainEmojiRef} className="absolute right-full mr-2 bottom-0 z-50">
                 <EmojiPop onSelect={e => setForm(p => ({ ...p,content: p.content + e }))} onClose={() => setShowEmoji(false)} />
               </div>
             )}
@@ -388,7 +388,7 @@ export const CommentsSection = ({
                     <span className="text-[10px] text-white/15">·</span>
                     <span className="text-[10px] text-white/25">{c.time}</span>
                   </div>
-                  <div className="text-[12px] text-white/60 leading-relaxed">{MiniMd(c.content)}</div>
+                  <div className="text-[12px] text-white/60 leading-relaxed [&_pre]:my-3 [&_pre]:overflow-x-auto [&_code]:whitespace-pre-wrap">{renderMarkdown(c.content)}</div>
                   <div className=
                     "flex items-center gap-5 mt-2.5">
                     <button
@@ -463,7 +463,7 @@ export const CommentsSection = ({
                           <span className="text-[9px] text-white/25">{r.email}</span>
                           <span className="text-[9px] text-white/20">{r.time}</span>
                         </div>
-                        <p className="text-[11px] text-white/55 leading-relaxed">{r.content}</p>
+                        <div className="text-[11px] text-white/55 leading-relaxed [&_pre]:my-3 [&_pre]:overflow-x-auto [&_code]:whitespace-pre-wrap">{renderMarkdown(r.content)}</div>
                         <div className="flex items-center gap-3 mt-1">
                     <button
                             onClick={() => toggleLike(getCommentId(r))}
