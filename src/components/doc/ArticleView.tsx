@@ -68,7 +68,7 @@ export const ArticleView = ({
   const [editVisibility, setEditVisibility] = useState(sel?.visibility ?? 1);
   const [editPermission, setEditPermission] = useState(sel?.editPermission ?? 0);
   const isOwner = Boolean(loggedInUser?.id && sel?.userId && loggedInUser.id === sel.userId);
-  const canChangeEditPermission = isOwner || sel.editPermission === 1;
+  const canChangeEditPermission = isOwner;
   const canEditContent = isOwner || sel.editPermission === 1;
 
   useEffect(() => {
@@ -184,7 +184,7 @@ export const ArticleView = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {viewMode === "raw" && (
+          {viewMode === "raw" && isOwner && (
             <div className="flex items-center gap-2">
               <div className="relative">
                 <select
@@ -252,7 +252,7 @@ export const ArticleView = ({
               </div>
             </div>
           )}
-          {viewMode === "raw" && (
+          {viewMode === "raw" && canOpenRaw && (
             <button
               onClick={handleSave}
               disabled={saving || !canEditContent}
@@ -290,14 +290,16 @@ export const ArticleView = ({
               <FileText size={12} /> Raw
             </button>
           </div>
-          <button
-            onClick={() => canDelete && setConfirmDeleteOpen(true)}
-            disabled={!canDelete}
-            className="w-8 h-8 rounded-lg grid place-items-center transition-all duration-200 border border-white/10 text-white/35 hover:text-rose-200 hover:border-rose-400/30 hover:bg-rose-400/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
-            title="Delete document"
-          >
-            <Trash2 size={12} />
-          </button>
+          {isOwner && (
+            <button
+              onClick={() => canDelete && setConfirmDeleteOpen(true)}
+              disabled={!canDelete}
+              className="w-8 h-8 rounded-lg grid place-items-center transition-all duration-200 border border-white/10 text-white/35 hover:text-rose-200 hover:border-rose-400/30 hover:bg-rose-400/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
+              title="Delete document"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
         </div>
       </div>
 
