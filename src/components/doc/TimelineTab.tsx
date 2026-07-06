@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { BookOpen, Activity, ArrowRight, Loader2 } from "lucide-react";
+import { BookOpen, Activity, ArrowRight, Loader2, Eye, Lock, PencilLine } from "lucide-react";
+import { Link } from "react-router-dom";
 import type { Article } from "@/hooks/useArticles";
 import type { TimelineGroup } from "@/hooks/useTimeline";
 
@@ -25,6 +26,25 @@ const MONTH_NAMES: Record<string, string> = {
   "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dec",
 };
 
+const formatDocTime = (value?: string) => {
+  if (!value) return "—";
+  const normalized = value.includes("T") ? value : value.replace(" ", "T");
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value;
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const getVisibilityMeta = (visibility?: number) => {
+  if (visibility === 0) return { label: "Private", Icon: Lock, className: "border-amber-400/20 text-amber-200 bg-amber-400/10" };
+  return { label: "Public", Icon: Eye, className: "border-emerald-400/20 text-emerald-200 bg-emerald-400/10" };
+};
+
+const getEditMeta = (editPermission?: number) => {
+  if (editPermission === 1) return { label: "Editable", Icon: PencilLine, className: "border-sky-400/20 text-sky-200 bg-sky-400/10" };
+  return { label: "Owner", Icon: Lock, className: "border-white/10 text-white/35 bg-white/[0.02]" };
+};
+
 export const TimelineTab = ({
   filteredArticles,
   articles,
@@ -39,9 +59,10 @@ export const TimelineTab = ({
   const [timelineYear, setTimelineYear] = useState("2026");
   const [timelineMonth, setTimelineMonth] = useState("");
 
-  const getSortKey = (article: Article) => article.updatedAt || article.time || article.date || "";
+  const getSortKey = (article: Article) => article.updatedAt || article.createdAt || article.time || article.date || "";
   const getYear = (article: Article) => (getSortKey(article).slice(0, 4) || article.date?.slice(0, 4) || "2026");
   const getMonth = (article: Article) => (getSortKey(article).slice(5, 7) || article.date?.slice(5, 7) || "01");
+  const docHref = (article: Article, index: number) => `/docs?doc=${encodeURIComponent(String(article.id ?? index))}`;
 
   // ---- Fallback: 旧版 flat 文章过滤逻辑 ----
   const availableMonths = [...new Set(
@@ -195,20 +216,25 @@ export const TimelineTab = ({
                 <div className="space-y-5">
                   {entries.map((article, i) => {
                     const TagIcon = TAG_ICONS[article.tag] || BookOpen;
+                    const href = docHref(article, i);
                     return (
-                      <div
-                        key={i}
-                        className="relative flex items-center cursor-pointer group"
-                        onClick={() =>
-                          openArticle
-                            ? openArticle(article)
-                            : setSelectedIdx(articles.indexOf(article))
-                        }
+                      <Link
+                        key={article.path || `${month}-${i}`}
+                        to={href}
+                        className="relative flex items-center cursor-pointer group text-left"
+                        onClick={(e) => {
+                          if (openArticle) {
+                            e.preventDefault();
+                            openArticle(article);
+                            return;
+                          }
+                          setSelectedIdx(Number(article.id ?? articles.findIndex((item) => item.id === article.id)));
+                        }}
                       >
                         {/* 日期 */}
                         <div className="shrink-0 text-right pr-5" style={{ width: "100px" }}>
                           <span className="text-[10px] text-white/30 font-mono tracking-tight">
-                            {article.updatedAt || article.time || article.date}
+                            {formatDocTime(article.updatedAt || article.createdAt || article.date)}
                           </span>
                         </div>
                         {/* 圆点 */}
@@ -228,22 +254,36 @@ export const TimelineTab = ({
                           }}
                         >
                           <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <span
-                                className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${
-                                  TAG_COLORS[article.tag] || "border-white/10 text-white/40"
-                                }`}
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <span
+                              className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${
+                                TAG_COLORS[article.tag] || "border-white/10 text-white/40"
+                              }`}
                               >
                                 <TagIcon size={10} />
                                 {article.tag}
                               </span>
-                              <h4 className="text-[13px] font-semibold text-white/85 truncate">
-                                {article.title}
-                              </h4>
-                            </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <span className="text-[9px] text-white/25 whitespace-nowrap">
-                                updated {article.updatedAt || article.date}
+                            <h4 className="text-[13px] font-semibold text-white/85 truncate">
+                              {article.title}
+                            </h4>
+                          </div>
+                          <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${getVisibilityMeta(article.visibility).className}`}>
+                            {(() => {
+                              const { Icon } = getVisibilityMeta(article.visibility);
+                              return <Icon size={10} />;
+                            })()}
+                            {getVisibilityMeta(article.visibility).label}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${getEditMeta(article.editPermission).className}`}>
+                            {(() => {
+                              const { Icon } = getEditMeta(article.editPermission);
+                              return <Icon size={10} />;
+                            })()}
+                            {getEditMeta(article.editPermission).label}
+                          </span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-[9px] text-white/25 whitespace-nowrap">
+                                updated {formatDocTime(article.updatedAt || article.createdAt || article.date)}
                               </span>
                               <div className="w-7 h-7 rounded-full grid place-items-center border border-white/[0.08] bg-white/[0.03] transition-all duration-400 group-hover:border-blue-400/30 group-hover:bg-blue-400/10 group-hover:shadow-[0_0_14px_rgba(76,201,240,0.25)]">
                                 <ArrowRight
@@ -254,7 +294,7 @@ export const TimelineTab = ({
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </Link>
                     );
                   })}
                 </div>
@@ -267,22 +307,27 @@ export const TimelineTab = ({
         <div className="relative">
           <div className="absolute left-[112px] top-0 bottom-0 w-px bg-gradient-to-b from-blue-500/40 via-violet-500/30 to-transparent" />
           <div className="space-y-6">
-            {timelineArticles.length ? (
-              timelineArticles.map((article, i) => {
-                const TagIcon = TAG_ICONS[article.tag] || BookOpen;
-                return (
-                  <div
-                    key={i}
-                    className="relative flex items-center cursor-pointer group"
-                    onClick={() =>
-                      openArticle
-                        ? openArticle(article)
-                        : setSelectedIdx(articles.indexOf(article))
-                    }
+              {timelineArticles.length ? (
+                timelineArticles.map((article, i) => {
+                  const TagIcon = TAG_ICONS[article.tag] || BookOpen;
+                  const href = docHref(article, i);
+                  return (
+                  <Link
+                    key={article.path || `${timelineYear}-${timelineMonth}-${i}`}
+                    to={href}
+                    className="relative flex items-center cursor-pointer group text-left"
+                    onClick={(e) => {
+                      if (openArticle) {
+                        e.preventDefault();
+                        openArticle(article);
+                        return;
+                      }
+                      setSelectedIdx(Number(article.id ?? articles.findIndex((item) => item.id === article.id)));
+                    }}
                   >
                     <div className="shrink-0 text-right pr-5" style={{ width: "100px" }}>
                       <span className="text-[10px] text-white/30 font-mono tracking-tight">
-                        {article.date}
+                        {formatDocTime(article.updatedAt || article.createdAt || article.date)}
                       </span>
                     </div>
                     <div
@@ -315,7 +360,7 @@ export const TimelineTab = ({
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           <span className="text-[9px] text-white/25 whitespace-nowrap">
-                            updated {article.updatedDaysAgo}d ago
+                            updated {formatDocTime(article.updatedAt || article.createdAt || article.date)}
                           </span>
                           <div className="w-7 h-7 rounded-full grid place-items-center border border-white/[0.08] bg-white/[0.03] transition-all duration-400 group-hover:border-blue-400/30 group-hover:bg-blue-400/10 group-hover:shadow-[0_0_14px_rgba(76,201,240,0.25)]">
                             <ArrowRight
@@ -326,7 +371,7 @@ export const TimelineTab = ({
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 );
               })
             ) : (

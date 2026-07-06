@@ -1,4 +1,4 @@
-import { BookOpen, Code2, Cloud, Database, Terminal, Zap, Bookmark } from "lucide-react";
+import { DOC_CATEGORIES, DOC_CATEGORY_LOWER, DOC_CATEGORY_OPTIONS, DOC_TAG_COLORS, DOC_CAT_COLORS, DOC_TAG_ICONS } from "@/config/docs";
 import { EMOJI_LIST } from "@/config/chat";
 
 /* ─── Fallback local md import (used when backend is unreachable) ─── */
@@ -15,8 +15,8 @@ export function pathToTag(path: string): string {
   return parts[folderIdx] || "Resources";
 }
 
-export const TAGS = ["Frontend", "Backend", "Database", "DevOps", "API", "Resources"];
-export const TAG_LOWER = ["frontend", "backend", "database", "devops", "api", "resources"];
+export const TAGS = [...DOC_CATEGORIES];
+export const TAG_LOWER = [...DOC_CATEGORY_LOWER];
 
 export function loadMd(path: string, original: string): string {
   try { return localStorage.getItem(`docs-md:${path}`) ?? original; } catch { return original; }
@@ -26,9 +26,14 @@ export function saveMd(path: string, md: string) {
 }
 
 export type Article = {
+  id?: number;
+  userId?: number;
+  contributors?: number[];
   title: string;
   desc: string;
   tag: string;
+  visibility?: number;
+  editPermission?: number;
   readTime: string;
   date: string;
   createdAt: string;
@@ -40,63 +45,49 @@ export type Article = {
   featured?: boolean;
   author: string;
   avatar: string;
+  avatarUrl?: string;
+  editorAvatar?: string;
+  editorAvatarUrl?: string;
   comments: number;
   content: string;
+  excerpt?: string;
 };
 
 /* ─── Build local fallback articles ─── */
 const mdEntries = Object.entries(mdModules);
 export const LOCAL_ARTICLES: Article[] = mdEntries.map(([path, content], i) => {
+  const normalizedPath = path.replace(/^\/src\//, "/").replace(/^src\//, "/").replace(/^docs\//, "/docs/");
   const tag = TAGS.includes(pathToTag(path).charAt(0).toUpperCase() + pathToTag(path).slice(1))
     ? pathToTag(path) : "Resources";
   return {
     title: filenameToTitle(path),
     desc: content.split("\n").slice(1, 3).join(" ").replace(/[#*`]/g, "").trim().slice(0, 100) || "Documentation file.",
     tag,
+    editPermission: 0,
     readTime: `${Math.max(1, Math.floor((content.length / 3000) * 5) || 5)} min`,
     date: "2026-06-15",
     createdAt: "2026-06-15 00:00:00",
     updatedAt: "2026-06-15 00:00:00",
-    path: path.replace("/src/", ""),
+    path: normalizedPath,
     updatedDaysAgo: Math.floor(Math.random() * 14) + 1,
     md: loadMd(path, content),
     featured: i === mdEntries.length - 1,
-    author: "Nebula Team",
-    avatar: "NT",
+    author: "游客",
+    avatar: "",
+    avatarUrl: "",
+    editorAvatar: "",
+    editorAvatarUrl: "",
+    contributors: [0],
     comments: Math.floor(Math.random() * 20),
     content,
   };
 });
 
 /* ─── Static configs (always present) ─── */
-export const CATEGORIES = [
-  { label: "All Documents", icon: Bookmark },
-  { label: "Frontend", icon: Code2 },
-  { label: "Backend", icon: Cloud },
-  { label: "Database", icon: Database },
-  { label: "DevOps", icon: Terminal },
-  { label: "API", icon: Zap },
-  { label: "Resources", icon: BookOpen },
-];
-
-export const TAG_COLORS: Record<string, string> = {
-  Frontend: "border-violet-500/30 bg-violet-500/15 text-violet-300",
-  Backend: "border-cyan-500/30 bg-cyan-500/15 text-cyan-300",
-  Database: "border-blue-500/30 bg-blue-500/15 text-blue-300",
-  DevOps: "border-amber-500/30 bg-amber-500/15 text-amber-300",
-  API: "border-pink-500/30 bg-pink-500/15 text-pink-300",
-  Resources: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300",
-};
-
-export const CAT_COLORS: Record<string, string> = {
-  "All Documents": "#60a5fa", Frontend: "#a78bfa", Backend: "#22d3ee",
-  Database: "#60a5fa", DevOps: "#f59e0b", API: "#f472b6", Resources: "#34d399",
-};
-
-export const TAG_ICONS: Record<string, React.ElementType> = {
-  Frontend: Code2, Backend: Cloud, Database: Database,
-  DevOps: Terminal, API: Zap, Resources: BookOpen,
-};
+export const CATEGORIES = [...DOC_CATEGORY_OPTIONS];
+export const TAG_COLORS = DOC_TAG_COLORS;
+export const CAT_COLORS = DOC_CAT_COLORS;
+export const TAG_ICONS = DOC_TAG_ICONS;
 
 export interface Comment {
   id: number; name: string; email: string; website: string; avatar: string; time: string;

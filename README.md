@@ -77,7 +77,7 @@ Target: web-alpha-xxxx.pages.dev
 ### React组件优化
 * 使用useMemo避免重复计算：例如聊天联系人有1000个，只有一个变化不要全部刷新React.memo(ContactItem)即可
 * 使用useCallback避免重复渲染
-* key用id而不是index
+* key用id而不是index，会报错，可以用user_id
 ### js包优化
 vite打包后index.js如果超过500KB就需要优化
 * 组件库按需加载
@@ -103,3 +103,8 @@ vite打包后index.js如果超过500KB就需要优化
 ```
 用户主动查看即已读,通知进入可视区域几百毫秒后标记已读
 通知或提示要具体点
+
+
+### css prompt：
+* 按钮滑块式平移动画
+* 页面平滑切换

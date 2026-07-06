@@ -17,19 +17,31 @@ import { TimelineTab } from "@/components/doc/TimelineTab";
 import { ProfileTab } from "@/components/doc/ProfileTab";
 import FaqTab from "@/components/doc/FaqTab";
 import { useAuth } from "@/components/dashboard/AuthProvider";
-import { resolveAvatar } from "@/lib/avatar";
+import { resolveAvatar, resolveImageAvatar } from "@/lib/avatar";
+import { fetchDocDetail } from "@/api/doc";
+import { getUsers } from "@/api/user";
 
 const NewDocEditor = lazy(() => import("@/components/doc/NewDocEditor").then((mod) => ({ default: mod.NewDocEditor })));
 
+const normalizeDocPath = (value?: string) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("/docs/")) return raw;
+  if (raw.startsWith("docs/")) return `/${raw}`;
+  if (raw.startsWith("/src/")) return raw.replace(/^\/src\//, "/");
+  if (raw.startsWith("src/")) return `/${raw}`;
+  return raw;
+};
+
 /* ─── Main ─── */
 export default function DocsPage() {
-  const { articles, loading, refresh } = useArticles();
-  const { timelineGroups, availableYears, loading: timelineLoading } = useTimeline();
+  const { articles, loading, refresh, upsertArticle, removeArticle } = useArticles();
+  const { timelineGroups, availableYears, loading: timelineLoading, refresh: refreshTimeline } = useTimeline({ articles, loading, refresh });
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeCat, setActiveCat] = useState(0);
   const [activeTab, setActiveTab] = useState(0);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [rawComments, setRawComments] = useState<any[]>([]);
   const [form, setForm] = useState({ name: "", email: "", website: "", content: "" });
@@ -53,6 +65,7 @@ export default function DocsPage() {
   const [faqActiveCat, setFaqActiveCat] = useState("All");
   const [faqCategories, setFaqCategories] = useState<string[]>([]);
   const [faqCatOpen, setFaqCatOpen] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
 
   const FAQ_CAT_COLORS: Record<string, string> = {
     Backend: "#22d3ee", Frontend: "#a78bfa", Database: "#60a5fa",
@@ -63,11 +76,40 @@ export default function DocsPage() {
   const loggedInCommentUser = useMemo(() => {
     if (!user) return null;
     return {
+      id: user.id,
       username: user.username,
       email: user.email,
-      avatarUrl: resolveAvatar(user.avatar),
+      avatarUrl: resolveImageAvatar(user.avatar),
     };
   }, [user?.username, user?.email, user?.avatar, user]);
+  const currentUserId = user?.id ?? null;
+
+  useEffect(() => {
+    let mounted = true;
+    getUsers()
+      .then((res) => {
+        const data = res.data?.data ?? res.data ?? [];
+        const list = Array.isArray(data) ? data : [];
+        if (mounted) setUsers(list);
+      })
+      .catch(() => {
+        if (mounted) setUsers([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const usersById = useMemo(() => {
+    const map = new Map<number, any>();
+    users.forEach((item) => {
+      const id = Number(item.id ?? item.user_id ?? item.ID ?? 0);
+      if (id > 0) map.set(id, item);
+    });
+    return map;
+  }, [users]);
+
+  const docVisibility = user ? 0 : 1;
 
   useEffect(() => {
     if (!user) return;
@@ -114,7 +156,7 @@ export default function DocsPage() {
       website: item.website ?? "",
       avatar: item.avatar ?? username.split(" ").map((part: string) => part[0]).join("").slice(0, 2).toUpperCase(),
       avatarClassName: getAvatarGradient(id, username),
-      avatarUrl: resolveAvatar(item.avatar) || (loggedInCommentUser?.username === username ? loggedInCommentUser.avatarUrl : null),
+      avatarUrl: resolveImageAvatar(item.avatar) || (loggedInCommentUser?.username === username ? loggedInCommentUser.avatarUrl : null),
       time: createdAt ? formatDisplayTime(createdAt) : "Just now",
       content: item.content ?? "",
       likes: Number(item.like_count ?? item.likes ?? 0),
@@ -186,10 +228,10 @@ export default function DocsPage() {
     return articles.filter(a => a.tag === activeCatLabel);
   }, [articles, activeCat, activeCatLabel]);
 
-  const sel = selectedIdx !== null ? articles[selectedIdx] : null;
+  const sel = selectedDocId !== null ? articles.find((item) => item.id === selectedDocId) || null : null;
 
   const clearSelectedArticle = useCallback(() => {
-    setSelectedIdx(null);
+    setSelectedDocId(null);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.delete("doc");
@@ -197,24 +239,67 @@ export default function DocsPage() {
     }, { replace: true });
   }, [setSearchParams]);
 
-  const openArticle = useCallback((article: Article) => {
-    const idx = articles.indexOf(article);
-    if (idx < 0) return;
-    setSelectedIdx(idx);
+  const loadDocDetail = useCallback(async (id: number, fallbackArticle?: Article) => {
+    try {
+      const res = await fetchDocDetail(id);
+      const detail = res.data?.data || res.data;
+      const body = detail.content || detail.md || "";
+      if (!body) return null;
+      const nextArticle = {
+        ...(fallbackArticle || articles.find((item) => item.id === id) || {}),
+        ...detail,
+        id,
+        content: body,
+        md: body,
+        desc: detail.excerpt || fallbackArticle?.desc || "Documentation file.",
+      } as Article;
+      upsertArticle(nextArticle);
+      setArticleMd(body);
+      setEditContent(body);
+      return nextArticle;
+    } catch {
+      return null;
+    }
+  }, [articles, upsertArticle]);
+
+  const openArticle = useCallback(async (article: Article) => {
+    if (!article.id) return;
+    setSelectedDocId(article.id);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
-      next.set("doc", article.path || String(idx));
+      next.set("doc", String(article.id));
       return next;
     }, { replace: true });
-  }, [articles, setSearchParams]);
+    await loadDocDetail(article.id, article);
+  }, [loadDocDetail, setSearchParams]);
+
+  const handleDocsSaved = useCallback(async (article?: Article) => {
+    if (article) upsertArticle(article);
+    await refresh();
+    await refreshTimeline();
+  }, [refresh, refreshTimeline, upsertArticle]);
+
+  const handleDocDeleted = useCallback((idOrPath: string) => {
+    removeArticle(idOrPath);
+    const deletedId = Number(idOrPath);
+    setSelectedDocId((current) => (current && current === deletedId ? null : current));
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete("doc");
+      return next;
+    }, { replace: true });
+  }, [removeArticle, setSearchParams]);
 
   useEffect(() => {
-    if (!articles.length || selectedIdx !== null) return;
+    if (!articles.length || selectedDocId !== null) return;
     const docPath = searchParams.get("doc");
     if (!docPath) return;
-    const idx = articles.findIndex(article => article.path === docPath);
-    if (idx >= 0) {
-      setSelectedIdx(idx);
+    const id = Number(docPath);
+    if (Number.isFinite(id) && id > 0) {
+      const article = articles.find((item) => item.id === id);
+      if (article) {
+        setSelectedDocId(id);
+      }
     } else {
       setSearchParams(prev => {
         const next = new URLSearchParams(prev);
@@ -222,20 +307,30 @@ export default function DocsPage() {
         return next;
       }, { replace: true });
     }
-  }, [articles, searchParams, selectedIdx, setSearchParams]);
+  }, [articles, searchParams, selectedDocId, setSearchParams]);
+
+  useEffect(() => {
+    if (!sel?.id) return;
+    if (sel.content) {
+      setArticleMd(sel.content);
+      setEditContent(sel.content);
+      return;
+    }
+    void loadDocDetail(sel.id, sel);
+  }, [sel?.id, sel?.content, loadDocDetail]);
 
   // Memoize rendered markdown
   const renderedContent = useMemo(() => {
-    const md = articleMd || sel?.content || "";
+    const md = articleMd || sel?.content || sel?.md || "";
     if (!md) return null;
     return renderMarkdown(md);
-  }, [articleMd, sel?.content]);
+  }, [articleMd, sel?.content, sel?.md]);
 
   // Init edit/article state when switching articles
-  if (sel && selectedIdx !== prevSelRef.current) {
-    prevSelRef.current = selectedIdx;
-    setEditContent(sel.content || "");
-    setArticleMd(sel.content || "");
+    if (sel && selectedDocId !== prevSelRef.current) {
+    prevSelRef.current = selectedDocId;
+    setEditContent(sel.content || sel.md || "");
+    setArticleMd(sel.content || sel.md || "");
     setViewMode("preview");
     setIsEditing(false);
   }
@@ -245,9 +340,11 @@ export default function DocsPage() {
     bodyContent = (
       <ArticleView
         sel={sel}
-        selectedIdx={selectedIdx}
-        setSelectedIdx={setSelectedIdx}
-        onSaved={refresh}
+        selectedIdx={selectedDocId}
+        setSelectedIdx={setSelectedDocId}
+        onCloseArticle={clearSelectedArticle}
+        onSaved={handleDocsSaved}
+        onDeleted={handleDocDeleted}
         viewMode={viewMode}
         setViewMode={setViewMode}
         isEditing={isEditing}
@@ -274,6 +371,7 @@ export default function DocsPage() {
         setShowReplyEmoji={setShowReplyEmoji}
         commentEndRef={commentEndRef}
         loggedInUser={loggedInCommentUser}
+        currentUserId={currentUserId}
         TAG_COLORS={TAG_COLORS}
         TAG_ICONS={TAG_ICONS}
       />
@@ -283,7 +381,7 @@ export default function DocsPage() {
       <TimelineTab
         filteredArticles={filteredArticles}
         articles={articles}
-        setSelectedIdx={setSelectedIdx}
+        setSelectedIdx={setSelectedDocId}
         openArticle={openArticle}
         TAG_COLORS={TAG_COLORS}
         TAG_ICONS={TAG_ICONS}
@@ -305,11 +403,12 @@ export default function DocsPage() {
         ARTICLES={articles}
         filteredArticles={filteredArticles}
         featured={articles.find(a => a.featured)}
-        setSelectedIdx={setSelectedIdx}
+        setSelectedIdx={setSelectedDocId}
         openArticle={openArticle}
         rc={rc}
         TAG_COLORS={TAG_COLORS}
         TAG_ICONS={TAG_ICONS}
+        usersById={usersById}
       />
     );
   }
@@ -369,9 +468,9 @@ export default function DocsPage() {
                 style={{ color: activeTab === 3 ? "rgba(34,211,238,0.5)" : activeTab === 1 ? "rgba(167,139,250,0.5)" : activeTab === 2 ? "rgba(96,165,250,0.5)" : "rgba(76,201,240,0.5)" }}>
                 {sel ? "Knowledge Base" : activeTab === 3 ? "Q & A" : activeTab === 1 ? "History" : activeTab === 2 ? "Profile" : "Knowledge Base"}
               </p>
-              <h1 className="text-[24px] font-bold tracking-tight mt-1"
-                style={{
-                  background: sel
+                <h1 className="text-[24px] font-bold tracking-tight mt-1"
+                  style={{
+                  backgroundImage: sel
                     ? "linear-gradient(to right, #fff 20%, #4CC9F0 70%, #7B2FF7)"
                     : activeTab === 3
                     ? "linear-gradient(135deg, #fff 0%, #22d3ee 45%, #a78bfa 100%)"
@@ -483,7 +582,15 @@ export default function DocsPage() {
           <div className="flex-1 overflow-y-auto scrollbar-none px-6 py-5 space-y-5">
             {showNewEditor ? (
               <Suspense fallback={null}>
-                <NewDocEditor onClose={() => setShowNewEditor(false)} onSaved={refresh} />
+                <NewDocEditor
+                  onClose={() => setShowNewEditor(false)}
+                  onSaved={handleDocsSaved}
+                  currentUserId={currentUserId}
+                  initialVisibility={docVisibility}
+                  allowPrivate={!!user}
+                  initialEditPermission={user ? 0 : 1}
+                  allowOwnerOnly={!!user}
+                />
               </Suspense>
             ) : (
               bodyContent

@@ -88,25 +88,15 @@ export const CodeBlock = ({ code, lang }: CodeBlockProps) => {
 
       {/* Top bar */}
       <div className="relative flex items-center justify-between h-[40px] px-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
-        {/* Left: window dots + language label */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-[8px]">
-            <span className="w-[12px] h-[12px] rounded-full" style={{ background: "rgba(255,255,255,0.15)", boxShadow: "0 0 6px rgba(255,255,255,0.04)" }} />
-            <span className="w-[12px] h-[12px] rounded-full" style={{ background: "rgba(255,255,255,0.12)", boxShadow: "0 0 6px rgba(255,255,255,0.03)" }} />
-            <span className="w-[12px] h-[12px] rounded-full" style={{ background: "rgba(255,255,255,0.09)", boxShadow: "0 0 6px rgba(255,255,255,0.02)" }} />
-          </div>
-          <span className="text-[11px] font-mono font-medium ml-2" style={{ color: "rgba(255,255,255,0.35)" }}>{displayLang || "code"}</span>
+          <span className="text-[11px] font-mono font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>{displayLang || "code"}</span>
         </div>
 
         {/* Right: copy button (always visible) */}
         <button
           onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-          className="flex items-center gap-1.5 text-[11px] transition-all duration-300 px-3 py-1.5 rounded-lg"
-          style={{
-            background: copied ? "rgba(125,231,135,0.12)" : "rgba(255,255,255,0.04)",
-            border: `1px solid ${copied ? "rgba(125,231,135,0.2)" : "rgba(255,255,255,0.07)"}`,
-            color: copied ? "rgba(125,231,135,0.9)" : "rgba(255,255,255,0.4)",
-          }}
+          className="flex items-center gap-1.5 text-[11px] transition-all duration-300"
+          style={{ color: copied ? "rgba(125,231,135,0.9)" : "rgba(255,255,255,0.4)" }}
         >
           {copied ? <Check size={13} /> : <Copy size={13} />}
           {copied ? "Copied" : "Copy"}

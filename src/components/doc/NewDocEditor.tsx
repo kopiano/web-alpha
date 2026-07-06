@@ -1,8 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Eye, Save, ChevronDown, Loader2, X } from "lucide-react";
+import { Eye, Save, ChevronDown, Loader2, X, Eye as PublicEye, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { renderMarkdown } from "@/components/doc/DocRenderer";
-import { saveDoc } from "@/api/doc";
+import { createDoc } from "@/api/doc";
+import type { Article } from "@/components/doc/docsData";
+import { DOC_CATEGORIES } from "@/config/docs";
+import { resolveImageAvatar } from "@/lib/avatar";
 
 const TAGS = [
   ["Frontend", "#a78bfa"],
@@ -15,7 +18,12 @@ const TAGS = [
 
 interface NewDocEditorProps {
   onClose: () => void;
-  onSaved?: () => void;
+  onSaved?: (article?: Article) => void | Promise<void>;
+  currentUserId: number | null;
+  initialVisibility: number;
+  allowPrivate: boolean;
+  initialEditPermission: number;
+  allowOwnerOnly: boolean;
 }
 
 /* ─── Custom title dialog ─── */
@@ -99,7 +107,7 @@ const TitleDialog = ({ open, value, onChange, onSubmit, onCancel }: TitleDialogP
 };
 
 /* ─── NewDocEditor ─── */
-export const NewDocEditor = ({ onClose, onSaved }: NewDocEditorProps) => {
+export const NewDocEditor = ({ onClose, onSaved, currentUserId, initialVisibility, allowPrivate, initialEditPermission, allowOwnerOnly }: NewDocEditorProps) => {
   const [content, setContent] = useState("");
   const [preview, setPreview] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
@@ -107,6 +115,24 @@ export const NewDocEditor = ({ onClose, onSaved }: NewDocEditorProps) => {
   const [saving, setSaving] = useState(false);
   const [showTitle, setShowTitle] = useState(false);
   const [title, setTitle] = useState("");
+  const [visibility, setVisibility] = useState(initialVisibility);
+  const [editPermission, setEditPermission] = useState(initialEditPermission);
+
+  useEffect(() => {
+    setVisibility(initialVisibility);
+  }, [initialVisibility]);
+
+  useEffect(() => {
+    if (!allowPrivate) setVisibility(1);
+  }, [allowPrivate]);
+
+  useEffect(() => {
+    setEditPermission(initialEditPermission);
+  }, [initialEditPermission]);
+
+  useEffect(() => {
+    if (!allowOwnerOnly) setEditPermission(1);
+  }, [allowOwnerOnly]);
 
   const rendered = useMemo(() => {
     if (!content) return null;
@@ -114,6 +140,14 @@ export const NewDocEditor = ({ onClose, onSaved }: NewDocEditorProps) => {
   }, [content]);
 
   const selectedColor = TAGS.find(([t]) => t === selectedTag)?.[1];
+  const visibilityOptions = [
+    { value: 0, label: "Private", Icon: Lock },
+    { value: 1, label: "Public", Icon: PublicEye },
+  ];
+  const editPermissionOptions = [
+    { value: 0, label: "Owner", Icon: Lock },
+    { value: 1, label: "Public", Icon: PublicEye },
+  ];
 
   const handleSaveClick = () => {
     if (!content.trim()) { toast.error("Content is empty"); return; }
@@ -127,11 +161,49 @@ export const NewDocEditor = ({ onClose, onSaved }: NewDocEditorProps) => {
     setShowTitle(false);
     setSaving(true);
     try {
-      await saveDoc({ tag: selectedTag!.toLowerCase(), title: finalTitle, content });
+      const now = new Date();
+      const pad = (part: number) => String(part).padStart(2, "0");
+      const nowText = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      const submittedVisibility = allowPrivate ? visibility : 1;
+      const submittedEditPermission = allowOwnerOnly ? editPermission : 1;
+      const saved = await createDoc({
+        category: selectedTag!.toLowerCase(),
+        title: finalTitle,
+        content,
+        visibility: submittedVisibility,
+        edit_permission: submittedEditPermission,
+        editor_user_id: currentUserId ?? undefined,
+      });
+      const created = saved.data?.data || {};
       toast.success("Document saved");
       setContent("");
       setPreview(false);
-      onSaved?.();
+      await onSaved?.({
+        id: created.id,
+        userId: Number(created.user_id ?? created.userId ?? 0) || undefined,
+        visibility: Number(created.visibility ?? submittedVisibility),
+        title: created.title || finalTitle,
+        desc: created.excerpt || content.split("\n").slice(1, 3).join(" ").replace(/[#*`]/g, "").trim().slice(0, 100) || "Documentation file.",
+        tag: (created.category || selectedTag!) as string,
+        readTime: `${Math.max(1, Math.floor((content.length || 0) / 3000 * 5) || 5)} min`,
+        date: String(created.created_at || nowText).slice(0, 10),
+        createdAt: created.created_at || nowText,
+        updatedAt: created.updated_at || nowText,
+        time: created.updated_at || nowText,
+        path: String(created.id || ""),
+        updatedDaysAgo: 0,
+        md: created.content || content,
+        featured: false,
+        author: created.author || "Guest",
+        avatar: created.avatar || "",
+        avatarUrl: resolveImageAvatar(created.avatar_url || created.avatarUrl || created.avatar || created.author_avatar) || "",
+        editorAvatar: created.editor_avatar || created.editorAvatar || created.avatar || "",
+        editorAvatarUrl: resolveImageAvatar(created.editor_avatar_url || created.editorAvatarUrl || created.avatar_url || created.avatarUrl || created.avatar || created.author_avatar) || "",
+        contributors: Array.isArray(created.contributors) ? created.contributors : [Number(created.user_id ?? currentUserId ?? 0) || 0],
+        comments: 0,
+        content: created.content || content,
+        excerpt: created.excerpt || "",
+      });
       onClose();
     } catch {
       toast.error("Failed to save document");
@@ -153,7 +225,46 @@ export const NewDocEditor = ({ onClose, onSaved }: NewDocEditorProps) => {
         {/* Top bar */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <h2 className="text-base font-semibold text-white/80">New Document</h2>
+            <div className="flex items-center rounded-full border border-white/10 bg-white/[0.03] p-0.5">
+              {visibilityOptions.map(({ value, label, Icon }) => {
+                const active = visibility === value;
+                const disabled = !allowPrivate && value === 0;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => !disabled && setVisibility(value)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold transition-all ${
+                      active ? "text-white bg-white/10" : "text-white/40 hover:text-white/70"
+                    } ${disabled ? "opacity-35 cursor-not-allowed" : ""}`}
+                  >
+                    <Icon size={11} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center rounded-full border border-white/10 bg-white/[0.03] p-0.5">
+              {editPermissionOptions.map(({ value, label, Icon }) => {
+                const active = editPermission === value;
+                const disabled = !allowOwnerOnly && value === 0;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => !disabled && setEditPermission(value)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold transition-all ${
+                      active ? "text-white bg-white/10" : "text-white/40 hover:text-white/70"
+                    } ${disabled ? "opacity-35 cursor-not-allowed" : ""}`}
+                  >
+                    <Icon size={11} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
             {/* Tag selector */}
             <div className="relative">
               <button
@@ -180,7 +291,9 @@ export const NewDocEditor = ({ onClose, onSaved }: NewDocEditorProps) => {
                       boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
                     }}
                   >
-                    {TAGS.map(([label, color]) => (
+                    {DOC_CATEGORIES.map((label, index) => {
+                      const color = TAGS[index][1];
+                      return (
                       <button
                         key={label}
                         onClick={() => { setSelectedTag(label); setTagOpen(false); }}
@@ -192,7 +305,8 @@ export const NewDocEditor = ({ onClose, onSaved }: NewDocEditorProps) => {
                         <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
                         {label}
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               )}
