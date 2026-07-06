@@ -94,7 +94,10 @@ export const ArticleView = ({
   const VisibilityIcon = activeVisibility === 0 ? Lock : PublicEye;
   const previewMd = editContent || articleMd || sel.content || sel.md || "";
   const canDelete = isOwner;
-  const canOpenRaw = isOwner || sel.editPermission === 1;
+  const canOpenRaw = Boolean(loggedInUser?.id) && (isOwner || sel.editPermission === 1);
+  const rawDisabledTitle = loggedInUser?.id
+    ? "You do not have permission to edit this document"
+    : "请登录再使用此功能";
 
   const handleSave = async () => {
     if (!sel.id) return;
@@ -286,7 +289,8 @@ export const ArticleView = ({
                   ? "text-white shadow-[0_0_15px_rgba(76,201,240,0.2)] border border-blue-400/20"
                   : "text-white/40 hover:text-white/70"
                 } ${!canOpenRaw ? "opacity-35 cursor-not-allowed hover:text-white/40" : ""}`}
-              style={viewMode === "raw" ? { background: "linear-gradient(135deg, rgba(76,201,240,0.2), rgba(123,47,247,0.12))" } : {}}>
+              style={viewMode === "raw" ? { background: "linear-gradient(135deg, rgba(76,201,240,0.2), rgba(123,47,247,0.12))" } : {}}
+              title={!canOpenRaw ? rawDisabledTitle : undefined}>
               <FileText size={12} /> Raw
             </button>
           </div>

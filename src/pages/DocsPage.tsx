@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useEffect, useCallback, lazy, Suspense } fro
 import { useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
+import { TopNav } from "@/components/dashboard/TopNav";
 import { toast } from "sonner";
 
 import { useArticles, CATEGORIES, TAG_COLORS, TAG_ICONS, CAT_COLORS } from "@/hooks/useArticles";
@@ -66,6 +67,7 @@ export default function DocsPage() {
   const [faqCategories, setFaqCategories] = useState<string[]>([]);
   const [faqCatOpen, setFaqCatOpen] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
+  const [visibilityFilter, setVisibilityFilter] = useState<"private" | "public">("public");
 
   const FAQ_CAT_COLORS: Record<string, string> = {
     Backend: "#22d3ee", Frontend: "#a78bfa", Database: "#60a5fa",
@@ -99,6 +101,33 @@ export default function DocsPage() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    setUsers((prev) => {
+      const next = [...prev];
+      const idx = next.findIndex((item) => Number(item.id ?? item.user_id ?? item.ID ?? 0) === user.id);
+      const current = {
+        id: user.id,
+        user_id: user.id,
+        username: user.username,
+        name: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        avatar_url: user.avatar,
+        avatarUrl: resolveImageAvatar(user.avatar),
+      };
+      if (idx >= 0) {
+        next[idx] = { ...next[idx], ...current };
+        return next;
+      }
+      return [current, ...next];
+    });
+  }, [user?.id, user?.username, user?.email, user?.avatar]);
+
+  useEffect(() => {
+    setVisibilityFilter(user ? "private" : "public");
+  }, [user?.id]);
 
   const usersById = useMemo(() => {
     const map = new Map<number, any>();
@@ -217,16 +246,18 @@ export default function DocsPage() {
 
   const categories = CATEGORIES;
   const catCounts = useMemo(() => categories.map((_, i) => {
-    if (i === 0) return articles.length;
+    const visibleArticles = articles.filter((a) => Number(a.visibility ?? 1) === (visibilityFilter === "private" ? 0 : 1));
+    if (i === 0) return visibleArticles.length;
     const tag = categories[i].label;
-    return articles.filter(a => a.tag === tag).length;
-  }), [articles, categories]);
+    return visibleArticles.filter(a => a.tag === tag).length;
+  }), [articles, categories, visibilityFilter]);
 
   const activeCatLabel = categories[activeCat]?.label ?? "All Documents";
   const filteredArticles = useMemo(() => {
-    if (activeCat === 0) return articles;
-    return articles.filter(a => a.tag === activeCatLabel);
-  }, [articles, activeCat, activeCatLabel]);
+    const byVisibility = articles.filter((a) => Number(a.visibility ?? 1) === (visibilityFilter === "private" ? 0 : 1));
+    if (activeCat === 0) return byVisibility;
+    return byVisibility.filter(a => a.tag === activeCatLabel);
+  }, [articles, activeCat, activeCatLabel, visibilityFilter]);
 
   const sel = selectedDocId !== null ? articles.find((item) => item.id === selectedDocId) || null : null;
 
@@ -434,6 +465,8 @@ export default function DocsPage() {
             setSelectedIdx={clearSelectedArticle}
             catCounts={catCounts}
             CAT_COLORS={CAT_COLORS}
+            visibilityFilter={visibilityFilter}
+            setVisibilityFilter={setVisibilityFilter}
             onNavigate={() => setShowNewEditor(false)}
           />
         </div>
@@ -441,6 +474,9 @@ export default function DocsPage() {
         {/* ═══ Center ═══ */}
         <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden rounded-[28px] md:rounded-none md:rounded-r-[28px]"
           style={{ background: "rgba(255,255,255,0.02)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.05)", boxShadow: "0 10px 40px -12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+          <div className="px-6 pt-4">
+            <TopNav />
+          </div>
           {/* Header — no search bar */}
           <div className="px-6 py-4 border-b border-white/[0.03] flex items-center gap-4 shrink-0" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.02), transparent)" }}>
             {sel && (

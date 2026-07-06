@@ -80,7 +80,7 @@ export const DocGrid = ({ activeCat, ARTICLES, filteredArticles, featured, setSe
       )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {filteredArticles.map((a, i) => (
-        <div key={a.id ?? i} className={`${rc} min-h-[176px]`} onClick={() => openArticle ? openArticle(a) : setSelectedIdx(a.id ?? ARTICLES.indexOf(a))}>
+        <div key={a.id ?? i} className={`${rc} group min-h-[176px]`} onClick={() => openArticle ? openArticle(a) : setSelectedIdx(a.id ?? ARTICLES.indexOf(a))}>
             <div className="relative p-4 h-full">
               <div className="flex items-center justify-between gap-2 mb-8">
                 <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2.5 py-0.5 rounded-full border ${TAG_COLORS[a.tag] || "border-white/10 text-white/40"}`}>
@@ -98,7 +98,7 @@ export const DocGrid = ({ activeCat, ARTICLES, filteredArticles, featured, setSe
               <h3 className="text-[15px] font-semibold tracking-tight text-white/88 group-hover:text-white text-center leading-[1.35] line-clamp-3">{a.title}</h3>
               <div className="mt-2 flex items-center justify-start">
                 <div className="flex items-center -space-x-2.5">
-                  {contributorIds(a).slice(0, 10).map((id: number, idx: number) => {
+                  {contributorIds(a).slice(0, 15).map((id: number, idx: number) => {
                     const user = id > 0 ? usersById.get(id) : null;
                     const image = contributorAvatar(user);
                     const label = idx === 0 ? avatarFallback(a, isGuestArticle(a) ? "G" : a.author) : contributorLabel(user, id);
@@ -116,9 +116,9 @@ export const DocGrid = ({ activeCat, ARTICLES, filteredArticles, featured, setSe
                       </div>
                     );
                   })}
-                  {contributorIds(a).length > 10 && (
+                  {contributorIds(a).length > 15 && (
                     <div className="w-[26px] h-[26px] rounded-full border-[1.5px] border-[#0c0c14] grid place-items-center text-[8px] font-bold text-white/55 bg-white/8 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
-                      +{contributorIds(a).length - 10}
+                      +{contributorIds(a).length - 15}
                     </div>
                   )}
                 </div>
@@ -130,8 +130,9 @@ export const DocGrid = ({ activeCat, ARTICLES, filteredArticles, featured, setSe
                     {timeAgo(a.updatedAt || a.createdAt || a.date)}
                   </span>
                 </div>
-                <div className="w-7 h-7 rounded-full grid place-items-center border border-white/[0.08] bg-white/[0.03] transition-all duration-300 group-hover:border-blue-400/30 group-hover:bg-blue-400/10 group-hover:shadow-[0_0_14px_rgba(76,201,240,0.2)]">
-                  <ArrowRight size={12} className="text-white/25 transition-all duration-300 group-hover:text-blue-300 group-hover:translate-x-0.5" />
+                <div className="relative w-7 h-7 rounded-full grid place-items-center overflow-hidden border border-white/[0.08] bg-white/[0.03] transition-all duration-300 group-hover:bg-black/60 group-hover:border-white/20 group-hover:shadow-[0_0_14px_rgba(0,0,0,0.45)] group-hover:backdrop-blur-md">
+                  <span className="absolute inset-0 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.22), 0 0 0 1px rgba(255,255,255,0.04)" }} />
+                  <ArrowRight size={12} className="relative z-10 text-white/25 transition-all duration-300 group-hover:text-white group-hover:translate-x-0.5" />
                 </div>
               </div>
             </div>
