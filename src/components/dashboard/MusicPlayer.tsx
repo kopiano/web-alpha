@@ -111,6 +111,7 @@ export const MusicPlayer = () => {
   const playlistRef = useRef<Track[]>([]);
   const trackIdxRef = useRef(0);
   const playRequestRef = useRef(0);
+  const skipRestoreRef = useRef(false);
 
   useEffect(() => { playlistRef.current = playlist; }, [playlist]);
   useEffect(() => { trackIdxRef.current = trackIdx; try { localStorage.setItem("music-track", String(trackIdx)); } catch {} }, [trackIdx]);
@@ -183,7 +184,9 @@ export const MusicPlayer = () => {
     setCurrentTime(0);
     setDuration(0);
     setBuffered(0);
-    const savedTime = (() => {
+    const shouldSkipRestore = skipRestoreRef.current;
+    skipRestoreRef.current = false;
+    const savedTime = shouldSkipRestore ? 0 : (() => {
       try { return parseInt(localStorage.getItem(getMusicPositionKey(t.file)) || "0") || 0; } catch { return 0; }
     })();
     if (savedTime > 0) {
@@ -252,10 +255,7 @@ export const MusicPlayer = () => {
     if (audio.currentTime > 3) { audio.currentTime = 0; return; }
     audio.currentTime = 0;
     playRequestRef.current += 1;
-    const current = playlistRef.current[trackIdxRef.current];
-    if (current) {
-      try { localStorage.removeItem(getMusicPositionKey(current.file)); } catch {}
-    }
+    skipRestoreRef.current = true;
     setTrackIdx((prev) => (prev === 0 ? playlist.length - 1 : prev - 1));
   }, [playlist.length]);
 
@@ -264,10 +264,7 @@ export const MusicPlayer = () => {
     const audio = audioRef.current;
     if (audio) audio.currentTime = 0;
     playRequestRef.current += 1;
-    const current = playlistRef.current[trackIdxRef.current];
-    if (current) {
-      try { localStorage.removeItem(getMusicPositionKey(current.file)); } catch {}
-    }
+    skipRestoreRef.current = true;
     setTrackIdx((prev) => (prev + 1) % playlist.length);
   }, [playlist.length]);
 
@@ -440,16 +437,31 @@ export const MusicPlayer = () => {
             <ListMusic size={14} />
           </button>
           {showPlaylist && (
-            <div className="absolute top-full right-0 mt-5 w-64 rounded-2xl overflow-hidden z-50"
-              style={{background:"linear-gradient(135deg, rgba(10,10,15,0.75), rgba(10,10,15,0.50))",backdropFilter:"blur(48px) saturate(200%)",border:"1px solid rgba(255,255,255,0.06)",boxShadow:"0 24px 64px -12px rgba(0,0,0,0.5)"}}>
-              <div className="px-4 pt-3 pb-2 border-b border-white/[0.08]">
-                <p className="text-[10px] font-semibold text-white/60 uppercase tracking-[0.15em]">Playlist</p>
-                <p className="text-[11px] text-white/40 mt-0.5">{playlist.length} tracks</p>
+            <div
+              className="absolute top-full right-0 mt-5 w-64 rounded-[2rem] overflow-hidden z-50"
+              style={{
+                background: "rgba(255,255,255,0.025)",
+                backdropFilter: "blur(56px) saturate(220%)",
+                WebkitBackdropFilter: "blur(56px) saturate(220%)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                boxShadow: "0 20px 56px -14px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.06)",
+                isolation: "isolate",
+              }}
+            >
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02) 35%, rgba(255,255,255,0.00) 100%)",
+                }}
+              />
+              <div className="px-4 pt-3 pb-2 border-b border-white/[0.08]" style={{ background: "rgba(255,255,255,0.03)" }}>
+                <p className="text-[10px] font-semibold text-white/58 uppercase tracking-[0.15em]">Playlist</p>
+                <p className="text-[11px] text-white/38 mt-0.5">{playlist.length} tracks</p>
               </div>
               <div className="p-2 max-h-[260px] overflow-y-auto scrollbar-none">
                 {playlist.map((t, i) => (
                   <button key={i} onClick={()=>{setTrackIdx(i); setShowPlaylist(false);}}
-                    className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-3 transition-all duration-200 ${i===trackIdx?"bg-white/[0.08]":"hover:bg-white/[0.05]"}`}>
+                    className={`w-full text-left px-3 py-2.5 rounded-[1.1rem] flex items-center gap-3 transition-all duration-200 ${i===trackIdx?"bg-white/[0.10]":"hover:bg-white/[0.05]"}`}>
                     <div className={`w-7 h-7 rounded-[50%] grid place-items-center shrink-0 text-[10px] font-bold ${i===trackIdx?"bg-white/20 text-white":"text-white/40 bg-white/[0.08]"}`}>
                       {i===trackIdx&&playing?<span className="flex gap-[2px] items-center"><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"0ms",animationDuration:"0.6s"}}/><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"150ms",animationDuration:"0.6s"}}/><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"300ms",animationDuration:"0.6s"}}/></span>:String(i+1).padStart(2,"0")}
                     </div>
