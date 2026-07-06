@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useDeferredEffect } from "@/hooks/useDeferredEffect"
 import { getHotSearch, get36krHot } from "@/api/hotSearch"
 import { RefreshCw, Globe, Tags } from "lucide-react"
@@ -99,6 +99,30 @@ export const WeiboHotSearch = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [taggedOnly, setTaggedOnly] = useState(false)
+  const didMountRef = useRef(false)
+  const initialTabRef = useRef<Tab>(tab)
+  const currentTabRef = useRef<Tab>(tab)
+  currentTabRef.current = tab
+
+  const normalizeWeiboItems = (body: any) => {
+    const raw =
+      (Array.isArray(body?.data) && body.data) ||
+      (Array.isArray(body?.data?.data) && body.data.data) ||
+      (Array.isArray(body?.data?.list) && body.data.list) ||
+      (Array.isArray(body?.data?.realtime) && body.data.realtime) ||
+      (Array.isArray(body) && body) ||
+      []
+
+    return raw.map((item: any, index: number) => ({
+      rank: Number(item.rank ?? item.index ?? index + 1),
+      title: String(item.title ?? item.word ?? item.name ?? ""),
+      hot: Number(item.hot ?? item.num ?? item.read ?? item.value ?? 0),
+      label: item.label ?? item.label_name ?? "",
+      url: item.url ?? (item.word_scheme ? `https://s.weibo.com/weibo?q=${encodeURIComponent(item.word_scheme)}` : undefined),
+      category: item.category ?? "",
+      content: item.content ?? "",
+    }))
+  }
 
   const fetchData = async (activeTab: Tab) => {
     try {
@@ -106,7 +130,7 @@ export const WeiboHotSearch = () => {
       if (activeTab === "weibo") {
         const res = await getHotSearch()
         const body = res.data
-        setItems((Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : []).slice(0, 50))
+        setItems(normalizeWeiboItems(body).slice(0, 50))
       } else {
         const res = await get36krHot()
         const body = res.data
@@ -125,13 +149,19 @@ export const WeiboHotSearch = () => {
 
   // Initial load deferred (background)
   useDeferredEffect(() => {
-    setLoading(true)
-    fetchData(tab)
+    if (currentTabRef.current === initialTabRef.current) {
+      setLoading(true)
+      fetchData(initialTabRef.current)
+    }
   }, [], 2000)
 
   // Tab switch immediate
   useEffect(() => {
-    if (tab !== "weibo") {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      return
+    }
+    if (tab === "weibo" || tab === "36kr") {
       setLoading(true)
       fetchData(tab)
     }

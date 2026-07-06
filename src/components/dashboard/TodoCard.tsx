@@ -95,14 +95,14 @@ export const TodoCard = () => {
       </div>
 
       {/* Add input + priority selector */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 min-w-0">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           placeholder={user ? "Add a task for your account..." : "Add a guest task..."}
-          className="flex-1 h-11 bg-white/[0.045] rounded-2xl px-4 text-[13px] tracking-[0.01em] text-white/88 outline-none placeholder:text-white/18 border border-white/[0.06] focus:bg-white/[0.065] focus:border-white/12 focus:ring-1 focus:ring-neon-purple/15 transition-all"
+          className="min-w-0 flex-1 h-11 bg-white/[0.045] rounded-2xl px-4 text-[13px] tracking-[0.01em] text-white/88 outline-none placeholder:text-white/18 border border-white/[0.06] focus:bg-white/[0.065] focus:border-white/12 focus:ring-1 focus:ring-neon-purple/15 transition-all"
         />
         <button
           onClick={() => {
@@ -123,9 +123,9 @@ export const TodoCard = () => {
         <button
           onClick={add}
           disabled={submitting}
-          className="w-11 h-11 rounded-2xl bg-gradient-to-br from-neon-purple to-neon-cyan grid place-items-center hover:scale-[1.03] active:scale-95 transition-transform shadow-[0_12px_30px_rgba(139,92,246,0.28)] disabled:opacity-50"
+          className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-neon-purple to-neon-cyan grid place-items-center hover:scale-[1.03] active:scale-95 transition-transform shadow-[0_12px_30px_rgba(139,92,246,0.28)] border border-white/15 disabled:opacity-50"
         >
-          {submitting ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+          {submitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
         </button>
       </div>
 
