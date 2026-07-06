@@ -63,7 +63,7 @@ export const CodeBlock = ({ code, lang }: CodeBlockProps) => {
     <div className="group my-6 relative overflow-hidden rounded-2xl transition-all duration-300 hover:translate-y-[-2px]"
       style={{
         background: "linear-gradient(135deg, rgba(16,10,28,0.92) 0%, rgba(28,14,52,0.88) 100%)",
-        backdropFilter: "blur(20px)",
+        backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
         border: "1px solid rgba(255,255,255,0.08)",
         boxShadow: "0 0 0 1px rgba(255,255,255,0.03) inset, 0 20px 80px rgba(168,85,247,0.18), 0 8px 32px rgba(0,0,0,0.45)",
       }}

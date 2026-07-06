@@ -249,7 +249,7 @@ export const TimelineTab = ({
                           className="flex-1 min-w-0 ml-5 rounded-2xl p-4 border border-white/[0.06] transition-all duration-500 hover:translate-y-[-2px] hover:border-blue-400/20"
                           style={{
                             background: "rgba(255,255,255,0.025)",
-                            backdropFilter: "blur(12px)",
+                            backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
                             boxShadow: "0 4px 16px -6px rgba(0,0,0,0.3)",
                           }}
                         >
@@ -340,7 +340,7 @@ export const TimelineTab = ({
                       className="flex-1 min-w-0 ml-5 rounded-2xl p-4 border border-white/[0.06] transition-all duration-500 hover:translate-y-[-2px] hover:border-blue-400/20"
                       style={{
                         background: "rgba(255,255,255,0.025)",
-                        backdropFilter: "blur(12px)",
+                        backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
                         boxShadow: "0 4px 16px -6px rgba(0,0,0,0.3)",
                       }}
                     >

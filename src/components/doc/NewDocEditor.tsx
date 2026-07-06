@@ -57,7 +57,7 @@ const TitleDialog = ({ open, value, onChange, onSubmit, onCancel }: TitleDialogP
         className="relative w-[380px] p-7 rounded-2xl animate-dropdown-in"
         style={{
           background: "linear-gradient(135deg, rgba(20,14,30,0.95), rgba(30,18,48,0.92))",
-          backdropFilter: "blur(40px)",
+          backdropFilter: "blur(40px)", WebkitBackdropFilter: "blur(40px)",
           border: "1px solid rgba(255,255,255,0.08)",
           boxShadow: "0 0 0 1px rgba(255,255,255,0.03) inset, 0 20px 60px -10px rgba(0,0,0,0.6), 0 0 40px rgba(168,85,247,0.1)",
         }}
@@ -286,7 +286,7 @@ export const NewDocEditor = ({ onClose, onSaved, currentUserId, initialVisibilit
                     className="absolute top-full mt-1.5 left-0 z-20 p-1 rounded-xl min-w-[130px]"
                     style={{
                       background: "rgba(16,10,28,0.95)",
-                      backdropFilter: "blur(20px)",
+                      backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
                       border: "1px solid rgba(255,255,255,0.08)",
                       boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
                     }}

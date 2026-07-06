@@ -63,7 +63,7 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
         className="relative w-[calc(100vw-24px)] max-w-[400px] max-h-[calc(100vh-24px)] overflow-y-auto p-5 md:p-8 rounded-2xl animate-dropdown-in"
         style={{
           background: "linear-gradient(135deg, rgba(20,14,30,0.95), rgba(30,18,48,0.92))",
-          backdropFilter: "blur(40px)",
+          backdropFilter: "blur(40px)", WebkitBackdropFilter: "blur(40px)",
           border: "1px solid rgba(255,255,255,0.08)",
           boxShadow: "0 0 0 1px rgba(255,255,255,0.03) inset, 0 20px 60px -10px rgba(0,0,0,0.6), 0 0 40px rgba(168,85,247,0.1)",
         }}

@@ -124,7 +124,7 @@ const FaqDialog = ({
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 transition-opacity duration-300"
-        style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
+        style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)"}}
         onClick={onCancel}
       />
 
@@ -132,7 +132,7 @@ const FaqDialog = ({
         className="relative w-[540px] max-h-[85vh] rounded-[20px] flex flex-col overflow-hidden"
         style={{
           background: "linear-gradient(160deg, rgba(22,16,34,0.96) 0%, rgba(18,12,28,0.94) 50%, rgba(24,14,42,0.96) 100%)",
-          backdropFilter: "blur(48px)",
+          backdropFilter: "blur(48px)", WebkitBackdropFilter: "blur(48px)",
           border: "1px solid rgba(255,255,255,0.07)",
           boxShadow: [
             "0 0 0 1px rgba(255,255,255,0.02) inset",
