@@ -1,6 +1,14 @@
 import { CodeBlock } from "@/components/doc/CodeBlock";
 import type { ReactNode } from "react";
 
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[`~!@#$%^&*()+=<>?/\\|'"":;{}\[\],.]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+
 /* ─── Mini MD renderer ─── */
 export function MiniMd(text: string) {
   const html = text
@@ -34,6 +42,14 @@ export function renderMarkdown(md: string) {
   const els: ReactNode[] = [];
   let inCode = false, code: string[] = [], lang = "";
   let tableRows: { header: string[]; rows: string[][] } | null = null;
+  const headingCounts = new Map<string, number>();
+
+  const makeHeadingId = (text: string) => {
+    const base = slugify(text) || "heading";
+    const count = headingCounts.get(base) || 0;
+    headingCounts.set(base, count + 1);
+    return count === 0 ? base : `${base}-${count + 1}`;
+  };
 
   const flushTable = (idx: number) => {
     if (!tableRows) return;
@@ -95,23 +111,26 @@ export function renderMarkdown(md: string) {
     flushTable(i);
 
     if (line.startsWith("# ") && !line.startsWith("## ")) {
+      const title = line.slice(2);
       els.push(
-        <h1 key={k} className="text-[26px] font-bold tracking-[-0.02em] text-white/90 leading-[1.2] mb-6 pb-4"
+        <h1 id={makeHeadingId(title)} key={k} className="text-[26px] font-bold tracking-[-0.02em] text-white/90 leading-[1.2] mb-6 pb-4 scroll-mt-24"
           style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-          dangerouslySetInnerHTML={{ __html: inlineMd(line.slice(2)) }} />
+          dangerouslySetInnerHTML={{ __html: inlineMd(title) }} />
       );
     }
     else if (line.startsWith("## ")) {
+      const title = line.slice(3);
       els.push(
-        <h2 key={k} className="text-[17px] font-semibold tracking-[-0.01em] text-white/85 mt-9 mb-3 pb-2"
+        <h2 id={makeHeadingId(title)} key={k} className="text-[17px] font-semibold tracking-[-0.01em] text-white/85 mt-9 mb-3 pb-2 scroll-mt-24"
           style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
-          dangerouslySetInnerHTML={{ __html: inlineMd(line.slice(3)) }} />
+          dangerouslySetInnerHTML={{ __html: inlineMd(title) }} />
       );
     }
     else if (line.startsWith("### ")) {
+      const title = line.slice(4);
       els.push(
-        <h3 key={k} className="text-[14px] font-semibold tracking-[0.01em] text-white/75 mt-6 mb-2"
-          dangerouslySetInnerHTML={{ __html: inlineMd(line.slice(4)) }} />
+        <h3 id={makeHeadingId(title)} key={k} className="text-[14px] font-semibold tracking-[0.01em] text-white/75 mt-6 mb-2 scroll-mt-24"
+          dangerouslySetInnerHTML={{ __html: inlineMd(title) }} />
       );
     }
     else if (line.startsWith("- ")) {

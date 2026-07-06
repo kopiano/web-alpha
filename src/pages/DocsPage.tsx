@@ -34,6 +34,8 @@ const normalizeDocPath = (value?: string) => {
   return raw;
 };
 
+const getVisibilityFilterKey = (userId: number | null) => `docs_visibility_filter:${userId ?? "guest"}`;
+
 /* ─── Main ─── */
 export default function DocsPage() {
   const { articles, loading, refresh, upsertArticle, removeArticle } = useArticles();
@@ -67,7 +69,15 @@ export default function DocsPage() {
   const [faqCategories, setFaqCategories] = useState<string[]>([]);
   const [faqCatOpen, setFaqCatOpen] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
-  const [visibilityFilter, setVisibilityFilter] = useState<"private" | "public">("public");
+  const [visibilityFilter, setVisibilityFilter] = useState<"private" | "public">(() => {
+    try {
+      const stored = localStorage.getItem(getVisibilityFilterKey(null));
+      if (stored === "private" || stored === "public") return stored;
+    } catch {
+      // ignore storage failures
+    }
+    return "public";
+  });
 
   const FAQ_CAT_COLORS: Record<string, string> = {
     Backend: "#22d3ee", Frontend: "#a78bfa", Database: "#60a5fa",
@@ -126,8 +136,26 @@ export default function DocsPage() {
   }, [user?.id, user?.username, user?.email, user?.avatar]);
 
   useEffect(() => {
+    const key = getVisibilityFilterKey(user?.id ?? null);
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored === "private" || stored === "public") {
+        setVisibilityFilter(stored);
+        return;
+      }
+    } catch {
+      // ignore storage failures
+    }
     setVisibilityFilter(user ? "private" : "public");
   }, [user?.id]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(getVisibilityFilterKey(user?.id ?? null), visibilityFilter);
+    } catch {
+      // ignore storage failures
+    }
+  }, [visibilityFilter, user?.id]);
 
   const usersById = useMemo(() => {
     const map = new Map<number, any>();

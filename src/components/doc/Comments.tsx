@@ -305,15 +305,19 @@ export const CommentsSection = ({
   };
 
   return (
-    <div className="mt-10 pt-8 border-t border-white/[0.06]">
-      <div className="flex items-center gap-2 mb-8">
-        <MessageCircle size={15} className="text-blue-400/60" />
-        <h3 className="text-sm font-semibold text-white/85">Comments</h3>
-        <span className="text-[11px] text-white/25 ml-1">{comments.length}</span>
+    <section id="comments" className="mt-12 pt-8 border-t border-white/[0.08] scroll-mt-24">
+      <div className="flex items-center gap-2 mb-6">
+        <div className="w-8 h-8 rounded-full grid place-items-center border border-white/10 bg-white/[0.03]">
+          <MessageCircle size={15} className="text-cyan-300/70" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-white/88">Comments</h3>
+          <p className="text-[11px] text-white/30">{comments.length} discussion{comments.length === 1 ? "" : "s"}</p>
+        </div>
       </div>
 
       {/* Comment Form */}
-      <div className="mb-8">
+      <div className="mb-8 rounded-[24px] border border-white/[0.06] bg-white/[0.025] backdrop-blur-[18px] p-4 md:p-5">
         <div className="space-y-4">
           <div className="flex gap-5">
             <div className="flex-1 border-b border-white/[0.06] focus-within:border-blue-400/30 transition-colors">
@@ -485,8 +489,14 @@ export const CommentsSection = ({
             <div className="mt-6 border-b border-white/[0.04]" />
           </div>
         ))}
+        {comments.length === 0 && (
+          <div className="rounded-[22px] border border-dashed border-white/[0.08] bg-white/[0.015] px-5 py-8 text-center">
+            <p className="text-[12px] font-medium text-white/70">No comments yet</p>
+            <p className="mt-1 text-[11px] text-white/30">Be the first to start the discussion.</p>
+          </div>
+        )}
       </div>
       <div ref={commentEndRef} />
-    </div>
+    </section>
   );
 };

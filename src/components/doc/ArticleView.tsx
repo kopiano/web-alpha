@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { BookOpen, Eye, FileText, Save, Loader2, Trash2, X, Eye as PublicEye, Lock, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BookOpen, Eye, FileText, Save, Loader2, Trash2, X, Eye as PublicEye, Lock, ChevronDown, ListTree } from "lucide-react";
 import { toast } from "sonner";
 import { renderMarkdown } from "@/components/doc/DocRenderer";
 import { CommentsSection } from "@/components/doc/Comments";
@@ -99,6 +99,48 @@ export const ArticleView = ({
     ? "You do not have permission to edit this document"
     : "请登录再使用此功能";
 
+  const tocTree = useMemo(() => {
+    if (viewMode !== "preview") return [];
+    const lines = previewMd.split("\n");
+    const counts = new Map<string, number>();
+    const slugify = (value: string) =>
+      value
+        .toLowerCase()
+        .trim()
+        .replace(/[`~!@#$%^&*()+=<>?/\\|'"":;{}\[\],.]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-");
+    const items: { id: string; title: string; level: number; children: any[] }[] = [];
+    let inCode = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("```")) {
+        inCode = !inCode;
+        continue;
+      }
+      if (inCode) continue;
+      const match = /^(#{1,3})\s+(.+)$/.exec(trimmed);
+      if (!match) continue;
+      const level = match[1].length;
+      const title = match[2].trim();
+      const base = slugify(title) || "heading";
+      const count = counts.get(base) || 0;
+      counts.set(base, count + 1);
+      const id = count === 0 ? base : `${base}-${count + 1}`;
+      items.push({ id, title, level, children: [] });
+    }
+    const tree: { id: string; title: string; level: number; children: any[] }[] = [];
+    const stack: { id: string; title: string; level: number; children: any[] }[] = [];
+    items.forEach((item) => {
+      const node = item;
+      while (stack.length && stack[stack.length - 1].level >= node.level) stack.pop();
+      if (!stack.length) tree.push(node);
+      else stack[stack.length - 1].children.push(node);
+      stack.push(node);
+    });
+    return tree;
+  }, [previewMd, viewMode]);
+
   const handleSave = async () => {
     if (!sel.id) return;
     if (!canEditContent) {
@@ -164,7 +206,8 @@ export const ArticleView = ({
   };
 
   return (
-    <div className="max-w-3xl">
+    <div className="flex items-start gap-6 xl:gap-8">
+      <div className="min-w-0 flex-1 max-w-3xl">
       {/* Top bar: tag + controls */}
       <div className={`flex items-center mb-6 ${viewMode === "raw" ? "justify-start gap-0" : "justify-between"}`}>
         <div className="flex items-center gap-3">
@@ -181,7 +224,7 @@ export const ArticleView = ({
           )}
           {viewMode !== "raw" && (
             <span className="text-[11px] text-white/40">
-              {sel.author} · {sel.readTime}
+              {sel.author}
             </span>
           )}
         </div>
@@ -407,6 +450,51 @@ export const ArticleView = ({
           </div>
         </div>
       )}
+      </div>
+
+      {viewMode === "preview" && tocTree.length > 0 && (
+        <aside className="hidden xl:block fixed right-8 top-1/2 -translate-y-1/2 w-72 z-20">
+          <div className="rounded-[24px] border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-4 shadow-[0_18px_60px_-24px_rgba(0,0,0,0.55)] max-h-[70vh] overflow-hidden">
+            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+              <ListTree size={12} className="text-cyan-300/70" />
+              Index
+            </div>
+            <div className="mt-4 max-h-[calc(70vh-3.5rem)] overflow-auto pr-1 scrollbar-thin">
+              <TreeNodeList nodes={tocTree as any} />
+            </div>
+          </div>
+        </aside>
+      )}
     </div>
+  );
+};
+
+const TreeNodeList = ({ nodes, depth = 0 }: { nodes: { id: string; title: string; level: number; children: any[] }[]; depth?: number }) => {
+  return (
+    <ul className={`${depth > 0 ? "mt-1.5 ml-4 pl-3 border-l border-white/[0.08]" : "space-y-1.5"}`}>
+      {nodes.map((node) => (
+        <li key={node.id} className="mb-1.5 last:mb-0">
+          <button
+            type="button"
+            onClick={() => document.getElementById(node.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className={`group w-full flex items-center gap-2 rounded-2xl px-3 py-2 text-left transition-all duration-200 hover:bg-white/[0.05] hover:translate-x-[2px]`}
+          >
+            <span className={`shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] ${
+              node.level === 1 ? "text-cyan-300/90" : node.level === 2 ? "text-white/45" : "text-white/30"
+            }`}>
+              {node.level === 1 ? "H1" : node.level === 2 ? "H2" : "H3"}
+            </span>
+            <span className={`min-w-0 flex-1 text-[11px] leading-5 truncate ${
+              node.level === 1 ? "font-semibold text-white/82" :
+              node.level === 2 ? "font-medium text-white/62" :
+              "text-white/46"
+            }`}>
+              {node.title}
+            </span>
+          </button>
+          {node.children?.length > 0 && <TreeNodeList nodes={node.children} depth={depth + 1} />}
+        </li>
+      ))}
+    </ul>
   );
 };

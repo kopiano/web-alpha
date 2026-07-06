@@ -3,7 +3,7 @@ import { fetchDocList } from "@/api/doc";
 import { resolveImageAvatar } from "@/lib/avatar";
 import {
   CATEGORIES, TAG_COLORS, CAT_COLORS, TAG_ICONS, TAGS,
-  LOCAL_ARTICLES, Article,
+  Article,
 } from "@/components/doc/docsData";
 
 const normalizeDocTime = (value?: string) => {
@@ -87,7 +87,7 @@ const normalizeArticle = (item: any): Article => {
 
 /* ─── Hook: fetch docs from backend, fallback to local ─── */
 export function useArticles() {
-  const [articles, setArticles] = useState<Article[]>(LOCAL_ARTICLES);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
 
   const upsertArticle = useCallback((article: Article) => {
@@ -131,19 +131,17 @@ export function useArticles() {
               setArticles(sortArticles(fetched.filter((item, index, self) => index === self.findIndex((cur) => articleKey(cur) === articleKey(item)))));
             });
           }
-      setArticles((prev) => (prev.length > 0 ? prev : LOCAL_ARTICLES));
+          setArticles([]);
           return;
         }
         const data = payload?.data ?? payload ?? [];
         const list = Array.isArray(data) ? data : data.list ?? [];
-        if (list.length > 0) {
-          const fetched = list.map((item: any) => normalizeArticle(item));
-          setArticles(sortArticles(fetched.filter((item, index, self) => index === self.findIndex((cur) => articleKey(cur) === articleKey(item)))));
-        } else {
-          setArticles((prev) => (prev.length > 0 ? prev : LOCAL_ARTICLES));
-        }
+        const fetched = list.map((item: any) => normalizeArticle(item));
+        setArticles(sortArticles(fetched.filter((item, index, self) => index === self.findIndex((cur) => articleKey(cur) === articleKey(item)))));
       })
-      .catch(() => {})
+      .catch(() => {
+        setArticles([]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
