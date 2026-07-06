@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { BookOpen, Activity, ArrowRight, Loader2, Eye, Lock, PencilLine } from "lucide-react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import type { Article } from "@/hooks/useArticles";
 import type { TimelineGroup } from "@/hooks/useTimeline";
 import { resolveAvatar, resolveImageAvatar } from "@/lib/avatar";
@@ -11,6 +12,7 @@ interface TimelineTabProps {
   articles: Article[];
   setSelectedIdx: (idx: number | null) => void;
   openArticle?: (article: Article) => void;
+  currentUserId?: number | null;
   TAG_COLORS: Record<string, string>;
   TAG_ICONS: Record<string, any>;
   usersById?: Map<number, any>;
@@ -63,6 +65,7 @@ export const TimelineTab = ({
   articles,
   setSelectedIdx,
   openArticle,
+  currentUserId = null,
   TAG_COLORS,
   TAG_ICONS,
   usersById = new Map(),
@@ -115,6 +118,41 @@ export const TimelineTab = ({
     const src = getAvatarSrc(resolveImageAvatar(rawAvatar) || rawAvatar);
     const label = getAvatarLabel(user?.username || user?.name || fallbackName, id > 0 ? "U" : "G");
     return { src, label };
+  };
+  const getOwnerId = (article: Article) => {
+    const primary = Number(article.userId ?? 0);
+    if (primary > 0) return primary;
+    const firstContributor = Array.isArray(article.contributors) ? Number(article.contributors[0] ?? 0) : 0;
+    return firstContributor > 0 ? firstContributor : 0;
+  };
+  const isOwner = (article: Article) => getOwnerId(article) > 0 && getOwnerId(article) === Number(currentUserId ?? 0);
+  const canViewArticle = (article: Article) => Number(article.visibility ?? 1) !== 0 || isOwner(article);
+  const handleDocClick = (article: Article, index: number, e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!canViewArticle(article)) {
+      e.preventDefault();
+      toast.error("该文档为 private，请向创作者申请 public 查看权限");
+      return;
+    }
+    if (openArticle) {
+      e.preventDefault();
+      openArticle(article);
+      return;
+    }
+    setSelectedIdx(Number(article.id ?? articles.findIndex((item) => item.id === article.id)));
+  };
+  const handleVisibilityBadgeClick = (article: Article, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (Number(article.visibility ?? 1) === 0 && !isOwner(article)) {
+      toast.error("该文档为 private，请向创作者申请 public 查看权限");
+    }
+  };
+  const handleEditBadgeClick = (article: Article, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (Number(article.editPermission ?? 0) === 0 && !isOwner(article)) {
+      toast.error("该文档仅创作者可编辑，请向创作者申请编辑权限");
+    }
   };
   const getAvatarItems = (article: Article) => {
     const contributorIds = Array.isArray(article.contributors)
@@ -290,15 +328,9 @@ export const TimelineTab = ({
                       <Link
                         key={article.path || `${month}-${i}`}
                         to={href}
-                        className="relative flex items-center cursor-pointer group text-left"
-                        onClick={(e) => {
-                          if (openArticle) {
-                            e.preventDefault();
-                            openArticle(article);
-                            return;
-                          }
-                          setSelectedIdx(Number(article.id ?? articles.findIndex((item) => item.id === article.id)));
-                        }}
+                        aria-disabled={!canViewArticle(article)}
+                        className={`relative flex items-center group text-left ${canViewArticle(article) ? "cursor-pointer" : "cursor-not-allowed"}`}
+                        onClick={(e) => handleDocClick(article, i, e)}
                       >
                         {/* 日期 */}
                         <div className="shrink-0 text-right pr-5" style={{ width: "100px" }}>
@@ -355,14 +387,20 @@ export const TimelineTab = ({
                                 </div>
                               ))}
                             </div>
-                            <span className={`inline-flex items-center justify-center gap-1 text-[9px] font-semibold px-2 py-1 rounded-full border shrink-0 ${BADGE_WIDTH} ${getVisibilityMeta(article.visibility).className}`}>
+                            <span
+                              onClick={(e) => handleVisibilityBadgeClick(article, e)}
+                              className={`inline-flex items-center justify-center gap-1 text-[9px] font-semibold px-2 py-1 rounded-full border shrink-0 ${BADGE_WIDTH} ${getVisibilityMeta(article.visibility).className} ${Number(article.visibility ?? 1) === 0 && !isOwner(article) ? "cursor-pointer" : ""}`}
+                            >
                               {(() => {
                                 const { Icon } = getVisibilityMeta(article.visibility);
                                 return <Icon size={10} />;
                               })()}
                               {getVisibilityMeta(article.visibility).label}
                             </span>
-                            <span className={`inline-flex items-center justify-center gap-1 text-[9px] font-semibold px-2 py-1 rounded-full border shrink-0 ${BADGE_WIDTH} ${getEditMeta(article.editPermission).className}`}>
+                            <span
+                              onClick={(e) => handleEditBadgeClick(article, e)}
+                              className={`inline-flex items-center justify-center gap-1 text-[9px] font-semibold px-2 py-1 rounded-full border shrink-0 ${BADGE_WIDTH} ${getEditMeta(article.editPermission).className} ${Number(article.editPermission ?? 0) === 0 && !isOwner(article) ? "cursor-pointer" : ""}`}
+                            >
                               {(() => {
                                 const { Icon } = getEditMeta(article.editPermission);
                                 return <Icon size={10} />;
@@ -403,15 +441,9 @@ export const TimelineTab = ({
                   <Link
                     key={article.path || `${timelineYear}-${timelineMonth}-${i}`}
                     to={href}
-                    className="relative flex items-center cursor-pointer group text-left"
-                    onClick={(e) => {
-                      if (openArticle) {
-                        e.preventDefault();
-                        openArticle(article);
-                        return;
-                      }
-                      setSelectedIdx(Number(article.id ?? articles.findIndex((item) => item.id === article.id)));
-                    }}
+                    aria-disabled={!canViewArticle(article)}
+                    className={`relative flex items-center group text-left ${canViewArticle(article) ? "cursor-pointer" : "cursor-not-allowed"}`}
+                    onClick={(e) => handleDocClick(article, i, e)}
                   >
                     <div className="shrink-0 text-right pr-5" style={{ width: "100px" }}>
                       <span className="text-[10px] text-white/30 font-mono tracking-tight">

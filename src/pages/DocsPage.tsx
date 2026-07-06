@@ -223,6 +223,20 @@ export default function DocsPage() {
     }
   }, [activeTab, user?.id]);
 
+  useEffect(() => {
+    if (user === undefined) return;
+    setSelectedDocId(null);
+    setComments([]);
+    setRawComments([]);
+    setArticleMd("");
+    setEditContent("");
+    setViewMode("preview");
+    setIsEditing(false);
+    prevSelRef.current = null;
+    void refresh();
+    void refreshTimeline();
+  }, [user, user?.id, refresh, refreshTimeline]);
+
   const usersById = useMemo(() => {
     const map = new Map<number, any>();
     users.forEach((item) => {
@@ -519,6 +533,7 @@ export default function DocsPage() {
         articles={articles}
         setSelectedIdx={setSelectedDocId}
         openArticle={openArticle}
+        currentUserId={currentUserId}
         TAG_COLORS={TAG_COLORS}
         TAG_ICONS={TAG_ICONS}
         timelineGroups={timelineGroups}

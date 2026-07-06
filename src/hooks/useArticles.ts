@@ -58,7 +58,7 @@ const normalizeArticle = (item: any): Article => {
     contributors: Array.isArray(item.contributors)
       ? item.contributors.map((value: any) => Number(value)).filter((value: number) => Number.isFinite(value) && value >= 0)
       : (Number(item.user_id ?? item.userId ?? item.UserID ?? 0) > 0 ? [Number(item.user_id ?? item.userId ?? item.UserID ?? 0)] : [0]),
-    visibility: Number(item.visibility ?? item.Visibility ?? 1) || 1,
+    visibility: Number.isFinite(Number(item.visibility ?? item.Visibility)) ? Number(item.visibility ?? item.Visibility) : 1,
     editPermission: Number(item.edit_permission ?? item.editPermission ?? 0) || 0,
     title: item.title || "Untitled",
     desc: item.excerpt || item.content?.split("\n").slice(1, 3).join(" ").replace(/[#*`]/g, "").trim().slice(0, 100) || "Documentation file.",

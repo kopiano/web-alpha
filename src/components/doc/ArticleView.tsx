@@ -149,12 +149,13 @@ export const ArticleView = ({
     }
     setSaving(true);
     try {
+      const nextEditPermission = editVisibility === 0 ? 0 : editPermission;
       const res = await updateDoc(sel.id, {
         category: editTag.toLowerCase(),
         title: sel.title,
         content: editContent,
         visibility: editVisibility,
-        edit_permission: editPermission,
+        edit_permission: nextEditPermission,
         editor_user_id: currentUserId ?? undefined,
       });
       const updated = res.data?.data || {};
@@ -168,7 +169,7 @@ export const ArticleView = ({
         ...updated,
         tag: updated.category || editTag,
         visibility: Number(updated.visibility ?? editVisibility),
-        editPermission: Number(updated.edit_permission ?? editPermission),
+        editPermission: Number(updated.edit_permission ?? nextEditPermission),
         editorAvatar: !isOwner && loggedInUser?.username ? loggedInUser.username.slice(0, 2).toUpperCase() : "",
         editorAvatarUrl: !isOwner ? (resolveImageAvatar(loggedInUser?.avatarUrl || undefined) || "") : "",
         content: updated.content || editContent,
@@ -229,7 +230,7 @@ export const ArticleView = ({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-auto">
           {viewMode === "raw" && isOwner && (
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -255,7 +256,10 @@ export const ArticleView = ({
                   <button
                     type="button"
                     disabled={!canChangeEditPermission}
-                    onClick={() => canChangeEditPermission && setEditVisibility(0)}
+                    onClick={() => {
+                      if (!canChangeEditPermission) return;
+                      setEditVisibility(0);
+                    }}
                     className={`relative z-10 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors duration-200 ${editVisibility === 0 ? "text-white" : "text-white/40 hover:text-white/70"} ${!canChangeEditPermission ? "cursor-not-allowed opacity-50" : ""}`}
                   >
                     <Lock size={10} className="inline-block mr-1" />
@@ -264,7 +268,10 @@ export const ArticleView = ({
                   <button
                     type="button"
                     disabled={!canChangeEditPermission}
-                    onClick={() => canChangeEditPermission && setEditVisibility(1)}
+                    onClick={() => {
+                      if (!canChangeEditPermission) return;
+                      setEditVisibility(1);
+                    }}
                     className={`relative z-10 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors duration-200 ${editVisibility === 1 ? "text-white" : "text-white/40 hover:text-white/70"} ${!canChangeEditPermission ? "cursor-not-allowed opacity-50" : ""}`}
                   >
                     <PublicEye size={10} className="inline-block mr-1" />
@@ -311,7 +318,7 @@ export const ArticleView = ({
           )}
 
           {/* Preview / Raw toggle */}
-          <div className="flex rounded-full border border-white/10 bg-white/[0.03] p-0.5 gap-0.5">
+          <div className="flex rounded-full border border-white/10 bg-white/[0.03] p-0.5 gap-0.5 shrink-0">
             <button
               onClick={() => { setArticleMd(editContent || articleMd || sel.content); setViewMode("preview"); }}
               className={`px-3 py-1.5 rounded-full text-[10px] font-medium transition-all duration-200 flex items-center gap-1.5 ${viewMode === "preview"
@@ -341,7 +348,7 @@ export const ArticleView = ({
             <button
               onClick={() => canDelete && setConfirmDeleteOpen(true)}
               disabled={!canDelete}
-              className="w-8 h-8 rounded-lg grid place-items-center transition-all duration-200 border border-white/10 text-white/35 hover:text-rose-200 hover:border-rose-400/30 hover:bg-rose-400/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
+              className="w-8 h-8 rounded-lg grid place-items-center transition-all duration-200 border border-white/10 text-white/35 hover:text-rose-200 hover:border-rose-400/30 hover:bg-rose-400/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 shrink-0"
               title="Delete document"
             >
               <Trash2 size={12} />
