@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react"
-import { User, Loader2, Camera, Eye, EyeOff } from "lucide-react"
+import { User, Loader2, Camera, Eye, EyeOff, Lock } from "lucide-react"
 import { toast } from "sonner"
 import { login, register } from "@/api/auth"
 import { useNotifications } from "./NotificationProvider"
@@ -251,6 +251,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
               Password
             </label>
             <div className="relative">
+              <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
@@ -259,7 +260,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 name="auth-password"
                 data-form-type={mode === "login" ? "password" : "new-password"}
-                className="w-full h-10 px-3 pr-10 rounded-xl bg-white/5 border border-white/[0.06] text-[13px] md:text-[12px] leading-none font-medium tracking-[0.08em] text-white/90 font-sans
+                className="w-full h-10 pl-9 pr-10 rounded-xl bg-white/5 border border-white/[0.06] text-[13px] md:text-[12px] leading-none font-medium tracking-[0.08em] text-white/90 font-sans
                   placeholder:text-white/22 placeholder:font-normal placeholder:tracking-[0.01em]
                   focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.08] focus:text-white transition-all duration-200"
               />
