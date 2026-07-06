@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { memo, useState, useRef, useEffect, useCallback } from "react";
 import {
   Play,
   Pause,
@@ -32,6 +32,39 @@ const playerGlassStyle = {
   WebkitBackdropFilter: "blur(32px) saturate(200%)",
   border: "1px solid hsl(0 0% 100% / .22)",
 };
+
+const playlistPanelStyle = {
+  background: "rgba(255,255,255,0.03)",
+  backdropFilter: "blur(56px) saturate(220%)",
+  WebkitBackdropFilter: "blur(56px) saturate(220%)",
+  border: "1px solid rgba(255,255,255,0.14)",
+  boxShadow: "0 20px 56px -14px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.06)",
+  isolation: "isolate",
+  transform: "translateZ(0)",
+  willChange: "transform, opacity",
+  backfaceVisibility: "hidden",
+  contain: "layout paint style",
+} as const;
+
+const playlistHeaderStyle = {
+  background: "rgba(255,255,255,0.03)",
+} as const;
+
+const playlistToggleStyle = {
+  background: "rgba(255,255,255,0.14)",
+  backdropFilter: "blur(12px)",
+  WebkitBackdropFilter: "blur(12px)",
+  border: "1px solid rgba(255,255,255,0.18)",
+  color: "rgba(255,255,255,0.80)",
+} as const;
+
+const playlistToggleIdleStyle = {
+  background: "transparent",
+  backdropFilter: "none",
+  WebkitBackdropFilter: "none",
+  border: "none",
+  color: "rgba(255,255,255,0.30)",
+} as const;
 
 /* ─── Marquee text ─── */
 const MarqueeLine = ({ title, artist }: { title: string; artist: string }) => {
@@ -288,15 +321,28 @@ export const MusicPlayer = () => {
   /* ─── Apple-style spring animation ─── */
   const spring = "cubic-bezier(0.32, 0.72, 0, 1)";
 
-  const doCollapse = () => { setCollapsed(true); };
-
-  const doExpand = () => { setCollapsed(false); };
+  const doCollapse = useCallback(() => { setCollapsed(true); }, []);
+  const doExpand = useCallback(() => { setCollapsed(false); }, []);
+  const togglePlaylist = useCallback(() => { setShowPlaylist((v) => !v); }, []);
+  const handleTrackSelect = useCallback((index: number) => {
+    setTrackIdx(index);
+    setShowPlaylist(false);
+  }, []);
 
   if (!playlist.length) return null;
   const track = playlist[trackIdx];
   if (!track) return null;
 
   // Unused animation state removed
+
+  const playlistPanel = (
+    <PlaylistDropdown
+      playlist={playlist}
+      trackIdx={trackIdx}
+      playing={playing}
+      onSelectTrack={handleTrackSelect}
+    />
+  );
 
   return (
     <>
@@ -431,47 +477,28 @@ export const MusicPlayer = () => {
         </div>
 
         <div className="relative" style={{opacity:collapsed?0:1,transition:"opacity 0.4s ease 0.2s"}}>
-          <button onClick={() => setShowPlaylist(!showPlaylist)}
+          <button onClick={togglePlaylist}
             className="w-8 h-8 rounded-[50%] grid place-items-center"
-            style={{background:showPlaylist?"rgba(255,255,255,0.14)":"transparent",backdropFilter:showPlaylist?"blur(12px)":"none",border:showPlaylist?"1px solid rgba(255,255,255,0.18)":"none",color:showPlaylist?"rgba(255,255,255,0.80)":"rgba(255,255,255,0.30)"}}>
+            style={showPlaylist ? playlistToggleStyle : playlistToggleIdleStyle}>
             <ListMusic size={14} />
           </button>
           {showPlaylist && (
             <div
               className="absolute top-full right-0 mt-5 w-64 rounded-[2rem] overflow-hidden z-50"
-              style={{
-                background: "rgba(255,255,255,0.025)",
-                backdropFilter: "blur(56px) saturate(220%)",
-                WebkitBackdropFilter: "blur(56px) saturate(220%)",
-                border: "1px solid rgba(255,255,255,0.14)",
-                boxShadow: "0 20px 56px -14px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.06)",
-                isolation: "isolate",
-              }}
+              style={playlistPanelStyle}
             >
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02) 35%, rgba(255,255,255,0.00) 100%)",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.11), rgba(255,255,255,0.03) 35%, rgba(255,255,255,0.00) 100%)",
                 }}
               />
-              <div className="px-4 pt-3 pb-2 border-b border-white/[0.08]" style={{ background: "rgba(255,255,255,0.03)" }}>
+              <div className="px-4 pt-3 pb-2 border-b border-white/[0.08]" style={playlistHeaderStyle}>
                 <p className="text-[10px] font-semibold text-white/58 uppercase tracking-[0.15em]">Playlist</p>
                 <p className="text-[11px] text-white/38 mt-0.5">{playlist.length} tracks</p>
               </div>
               <div className="p-2 max-h-[260px] overflow-y-auto scrollbar-none">
-                {playlist.map((t, i) => (
-                  <button key={i} onClick={()=>{setTrackIdx(i); setShowPlaylist(false);}}
-                    className={`w-full text-left px-3 py-2.5 rounded-[1.1rem] flex items-center gap-3 transition-all duration-200 ${i===trackIdx?"bg-white/[0.10]":"hover:bg-white/[0.05]"}`}>
-                    <div className={`w-7 h-7 rounded-[50%] grid place-items-center shrink-0 text-[10px] font-bold ${i===trackIdx?"bg-white/20 text-white":"text-white/40 bg-white/[0.08]"}`}>
-                      {i===trackIdx&&playing?<span className="flex gap-[2px] items-center"><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"0ms",animationDuration:"0.6s"}}/><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"150ms",animationDuration:"0.6s"}}/><span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{animationDelay:"300ms",animationDuration:"0.6s"}}/></span>:String(i+1).padStart(2,"0")}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-[12px] font-medium truncate leading-tight ${i===trackIdx?"text-white":"text-white/70"}`}>{t.title}</p>
-                      <p className="text-[9px] text-white/40 truncate mt-0.5">{t.artist}</p>
-                    </div>
-                    {i===trackIdx&&<span className="w-1.5 h-1.5 rounded-full shrink-0" style={{background:"rgba(255,255,255,0.55)",boxShadow:"0 0 6px rgba(255,255,255,0.2)"}}/>}
-                  </button>
-                ))}
+                {playlistPanel}
               </div>
             </div>
           )}
@@ -481,3 +508,53 @@ export const MusicPlayer = () => {
     </>
   );
 };
+
+const PlaylistDropdown = memo(function PlaylistDropdown({
+  playlist,
+  trackIdx,
+  playing,
+  onSelectTrack,
+}: {
+  playlist: Track[];
+  trackIdx: number;
+  playing: boolean;
+  onSelectTrack: (index: number) => void;
+}) {
+  return (
+    <>
+      {playlist.map((t, i) => (
+        <button
+          key={t.file || `${t.title}-${i}`}
+          onClick={() => onSelectTrack(i)}
+          className={`w-full text-left px-3 py-2.5 rounded-[1.1rem] flex items-center gap-3 transition-all duration-200 ${
+            i === trackIdx ? "bg-white/[0.10]" : "hover:bg-white/[0.05]"
+          }`}
+        >
+          <div className={`w-7 h-7 rounded-[50%] grid place-items-center shrink-0 text-[10px] font-bold ${
+            i === trackIdx ? "bg-white/20 text-white" : "text-white/40 bg-white/[0.08]"
+          }`}>
+            {i === trackIdx && playing ? (
+              <span className="flex gap-[2px] items-center">
+                <span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{ animationDelay: "0ms", animationDuration: "0.6s" }} />
+                <span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{ animationDelay: "150ms", animationDuration: "0.6s" }} />
+                <span className="w-0.5 h-2.5 bg-white rounded-full animate-bounce" style={{ animationDelay: "300ms", animationDuration: "0.6s" }} />
+              </span>
+            ) : (
+              String(i + 1).padStart(2, "0")
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`text-[12px] font-medium truncate leading-tight ${i === trackIdx ? "text-white" : "text-white/70"}`}>{t.title}</p>
+            <p className="text-[9px] text-white/40 truncate mt-0.5">{t.artist}</p>
+          </div>
+          {i === trackIdx && (
+            <span
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ background: "rgba(255,255,255,0.55)", boxShadow: "0 0 6px rgba(255,255,255,0.2)" }}
+            />
+          )}
+        </button>
+      ))}
+    </>
+  );
+});
