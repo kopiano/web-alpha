@@ -453,13 +453,14 @@ export const ArticleView = ({
       </div>
 
       {viewMode === "preview" && tocTree.length > 0 && (
-        <aside className="hidden xl:block fixed right-8 top-1/2 -translate-y-1/2 w-72 z-20">
-          <div className="rounded-[24px] border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-4 shadow-[0_18px_60px_-24px_rgba(0,0,0,0.55)] max-h-[70vh] overflow-hidden">
+        // md index
+        <aside className="hidden xl:block fixed right-5 top-1/2 -translate-y-1/2 w-60 z-20">
+          <div className="rounded-[24px] border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-4 shadow-[0_18px_60px_-24px_rgba(0,0,0,0.55)] max-h-[calc(100vh-180px)] overflow-y-auto overflow-x-hidden scrollbar-thin">
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
               <ListTree size={12} className="text-cyan-300/70" />
               Index
             </div>
-            <div className="mt-4 max-h-[calc(70vh-3.5rem)] overflow-auto pr-1 scrollbar-thin">
+            <div className="mt-4 pr-1">
               <TreeNodeList nodes={tocTree as any} />
             </div>
           </div>
@@ -477,14 +478,14 @@ const TreeNodeList = ({ nodes, depth = 0 }: { nodes: { id: string; title: string
           <button
             type="button"
             onClick={() => document.getElementById(node.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className={`group w-full flex items-center gap-2 rounded-2xl px-3 py-2 text-left transition-all duration-200 hover:bg-white/[0.05] hover:translate-x-[2px]`}
+            className={`group w-full flex items-center gap-2 rounded-2xl px-3 py-1.5 text-left transition-all duration-200 hover:bg-white/[0.05] hover:translate-x-[2px]`}
           >
             <span className={`shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] ${
               node.level === 1 ? "text-cyan-300/90" : node.level === 2 ? "text-white/45" : "text-white/30"
             }`}>
               {node.level === 1 ? "H1" : node.level === 2 ? "H2" : "H3"}
             </span>
-            <span className={`min-w-0 flex-1 text-[11px] leading-5 truncate ${
+            <span className={`min-w-0 flex-1 text-[11px] leading-4 truncate ${
               node.level === 1 ? "font-semibold text-white/82" :
               node.level === 2 ? "font-medium text-white/62" :
               "text-white/46"

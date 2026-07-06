@@ -108,3 +108,6 @@ vite打包后index.js如果超过500KB就需要优化
 ### css prompt：
 * 按钮滑块式平移动画
 * 页面平滑切换
+
+### 功能
+* localStorage：刷新、关闭浏览器后还保留
