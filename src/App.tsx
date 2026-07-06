@@ -31,6 +31,11 @@ const preloadRoutes = () => {
 
 const App = () => {
   useEffect(() => {
+    const ua = navigator.userAgent.toLowerCase();
+    const platform = navigator.platform.toLowerCase();
+    const isWindows = platform.includes("win") || ua.includes("windows");
+    document.documentElement.dataset.os = isWindows ? "windows" : "mac";
+
     const schedule = window.requestIdleCallback
       ? window.requestIdleCallback(() => preloadRoutes())
       : window.setTimeout(preloadRoutes, 800);

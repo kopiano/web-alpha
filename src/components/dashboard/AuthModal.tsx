@@ -138,8 +138,8 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative w-[calc(100vw-24px)] max-w-[400px] max-h-[calc(100vh-24px)] overflow-y-auto glass-strong rounded-2xl p-5 md:p-8 animate-dropdown-in">
+      <div className="absolute inset-0 auth-modal-overlay" onClick={onClose} />
+      <div className="relative w-[calc(100vw-24px)] max-w-[400px] max-h-[calc(100vh-24px)] overflow-y-auto glass-strong rounded-2xl p-5 md:p-8 animate-dropdown-in auth-modal-panel">
         <button
           className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
           onClick={onClose}
