@@ -77,6 +77,15 @@ function writeAccountMap(map: Record<string, string>) {
   } catch { /* ignore */ }
 }
 
+function createVisitorId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch { /* ignore */ }
+  return `v_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /* ─── visitor ID strategy ───
  *
  *  Guest → Login (1st account)   : promote guest visitor_id → same record
@@ -107,7 +116,7 @@ function getOrCreateVisitorId(username?: string): string {
     }
 
     // 3) New / different account → fresh visitor_id
-    const newId = crypto.randomUUID();
+    const newId = createVisitorId();
     accountMap[username] = newId;
     writeAccountMap(accountMap);
     localStorage.setItem(VISITOR_ID_KEY, newId);
@@ -117,7 +126,7 @@ function getOrCreateVisitorId(username?: string): string {
 
   // Guest — reuse existing or create one
   if (currentId) return currentId;
-  const newId = crypto.randomUUID();
+  const newId = createVisitorId();
   localStorage.setItem(VISITOR_ID_KEY, newId);
   return newId;
 }

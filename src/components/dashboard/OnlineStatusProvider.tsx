@@ -3,6 +3,7 @@ import { useAuth } from "./AuthProvider"
 
 export interface WsMessage {
   type: string
+  event?: string
   chat_type?: string
   content?: string
   sender_id?: number
@@ -44,16 +45,35 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
   const connect = () => {
     if (!user) return
     const protocol = location.protocol === "https:" ? "wss:" : "ws:"
-    const ws = new WebSocket(
-      `${protocol}//${location.host}/api/v1/chat/ws?user_id=${user.id}&username=${encodeURIComponent(user.username)}&avatar=${encodeURIComponent(user.username.slice(0, 2).toUpperCase())}`
-    )
+    const token = localStorage.getItem("token")
+    if (!token) return
+    const wsBase = import.meta.env.VITE_API_URL?.startsWith("/api")
+      ? `${protocol}//${location.host}`
+      : (import.meta.env.VITE_API_URL || `${location.origin}/api/v1`).replace(/\/api\/v1\/?$/, "")
+    const params = new URLSearchParams({
+      token,
+      user_id: String(user.id),
+      username: user.username,
+      avatar: user.avatar || "",
+    })
+    const ws = new WebSocket(`${wsBase}/api/v1/chat/ws?${params.toString()}`)
     wsRef.current = ws
 
     ws.onmessage = (e) => {
       try {
         const d: WsMessage = JSON.parse(e.data)
-        if (d.type === "online" && d.users) {
+        if ((d.event === "presence.snapshot" || d.type === "presence") && d.users) {
           setOnlineUsers(new Set(d.users.map((u: any) => u.user_id)))
+        }
+        if (d.event === "user.online" && d.user_id) {
+          setOnlineUsers(prev => new Set([...prev, d.user_id as number]))
+        }
+        if (d.event === "user.offline" && d.user_id) {
+          setOnlineUsers(prev => {
+            const next = new Set(prev)
+            next.delete(d.user_id as number)
+            return next
+          })
         }
         // 转发所有消息类型到订阅者
         handlersRef.current.forEach(h => h(d))
@@ -69,22 +89,7 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     connect()
-    const poll = async () => {
-      if (!user) return
-      try {
-        const token = localStorage.getItem("token")
-        const res = await fetch("/api/v1/chat/user_info", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        })
-        const data = await res.json()
-        const contacts = data?.data?.contacts ?? []
-        setOnlineUsers(new Set(contacts.filter((c: any) => c.online).map((c: any) => c.user_id)))
-      } catch { /* ignore */ }
-    }
-    const timer = setInterval(poll, 15000)
-    poll()
     return () => {
-      clearInterval(timer)
       clearTimeout(reconnectTimer.current)
       if (wsRef.current && wsRef.current.readyState !== WebSocket.CONNECTING) {
         wsRef.current.close(1000)
