@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AuthModal } from "./AuthModal";
 import { getMe, logout as logoutApi } from "@/api/auth";
 import { useNotifications } from "./NotificationProvider";
@@ -36,6 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserState>(undefined);
   const prevUserRef = useRef<UserState>(undefined);
   const { push: pushNotification } = useNotifications();
+  const queryClient = useQueryClient();
 
   const refreshUser = useCallback(async () => {
     const token = localStorage.getItem("token");
@@ -44,6 +46,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const res = await getMe();
       const newUser = res.data.data as User;
       setUser(newUser);
+      void queryClient.prefetchQuery({
+        queryKey: ["chat", "conversations"],
+        queryFn: async () => {
+          const request = await import("@/api/request");
+          const res = await request.default.get("/chat/conversations");
+          return res.data?.data?.conversations ?? [];
+        },
+      });
       if (newUser && !prevUserRef.current) {
         pushNotification({
           kind: "auth_login",
@@ -59,7 +69,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       prevUserRef.current = null;
     }
-  }, [pushNotification]);
+  }, [pushNotification, queryClient]);
 
   useEffect(() => {
     refreshUser();

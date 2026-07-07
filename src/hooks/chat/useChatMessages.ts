@@ -14,11 +14,11 @@ export interface ChatMessage {
   updated_at?: string;
 }
 
-async function fetchMessages(conversationId: string, page = 1) {
+async function fetchMessages(conversationId: string, beforeId?: number) {
   const res = await request.get(`/chat/conversations/${conversationId}/messages`, {
     params: {
-      page,
-      page_size: 30,
+      limit: 30,
+      ...(beforeId ? { before_id: beforeId } : {}),
     },
   });
   const data = res.data?.data;
@@ -32,11 +32,16 @@ async function fetchMessages(conversationId: string, page = 1) {
 export function useChatMessages(conversationId?: string, enabled = true) {
   return useInfiniteQuery({
     queryKey: ["chat", "messages", conversationId],
-    queryFn: ({ pageParam }) => fetchMessages(conversationId!, (pageParam as number | undefined) || 1),
+    queryFn: ({ pageParam }) => fetchMessages(conversationId!, pageParam as number | undefined),
     enabled: enabled && Boolean(conversationId),
-    initialPageParam: 1,
+    initialPageParam: undefined,
     getNextPageParam: () => undefined,
-    getPreviousPageParam: (_firstPage, allPages) => allPages.length + 1,
+    getPreviousPageParam: (firstPage) => {
+      if (!Array.isArray(firstPage) || firstPage.length < 30) return undefined;
+      const oldest = firstPage[0];
+      const oldestId = Number(oldest?.id ?? oldest?.message_id ?? oldest?._id ?? 0);
+      return Number.isFinite(oldestId) && oldestId > 0 ? oldestId : undefined;
+    },
     staleTime: 15_000,
     refetchOnWindowFocus: false,
   });

@@ -11,12 +11,12 @@ async function unwrapChatResponse(promise) {
   return res
 }
 
-/** GET /api/v1/chat/conversations — 会话列表 */
+// /** GET /api/v1/chat/conversations — 联系人列表 */
 export function getConversations() {
   return unwrapChatResponse(request.get('/chat/conversations'))
 }
 
-/** GET /api/v1/chat/conversations/:id/messages — 获取会话消息 */
+/** GET /api/v1/chat/conversations/:id/messages — 获取消息历史记录 */
 export function fetchConversationMessages(convId, config = {}) {
   return unwrapChatResponse(request.get(`/chat/conversations/${convId}/messages`, config))
 }
@@ -30,13 +30,17 @@ export function sendChatMessage(msg) {
 }
 
 /** GET /api/v1/chat/groups — 获取团队群组信息 */
-export function getTeamInfo() {
-  return unwrapChatResponse(request.get('/chat/groups'))
-}
+// export function getTeamInfo() {
+//   return unwrapChatResponse(request.get('/chat/groups'))
+// }
 
 /** POST /api/v1/chat/conversations — 创建/获取私聊会话 */
 export function createConversation(userId) {
-  return unwrapChatResponse(request.post('/chat/conversations', { user_id: userId }))
+  return unwrapChatResponse(request.post('/chat/conversations', {
+    user_id: userId,
+    receiver_id: userId,
+    recipient_id: userId,
+  }))
 }
 
 /** PUT /api/v1/chat/conversations/:id/read — 标记会话已读 */

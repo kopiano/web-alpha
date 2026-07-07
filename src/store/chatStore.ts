@@ -22,6 +22,8 @@ type ChatStoreState = {
 
 type Listener = () => void;
 
+const CACHE_KEY = "chat_conversations_cache_v1";
+
 const state: ChatStoreState = {
   activeConversationId: "",
   conversationOrder: [],
@@ -31,6 +33,25 @@ const state: ChatStoreState = {
 };
 
 const listeners = new Set<Listener>();
+
+function safeReadCache(): ChatConversationSummary[] {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function safeWriteCache(items: ChatConversationSummary[]) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(items));
+  } catch {
+    // ignore cache failures
+  }
+}
 
 function emit() {
   listeners.forEach((listener) => listener());
@@ -42,6 +63,16 @@ function sortConversationIds(conversations: Record<string, ChatConversationSumma
       return (b.lastMessageAt || "").localeCompare(a.lastMessageAt || "");
     })
     .map((item) => item.conversationId);
+}
+
+function mergeConversationItem(current: ChatConversationSummary | undefined, next: ChatConversationSummary) {
+  if (!current) return next;
+  return {
+    ...current,
+    ...next,
+    members: next.members?.length ? next.members : current.members,
+    unreadCount: next.unreadCount,
+  };
 }
 
 export function subscribe(listener: Listener) {
@@ -59,11 +90,17 @@ export function setActiveConversationId(id: string) {
 }
 
 export function hydrateFromServer(items: ChatConversationSummary[]) {
-  const map: Record<string, ChatConversationSummary> = {};
-  for (const item of items) map[item.conversationId] = item;
+  const map: Record<string, ChatConversationSummary> = { ...state.conversations };
+  for (const item of items) {
+    map[item.conversationId] = mergeConversationItem(map[item.conversationId], item);
+  }
   state.conversations = map;
   state.conversationOrder = sortConversationIds(map);
-  state.unreadByConversation = Object.fromEntries(items.map((item) => [item.conversationId, item.unreadCount]));
+  state.unreadByConversation = {
+    ...state.unreadByConversation,
+    ...Object.fromEntries(items.map((item) => [item.conversationId, item.unreadCount])),
+  };
+  safeWriteCache(Object.values(map));
   emit();
 }
 
@@ -99,4 +136,9 @@ export function setTyping(id: string, typing: boolean) {
 
 export function useChatStore<T>(selector: (state: ChatStoreState) => T) {
   return useSyncExternalStore(subscribe, () => selector(state), () => selector(state));
+}
+
+const cachedConversations = safeReadCache();
+if (cachedConversations.length) {
+  hydrateFromServer(cachedConversations);
 }

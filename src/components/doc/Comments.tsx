@@ -5,6 +5,7 @@ import { renderMarkdown } from "@/components/doc/DocRenderer";
 import { createComment, likeComment, unlikeComment } from "@/api/comment";
 import { useNotifications } from "@/components/dashboard/NotificationProvider";
 import { toast } from "sonner";
+import { resolveAvatar } from "@/lib/avatar";
 import type { Comment } from "@/components/doc/docsData";
 
 const getErrorMessage = (error: any, fallback: string) => {
@@ -89,6 +90,18 @@ export const CommentsSection = ({
   const mainEmojiRef = useRef<HTMLDivElement>(null);
   const replyEmojiRef = useRef<HTMLDivElement>(null);
   const { push: pushNotification } = useNotifications();
+
+  useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      name: loggedInUser?.username ?? "",
+      email: loggedInUser?.email ?? "",
+    }));
+    setReplyText((prev) => ({
+      ...prev,
+      username: loggedInUser?.username ?? "",
+    }));
+  }, [loggedInUser?.username, loggedInUser?.email, setForm, setReplyText]);
 
   useEffect(() => {
     const merged = new Set<number>([...persistedLikedRef.current, ...liked]);
@@ -319,6 +332,25 @@ export const CommentsSection = ({
       {/* Comment Form */}
       <div className="mb-8 rounded-[24px] border border-white/[0.06] bg-white/[0.025] backdrop-blur-[18px] p-4 md:p-5">
         <div className="space-y-4">
+          {loggedInUser && (
+            <div className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+              <div className="w-9 h-9 rounded-full overflow-hidden border border-white/[0.08] bg-white/[0.06] grid place-items-center shrink-0 text-[10px] font-semibold text-white/70">
+                {resolveAvatar(loggedInUser.avatarUrl || undefined) ? (
+                  <img
+                    src={resolveAvatar(loggedInUser.avatarUrl || undefined) || ""}
+                    alt={loggedInUser.username}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span>{loggedInUser.username.slice(0, 2).toUpperCase()}</span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[12px] font-medium text-white/86 truncate">{loggedInUser.username}</p>
+                <p className="text-[10px] text-white/28 truncate">{loggedInUser.email}</p>
+              </div>
+            </div>
+          )}
           <div className="flex gap-5">
             <div className="flex-1 border-b border-white/[0.06] focus-within:border-blue-400/30 transition-colors">
               <div className="flex items-center gap-2">

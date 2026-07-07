@@ -259,19 +259,6 @@ export default function DocsPage() {
 
   const docVisibility = user ? 0 : 1;
 
-  useEffect(() => {
-    if (!user) return;
-    setForm(prev => ({
-      ...prev,
-      name: prev.name || user.username,
-      email: prev.email || user.email || "",
-    }));
-    setReplyText(prev => ({
-      ...prev,
-      username: prev.username || user.username,
-    }));
-  }, [user]);
-
   const avatarGradients = useMemo(() => [
     "from-violet-400 to-cyan-400",
     "from-pink-400 to-violet-400",
