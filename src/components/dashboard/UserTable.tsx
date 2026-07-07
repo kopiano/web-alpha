@@ -5,6 +5,12 @@ import { resolveAvatar } from "@/lib/avatar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { Badge } from "@/components/ui/badge";
 
+const defaultAvatarStyle = {
+  background: "rgba(255,255,255,0.10)",
+  backdropFilter: "blur(20px)",
+  border: "1px solid rgba(255,255,255,0.18)",
+};
+
 interface User {
   id?: number;
   user_id?: number;
@@ -28,6 +34,7 @@ export const UserTable = ({ className = "" }: UserTableProps) => {
   const [error, setError] = useState(false);
   const [page, setPage] = useState(1);
   const { user } = useAuth();
+  const defaultInitials = (name?: string) => (name ? name.slice(0, 2).toUpperCase() : "AM");
 
   useEffect(() => {
     setLoading(true);
@@ -96,7 +103,7 @@ export const UserTable = ({ className = "" }: UserTableProps) => {
                   className={`grid grid-cols-[1.2fr_1.25fr_1fr_0.8fr] gap-0 px-4 py-3 border-b border-white/[0.08] last:border-b-0 transition-colors min-w-[500px] ${String(u.status || "").toLowerCase() === "active" ? "bg-emerald-400/10 hover:bg-emerald-400/14" : "bg-white/[0.025] hover:bg-white/[0.04]"}`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-full shrink-0 bg-gradient-to-br from-neon-pink via-neon-purple to-neon-blue grid place-items-center text-[10px] font-bold overflow-hidden">
+                    <div className="w-8 h-8 rounded-full shrink-0 grid place-items-center text-[10px] font-bold overflow-hidden text-white" style={defaultAvatarStyle}>
                       {resolveAvatar(u.avatar) ? (
                         <>
                           <img
@@ -111,11 +118,11 @@ export const UserTable = ({ className = "" }: UserTableProps) => {
                             }}
                           />
                           <span data-avatar-fallback className="hidden w-full h-full place-items-center">
-                            {(u.username || "?").charAt(0).toUpperCase()}
+                            {defaultInitials(u.username)}
                           </span>
                         </>
                       ) : (
-                        (u.username || "?").charAt(0).toUpperCase()
+                        defaultInitials(u.username)
                       )}
                     </div>
                     <p className="text-xs font-semibold truncate">{u.username || "Unknown"}</p>

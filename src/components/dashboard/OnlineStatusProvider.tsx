@@ -21,11 +21,13 @@ export interface WsMessage {
 interface OnlineContextType {
   onlineUsers: Set<number>
   subscribe: (handler: (msg: WsMessage) => void) => () => void
+  sendMessage: (payload: Record<string, any>) => boolean
 }
 
 const OnlineContext = createContext<OnlineContextType>({
   onlineUsers: new Set(),
   subscribe: () => () => {},
+  sendMessage: () => false,
 })
 
 export const useOnlineStatus = () => useContext(OnlineContext)
@@ -40,6 +42,17 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
   const subscribe = useCallback((handler: (msg: WsMessage) => void) => {
     handlersRef.current.add(handler)
     return () => { handlersRef.current.delete(handler) }
+  }, [])
+
+  const sendMessage = useCallback((payload: Record<string, any>) => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false
+    try {
+      ws.send(JSON.stringify(payload))
+      return true
+    } catch {
+      return false
+    }
   }, [])
 
   const connect = () => {
@@ -98,7 +111,7 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
   }, [user?.id])
 
   return (
-    <OnlineContext.Provider value={{ onlineUsers, subscribe }}>
+    <OnlineContext.Provider value={{ onlineUsers, subscribe, sendMessage }}>
       {children}
     </OnlineContext.Provider>
   )

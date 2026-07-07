@@ -143,6 +143,11 @@ export const TopNav = () => {
 
   const isLoading = user === undefined;
   const avatarUrl = !avatarErr && user?.avatar ? resolveAvatar(user.avatar) : null;
+  const defaultAvatarStyle = {
+    background: "rgba(255,255,255,0.10)",
+    backdropFilter: "blur(20px)",
+    border: "1px solid rgba(255,255,255,0.18)",
+  };
 
   return (
     <>
@@ -204,13 +209,11 @@ export const TopNav = () => {
           {isLoading ? null : (
             <>
               {/* Avatar */}
-              <div className="w-7 h-7 md:w-8 md:h-8 rounded-full shrink-0 overflow-hidden" style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-full shrink-0 overflow-hidden grid place-items-center text-[10px] md:text-xs font-bold text-white" style={defaultAvatarStyle}>
                 {avatarUrl ? (
                   <img src={avatarUrl} alt={user?.username} className="w-full h-full object-cover" loading="lazy" decoding="async" onError={() => setAvatarErr(true)} />
                 ) : (
-                  <div className="w-full h-full grid place-items-center text-[10px] md:text-xs font-semibold text-white/80 bg-gradient-to-br from-violet-500 to-indigo-500">
-                    {(user?.username || "?").charAt(0).toUpperCase()}
-                  </div>
+                  initials
                 )}
               </div>
               {/* Username — hide on small screens */}

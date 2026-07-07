@@ -14,24 +14,29 @@ export interface ChatMessage {
   updated_at?: string;
 }
 
-async function fetchMessages(conversationId: string, beforeId?: number) {
+async function fetchMessages(conversationId: string, page = 1) {
   const res = await request.get(`/chat/conversations/${conversationId}/messages`, {
     params: {
-      limit: 30,
-      ...(beforeId ? { before_id: beforeId } : {}),
+      page,
+      page_size: 30,
     },
   });
-  return res.data?.data?.messages ?? [];
+  const data = res.data?.data;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.messages)) return data.messages;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.list)) return data.list;
+  return [];
 }
 
 export function useChatMessages(conversationId?: string, enabled = true) {
   return useInfiniteQuery({
     queryKey: ["chat", "messages", conversationId],
-    queryFn: ({ pageParam }) => fetchMessages(conversationId!, pageParam as number | undefined),
+    queryFn: ({ pageParam }) => fetchMessages(conversationId!, (pageParam as number | undefined) || 1),
     enabled: enabled && Boolean(conversationId),
-    initialPageParam: undefined as number | undefined,
+    initialPageParam: 1,
     getNextPageParam: () => undefined,
-    getPreviousPageParam: (firstPage) => firstPage?.[0]?.id ? firstPage[0].id : undefined,
+    getPreviousPageParam: (_firstPage, allPages) => allPages.length + 1,
     staleTime: 15_000,
     refetchOnWindowFocus: false,
   });
