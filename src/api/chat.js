@@ -10,7 +10,10 @@ export function fetchConversationMessages(convId, config = {}) {
   return request.get(`/chat/conversations/${convId}/messages`, config)
 }
 
-/** POST /api/v1/chat/messages — 发送消息 (recipient_id/message_type/content) */
+/** POST /api/v1/chat/messages — 发送消息
+ * private: { chat_type: "private", receiver_id, message_type, content }
+ * group:   { chat_type: "group", group_id, message_type, content }
+ */
 export function sendChatMessage(msg) {
   return request.post('/chat/messages', msg)
 }

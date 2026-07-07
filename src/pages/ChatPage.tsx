@@ -183,7 +183,7 @@ const ChatPage = () => {
       };
 
       if((d.event==="message.new" || d.type==="message") && d.content) {
-        const isMe = d.username===meRef.current||d.sender_username===meRef.current;
+        const isMe = d.sender_id === meId || d.username===meRef.current||d.sender_username===meRef.current;
         if(isMe) return;
         const msgTime = d.time || timeFmt(new Date().toISOString())
         const isTeamMsg = shouldHandleAsGroup
@@ -314,7 +314,7 @@ const ChatPage = () => {
 
   const baseContacts = contacts.length ? contacts : storeContacts;
   const activeContact = activeIdx >= 0 ? baseContacts.find((c) => c.id === activeContactIdRef.current) || baseContacts[activeIdx] : null;
-  const activeConversationId = selectedConversationId || (activeIdx === -2 ? (teamConv ? String(teamConv.id) : "") : (activeContact?.convId || ""));
+  const activeConversationId = selectedConversationId || (activeIdx === -2 ? (teamConv ? `g_${teamConv.id}` : "") : (activeContact?.convId || ""));
   const activeMessagesQuery = useChatMessages(activeConversationId || undefined, !!activeConversationId);
 
   useEffect(() => {
@@ -513,19 +513,26 @@ const ChatPage = () => {
 
   /* ─── Send ─── */
   const sendMsg = useCallback((type: string, content: string, fileName?: string, fileData?: string) => {
-    const isTeam = activeIdx === -2
+    const isTeam = activeIdx === -2 || selectedConversationId.startsWith("g_")
+    const targetContact = activeContact || baseContacts[activeIdx] || null
+    const targetReceiverId = targetContact?.id || activeContactIdRef.current || 0
+    const targetGroupId = teamConvRef.current?.id || teamConv?.id || 0
+    if (!isTeam && targetReceiverId <= 0) {
+      return
+    }
+    if (isTeam && targetGroupId <= 0) {
+      return
+    }
     const local: Message = {id:++midRef.current,sender:"me",type:type as any,content,time:timeFmt(new Date().toISOString()),fileName,fileData};
     setMessages(p=>[...p,local]);
     let messageType = 1;
     if (type==="emoji") messageType = 2;
     else if (type==="image") messageType = 3;
     else if (type==="file") messageType = 4;
-    const c = activeContact || baseContacts[activeIdx];
     const payload = isTeam && teamConv
       ? {
           chat_type: "group",
-          group_id: teamConv.id,
-          conversation_id: String(teamConv.id),
+          group_id: targetGroupId,
           message_type: messageType,
           content,
           file_name: fileName || "",
@@ -533,9 +540,7 @@ const ChatPage = () => {
         }
       : {
           chat_type: "private",
-          receiver_id: c?.id || 0,
-          recipient_id: c?.id || 0,
-          conversation_id: activeConversationId || "",
+          receiver_id: targetReceiverId,
           message_type: messageType,
           content,
           file_name: fileName || "",
@@ -546,8 +551,29 @@ const ChatPage = () => {
         const body = res.data?.data || {};
         const serverConvId = String(body.conversation_id || activeConversationId || "");
         if (serverConvId) {
+          activeConvIdRef.current = serverConvId;
+          setSelectedConversationId(serverConvId);
           queryClient.invalidateQueries({ queryKey: ["chat", "messages", serverConvId] });
           queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+          void fetchConversationMessages(serverConvId, { params: { limit: 50 } }).then((r) => {
+            const rows = r.data?.data?.messages || [];
+            const my = meRef.current;
+            const parsed = rows.map((m: any) => ({
+              id: m.id || ++midRef.current,
+              sender: (m.sender_username || m.username) === my || m.sender_id === meId ? "me" : "them",
+              type: (m.type as any) || "text",
+              content: m.content,
+              time: timeFmt(m.created_at || m.CreatedAt || ""),
+              fileName: m.file_name,
+              fileData: m.file_url,
+              username: m.sender_username || m.username || "",
+              senderAvatar: m.sender_avatar || "",
+            }));
+            convoMessagesRef.current.set(serverConvId, parsed);
+            if (serverConvId === activeConversationId) {
+              setMessages(parsed);
+            }
+          }).catch(() => {});
         }
       })
       .catch(e => {
@@ -567,7 +593,7 @@ const ChatPage = () => {
         lastMessageType: messageType,
       })
     }
-  }, [baseContacts,activeIdx,teamConv,activeConversationId,meAvatar,meId,meName,upsertConversationSummary,activeContact,queryClient]);
+  }, [baseContacts,activeIdx,teamConv,activeConversationId,meAvatar,meId,meName,upsertConversationSummary,activeContact,queryClient,selectedConversationId]);
 
   const sendText = () => { const v=input.trim(); if(!v) return; sendMsg(/^\p{Emoji}+$/u.test(v)?"emoji":"text",v); setInput(""); setShowEmoji(false); };
   const sendImg = () => { if(!previewImg) return; sendMsg("image",previewImg,"image.png",previewImg); setPreviewImg(null); };
@@ -679,9 +705,10 @@ const ChatPage = () => {
                   const idx = baseContacts.findIndex(c => c.id === -1)
                   if (idx >= 0) { switchContact(-1); return }
                   setActiveIdx(-2)
-                  activeConvIdRef.current = String(teamConv.id)
-                  setSelectedConversationId(String(teamConv.id))
-                  setMessages(convoMessagesRef.current.get(String(teamConv.id)) || [])
+                  const teamConversationId = `g_${teamConv.id}`
+                  activeConvIdRef.current = teamConversationId
+                  setSelectedConversationId(teamConversationId)
+                  setMessages(convoMessagesRef.current.get(teamConversationId) || [])
                   localStorage.setItem("chat_active_contact", "team")
                   if (window.innerWidth < 768) setShowMobileContacts(false)
                 }}
