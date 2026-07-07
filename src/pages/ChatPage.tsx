@@ -4,11 +4,12 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useOnlineStatus, type WsMessage } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
-import { sendChatMessage, getConversations, markConversationRead } from "@/api/chat";
+import { sendChatMessage, getConversations, markConversationRead, createConversation, fetchConversationMessages } from "@/api/chat";
 import { EMOJI_LIST } from "@/config/chat";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatStore } from "@/store/chatStore";
 import { patchConversation, setUnread, setTyping } from "@/store/chatStore";
+import { useQueryClient } from "@tanstack/react-query";
 import teamAvatar from "@/assets/teamGroup.png";
 // import { getUsers } from "@/api/user";
 
@@ -131,9 +132,11 @@ const ChatPage = () => {
   const activeContactIdRef = useRef(0);
   const activeConvIdRef = useRef("");
   const msgCacheRef = useRef<Map<number, Message[]>>(new Map());
+  const convoMessagesRef = useRef<Map<string, Message[]>>(new Map());
   const convIdCacheRef = useRef<Map<number, string>>(new Map());
   const loadAllRef = useRef<() => void>(() => {});
   const onlineUsersRef = useRef<Set<number>>(new Set());
+  const queryClient = useQueryClient();
 
   const me = user;
   const authLoading = user === undefined;
@@ -150,9 +153,9 @@ const ChatPage = () => {
     return storeConversationOrder
       .map((id) => storeConversations[id])
       .filter(Boolean)
-      .filter((item) => item.type === "private" && item.members?.[0]?.user_id)
+      .filter((item) => item.type === "private" && item.members?.length)
       .map((item) => {
-        const peer = item.members[0];
+        const peer = item.members.find((m) => m.user_id !== me?.id) || item.members[0];
         const u: ChatUser = { id: peer.user_id, username: peer.username || "", avatar: peer.avatar, status: "active" };
         const contact = buildContact(u, item.lastMessage || "", item.lastMessageAt || "");
         contact.online = onlineUsersRef.current.has(peer.user_id);
@@ -166,14 +169,31 @@ const ChatPage = () => {
   /* ─── WebSocket messages via global provider ─── */
   useEffect(() => {
     const unsub = subscribe((d: WsMessage) => {
+      const targetConvId = String(d.conversation_id || activeConvIdRef.current || "");
+      const shouldHandleAsGroup = d.chat_type === "group";
+      const currentConvId = activeConvIdRef.current;
+      const isCurrentConversation = targetConvId && currentConvId === targetConvId;
+      const appendToConversation = (convId: string, msg: Message) => {
+        if (!convId) return;
+        const existing = convoMessagesRef.current.get(convId) || [];
+        convoMessagesRef.current.set(convId, [...existing, msg]);
+        if (convId === currentConvId) {
+          setMessages([...existing, msg]);
+        }
+      };
+
       if((d.event==="message.new" || d.type==="message") && d.content) {
         const isMe = d.username===meRef.current||d.sender_username===meRef.current;
         if(isMe) return;
         const msgTime = d.time || timeFmt(new Date().toISOString())
-        const isTeamMsg = d.chat_type === "group"
-        if(isTeamMsg) {
-          if(activeConvIdRef.current !== d.conversation_id) return
-        } else if(activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
+        const isTeamMsg = shouldHandleAsGroup
+        const newMsg: Message = {id:d.id||++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}
+
+        if (isTeamMsg && !isCurrentConversation) {
+          appendToConversation(targetConvId, newMsg);
+          return;
+        }
+        if(activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
           const nextUnread = ((storeContacts.find(c => c.convId === d.conversation_id)?.unread ?? contacts.find(c => c.id === d.sender_id)?.unread ?? 0) + 1)
           upsertConversationSummary(String(d.conversation_id), {
             id: d.sender_id,
@@ -190,7 +210,9 @@ const ChatPage = () => {
             ))
           }
           const cached = msgCacheRef.current.get(d.sender_id) || []
-          msgCacheRef.current.set(d.sender_id, [...cached, {id:d.id||++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:msgTime,fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}])
+          const cachedMsg = {id:d.id||++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:msgTime,fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}
+          msgCacheRef.current.set(d.sender_id, [...cached, cachedMsg])
+          appendToConversation(String(d.conversation_id), newMsg);
           return
         }
         if(!isTeamMsg) {
@@ -209,8 +231,7 @@ const ChatPage = () => {
             ))
           }
         }
-        const newMsg: Message = {id:d.id||++midRef.current,sender:"them",type:d.msg_type||d.type||"text",content:d.content,time:d.time||timeFmt(new Date().toISOString()),fileName:d.file_name,fileData:d.file_url,username:d.username||d.sender_username,senderAvatar:d.sender_avatar||""}
-        setMessages(p=>[...p,newMsg])
+        appendToConversation(String(d.conversation_id || activeConvIdRef.current), newMsg);
         const cached = msgCacheRef.current.get(d.sender_id) || []
         msgCacheRef.current.set(d.sender_id, [...cached, {...newMsg}])
         upsertConversationSummary(String(d.conversation_id || activeConvIdRef.current), {
@@ -296,6 +317,49 @@ const ChatPage = () => {
   const activeConversationId = selectedConversationId || (activeIdx === -2 ? (teamConv ? String(teamConv.id) : "") : (activeContact?.convId || ""));
   const activeMessagesQuery = useChatMessages(activeConversationId || undefined, !!activeConversationId);
 
+  useEffect(() => {
+    if (!activeConversationId) return;
+    setLoadingMessages(true);
+    activeMessagesQuery.refetch?.().finally?.(() => {
+      setLoadingMessages(false);
+    });
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadHistory(convId: string) {
+      if (!convId) return;
+      setLoadingMessages(true);
+      try {
+        const res = await fetchConversationMessages(convId, { params: { limit: 50 } });
+        if (cancelled) return;
+        const msgs = res.data?.data?.messages || [];
+        const my = meRef.current;
+        const parsed = msgs.map((m: any) => ({
+          id: m.id || ++midRef.current,
+          sender: (m.sender_username || m.username) === my ? "me" : "them",
+          type: (m.type as any) || "text",
+          content: m.content,
+          time: timeFmt(m.created_at || m.CreatedAt || ""),
+          fileName: m.file_name,
+          fileData: m.file_url,
+          username: m.sender_username || m.username || "",
+          senderAvatar: m.sender_avatar || "",
+        }));
+        convoMessagesRef.current.set(convId, parsed);
+        setMessages(parsed);
+      } catch (err) {
+        console.error("Load history failed:", err);
+      } finally {
+        if (!cancelled) setLoadingMessages(false);
+      }
+    }
+    loadHistory(activeConversationId);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeConversationId]);
+
   /* ─── Load data ─── */
   const loadAll = useCallback(() => {
     getConversations().then(res => {
@@ -305,9 +369,9 @@ const ChatPage = () => {
       const savedSelection = localStorage.getItem("chat_active_contact");
       const convMap = new Map<number, any>();
       rawConversations
-        .filter((c: any) => c.type === "private" && Array.isArray(c.users) && c.users[0]?.user_id)
+        .filter((c: any) => c.type === "private" && Array.isArray(c.users) && c.users.length > 0)
         .forEach((c: any) => {
-          const peer = c.users?.[0];
+          const peer = c.users?.find((u: any) => u?.user_id && u.user_id !== me?.id) || c.users?.[0];
           if (peer?.user_id) convMap.set(peer.user_id, c);
         });
       const cs = rawUsers
@@ -366,9 +430,15 @@ const ChatPage = () => {
 
   useEffect(() => {
     const pages = activeMessagesQuery.data?.pages || [];
-    if (!pages.length || !activeConversationId) return;
+    if (!activeConversationId) {
+      setMessages([]);
+      return;
+    }
+    if (!pages.length) {
+      setMessages(convoMessagesRef.current.get(activeConversationId) || []);
+      return;
+    }
     const flat = pages.flat();
-    if (!flat.length) return;
     const my = meRef.current;
     const parsed = flat.map((m: any) => ({
       id: m.id || ++midRef.current,
@@ -380,8 +450,9 @@ const ChatPage = () => {
       fileData: m.file_url,
       username: m.sender_username || m.username || "",
       senderAvatar: m.sender_avatar || "",
-    }))
-    setMessages(parsed)
+    }));
+    convoMessagesRef.current.set(activeConversationId, parsed);
+    setMessages(parsed);
     setLoadingMessages(activeMessagesQuery.isFetching)
   }, [activeMessagesQuery.data, activeMessagesQuery.isFetching, activeConversationId]);
 
@@ -411,17 +482,26 @@ const ChatPage = () => {
   useEffect(()=>{if(!me){setLoading(false);return;}loadAll();},[me]);
 
   /* ─── Switch contact → load private messages ─── */
-  const switchContact = useCallback((contactId: number) => {
+  const switchContact = useCallback(async (contactId: number) => {
     const idx = baseContacts.findIndex(c=>c.id===contactId);
     if(idx<0) return;
     setActiveIdx(idx);
     const nextContact = baseContacts[idx];
-    setSelectedConversationId(nextContact?.convId || "");
     activeContactIdRef.current = contactId;
-    activeConvIdRef.current = nextContact?.convId || "";
     localStorage.setItem("chat_active_contact", String(contactId));
+    let convId = nextContact?.convId || "";
+    if (!convId && contactId > 0) {
+      try {
+        const res = await createConversation(contactId);
+        convId = String(res.data?.data?.conversation_id || "");
+      } catch (e) {
+        console.error("Create conversation failed:", e);
+      }
+    }
+    setSelectedConversationId(convId);
+    activeConvIdRef.current = convId;
+    setMessages(convoMessagesRef.current.get(convId || "") || []);
     // 标记已读：调用后端 API + 更新本地未读计数
-    const convId = nextContact?.convId
     if (convId) {
       markConversationRead(convId).catch(() => {})
       setContacts(prev => prev.map(c => c.id === contactId ? { ...c, unread: 0 } : c))
@@ -440,13 +520,43 @@ const ChatPage = () => {
     if (type==="emoji") messageType = 2;
     else if (type==="image") messageType = 3;
     else if (type==="file") messageType = 4;
-    if (isTeam && teamConv) {
-      sendChatMessage({chat_type:"group", group_id: teamConv.id, message_type:messageType, content, file_name:fileName||"", file_url:fileData||""}).catch(e=>console.error("Send failed:", e));
-    } else {
-      const c = activeContact || baseContacts[activeIdx];
-      sendChatMessage({chat_type:"private",receiver_id:c?.id||0,message_type:messageType,content,file_name:fileName||"",file_url:fileData||""}).catch(e=>console.error("Send failed:", e));
-    }
+    const c = activeContact || baseContacts[activeIdx];
+    const payload = isTeam && teamConv
+      ? {
+          chat_type: "group",
+          group_id: teamConv.id,
+          conversation_id: String(teamConv.id),
+          message_type: messageType,
+          content,
+          file_name: fileName || "",
+          file_url: fileData || "",
+        }
+      : {
+          chat_type: "private",
+          receiver_id: c?.id || 0,
+          recipient_id: c?.id || 0,
+          conversation_id: activeConversationId || "",
+          message_type: messageType,
+          content,
+          file_name: fileName || "",
+          file_url: fileData || "",
+        }
+    sendChatMessage(payload)
+      .then((res) => {
+        const body = res.data?.data || {};
+        const serverConvId = String(body.conversation_id || activeConversationId || "");
+        if (serverConvId) {
+          queryClient.invalidateQueries({ queryKey: ["chat", "messages", serverConvId] });
+          queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+        }
+      })
+      .catch(e => {
+        console.error("Send failed:", e);
+        setMessages((prev) => prev.filter((m) => m.id !== local.id));
+      });
     if (activeConversationId) {
+      const existing = convoMessagesRef.current.get(activeConversationId) || [];
+      convoMessagesRef.current.set(activeConversationId, [...existing, local]);
       upsertConversationSummary(activeConversationId, {
         id: meId,
         name: meName,
@@ -457,7 +567,7 @@ const ChatPage = () => {
         lastMessageType: messageType,
       })
     }
-  }, [baseContacts,activeIdx,teamConv,activeConversationId,meAvatar,meId,meName,upsertConversationSummary,activeContact]);
+  }, [baseContacts,activeIdx,teamConv,activeConversationId,meAvatar,meId,meName,upsertConversationSummary,activeContact,queryClient]);
 
   const sendText = () => { const v=input.trim(); if(!v) return; sendMsg(/^\p{Emoji}+$/u.test(v)?"emoji":"text",v); setInput(""); setShowEmoji(false); };
   const sendImg = () => { if(!previewImg) return; sendMsg("image",previewImg,"image.png",previewImg); setPreviewImg(null); };
@@ -571,6 +681,7 @@ const ChatPage = () => {
                   setActiveIdx(-2)
                   activeConvIdRef.current = String(teamConv.id)
                   setSelectedConversationId(String(teamConv.id))
+                  setMessages(convoMessagesRef.current.get(String(teamConv.id)) || [])
                   localStorage.setItem("chat_active_contact", "team")
                   if (window.innerWidth < 768) setShowMobileContacts(false)
                 }}

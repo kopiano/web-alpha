@@ -176,6 +176,8 @@ export const MusicPlayer = () => {
     const onEnded = () => {
       const list = playlistRef.current;
       if (list.length > 0) {
+        skipRestoreRef.current = true;
+        playRequestRef.current += 1;
         const next = (trackIdxRef.current + 1) % list.length;
         setTrackIdx(next);
       } else {
