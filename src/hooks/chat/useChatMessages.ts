@@ -30,6 +30,7 @@ export function useChatMessages(conversationId?: string, enabled = true) {
     queryFn: ({ pageParam }) => fetchMessages(conversationId!, pageParam as number | undefined),
     enabled: enabled && Boolean(conversationId),
     initialPageParam: undefined as number | undefined,
+    getNextPageParam: () => undefined,
     getPreviousPageParam: (firstPage) => firstPage?.[0]?.id ? firstPage[0].id : undefined,
     staleTime: 15_000,
     refetchOnWindowFocus: false,

@@ -293,7 +293,7 @@ const ChatPage = () => {
 
   const baseContacts = contacts.length ? contacts : storeContacts;
   const activeContact = activeIdx >= 0 ? baseContacts.find((c) => c.id === activeContactIdRef.current) || baseContacts[activeIdx] : null;
-  const activeConversationId = selectedConversationId || (activeIdx === -2 ? (teamConv ? `g_${teamConv.id}` : "") : (activeContact?.convId || ""));
+  const activeConversationId = selectedConversationId || (activeIdx === -2 ? (teamConv ? String(teamConv.id) : "") : (activeContact?.convId || ""));
   const activeMessagesQuery = useChatMessages(activeConversationId || undefined, !!activeConversationId);
 
   /* ─── Load data ─── */
@@ -345,7 +345,7 @@ const ChatPage = () => {
       }
       if (shouldRestoreTeam) {
         initialContactIdx = -2
-        firstConvId = body.team?.id ? `g_${body.team.id}` : ""
+        firstConvId = body.team?.id ? String(body.team.id) : ""
       }
       setContacts(cs.length ? cs : [{ id: -1, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }])
       setActiveIdx(initialContactIdx)
@@ -569,8 +569,8 @@ const ChatPage = () => {
                   const idx = baseContacts.findIndex(c => c.id === -1)
                   if (idx >= 0) { switchContact(-1); return }
                   setActiveIdx(-2)
-                  activeConvIdRef.current = "g_" + teamConv.id
-                  setSelectedConversationId("g_" + teamConv.id)
+                  activeConvIdRef.current = String(teamConv.id)
+                  setSelectedConversationId(String(teamConv.id))
                   localStorage.setItem("chat_active_contact", "team")
                   if (window.innerWidth < 768) setShowMobileContacts(false)
                 }}
