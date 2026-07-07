@@ -17,8 +17,6 @@ export interface ChatConversation {
   last_message_type?: number;
   last_message_at?: string;
   unread_count?: number;
-  is_pinned?: boolean;
-  is_muted?: boolean;
   users?: ChatConversationUser[];
 }
 
@@ -37,14 +35,12 @@ export function useChatConversations(enabled = true) {
         items.map((item: ChatConversation) => ({
           conversationId: item.conversation_id,
           type: item.type,
-          title: item.title || item.users?.[0]?.username || "",
+          title: item.title || (item.type === "private" ? item.users?.[0]?.username : item.title) || "",
           avatar: item.avatar,
           lastMessage: item.last_message || "",
           lastMessageType: item.last_message_type || 1,
           lastMessageAt: item.last_message_at || "",
           unreadCount: item.unread_count || 0,
-          isPinned: Boolean(item.is_pinned),
-          isMuted: Boolean(item.is_muted),
           members: item.users || [],
         }))
       );

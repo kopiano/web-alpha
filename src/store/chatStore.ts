@@ -9,8 +9,6 @@ export interface ChatConversationSummary {
   lastMessageType: number;
   lastMessageAt: string;
   unreadCount: number;
-  isPinned: boolean;
-  isMuted: boolean;
   members: { user_id: number; username: string; avatar?: string }[];
 }
 
@@ -41,7 +39,6 @@ function emit() {
 function sortConversationIds(conversations: Record<string, ChatConversationSummary>) {
   return Object.values(conversations)
     .sort((a, b) => {
-      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
       return (b.lastMessageAt || "").localeCompare(a.lastMessageAt || "");
     })
     .map((item) => item.conversationId);
