@@ -108,6 +108,7 @@ const ChatPage = () => {
   useEffect(() => { teamConvRef.current = teamConv; }, [teamConv]);
   const [previewImg, setPreviewImg] = useState<string|null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [showMobileContacts, setShowMobileContacts] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -117,6 +118,10 @@ const ChatPage = () => {
   const activeContactIdRef = useRef(0);
   const activeConvIdRef = useRef("");
   const msgCacheRef = useRef<Map<number, Message[]>>(new Map());
+  const convIdCacheRef = useRef<Map<number, string>>(new Map());
+  const convPromiseRef = useRef<Map<number, Promise<string | null>>>(new Map());
+  const messageReqSeqRef = useRef(0);
+  const messageAbortRef = useRef<AbortController | null>(null);
   const loadAllRef = useRef<() => void>(() => {});
 
   const me = user;
@@ -185,7 +190,9 @@ const ChatPage = () => {
           contact.online = c.online
           contact.unread = c.unread || 0
           if (c.avatar) contact.userData = u
-          contact.convId = c.conversation_id || undefined
+          const cachedConvId = convIdCacheRef.current.get(c.user_id)
+          contact.convId = c.conversation_id || cachedConvId || undefined
+          if (contact.convId) convIdCacheRef.current.set(c.user_id, contact.convId)
           return contact
         })
 
@@ -220,40 +227,9 @@ const ChatPage = () => {
 
       // 有保存的联系人则自动加载消息
       if (initialContactIdx >= 0 && cs.length > 0) {
-        const targetId = firstContactId
-        const convId = firstConvId
-        const toMessages = (msgs: ChatMsg[]): Message[] =>
-          msgs.map(m => ({
-            id: m.id || ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
-            type: (m.type as any) || "text", content: m.content,
-            time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
-            fileData: m.file_url, username: m.sender_username || m.username || "",
-            senderAvatar: m.sender_avatar || ""
-          }))
-        const loadMsgs = (cid: string, uid: number) => {
-          fetchConversationMessages(cid, { limit: 500 }).then(res => {
-            const d = res.data?.data
-            if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return }
-            const parsed = toMessages(d?.messages ?? [])
-            msgCacheRef.current.set(uid, parsed)
-            setMessages(parsed)
-          }).catch(e => console.error("Load messages failed:", e))
-        }
-
-        if (convId) {
-          loadMsgs(convId, targetId)
-        } else {
-          // 没有会话 → 创建
-          createConversation(targetId).then(r => {
-            const newConv = r.data?.data
-            if (newConv?.conversation_id) {
-              cs[0].convId = newConv.conversation_id
-              loadMsgs(newConv.conversation_id, targetId)
-            }
-          }).catch(e => console.error("Create conversation failed:", e))
-        }
+        void loadConversationMessages(firstContactId, firstConvId || undefined)
       } else if (initialContactIdx === -2 && body.team?.id) {
-        fetchConversationMessages(`g_${body.team.id}`, { limit: 500 }).then(res => {
+        fetchConversationMessages(`g_${body.team.id}`, { params: { limit: 500 } }).then(res => {
           const d = res.data?.data
           if (!d || res.data?.code !== 200) { console.error("Load team messages failed:", res.data?.message); return }
           const parsed = (d?.messages ?? []).map((m: ChatMsg) => ({
@@ -276,41 +252,83 @@ const ChatPage = () => {
   // 同步 loadAllRef，避免 WebSocket 闭包中的 TDZ 问题
   useEffect(() => { loadAllRef.current = loadAll; }, [loadAll]);
 
-  const loadForUser = useCallback((userId: number) => {
-    // 先显示缓存（如果有），同时后台刷新
-    const cached = msgCacheRef.current.get(userId)
-    if (cached) setMessages(cached)
+  const loadConversationMessages = useCallback((userId: number, convId?: string) => {
+    const cached = msgCacheRef.current.get(userId);
+    if (cached) setMessages(cached);
 
-    const my = meRef.current
-
+    const my = meRef.current;
     const toMessages = (msgs: ChatMsg[]): Message[] =>
       msgs.map(m => ({
-        id: m.id || ++midRef.current, sender: (m.sender_username || m.username) === my ? "me" : "them",
-        type: (m.type as any) || "text", content: m.content,
-       time: timeFmt(m.created_at || m.CreatedAt || ""), fileName: m.file_name,
-        fileData: m.file_url, username: m.sender_username || m.username || "",
+        id: m.id || ++midRef.current,
+        sender: (m.sender_username || m.username) === my ? "me" : "them",
+        type: (m.type as any) || "text",
+        content: m.content,
+        time: timeFmt(m.created_at || m.CreatedAt || ""),
+        fileName: m.file_name,
+        fileData: m.file_url,
+        username: m.sender_username || m.username || "",
         senderAvatar: m.sender_avatar || ""
-      }))
+      }));
 
-    const loadMsgs = (cid: string) => {
-      fetchConversationMessages(cid, { limit: 500 }).then(res => {
-        const d = res.data?.data
-        if (!d || res.data?.code !== 200) { console.error("Load messages failed:", res.data?.message); return }
-        const apiMsgs = toMessages(d?.messages ?? [])
-        const cached = msgCacheRef.current.get(userId) || []
-        const apiIds = new Set(apiMsgs.map(m => m.id))
-        const newCached = cached.filter(m => !apiIds.has(m.id))
-        const merged = [...apiMsgs, ...newCached]
-        msgCacheRef.current.set(userId, merged)
-        setMessages(merged)
-      }).catch(e => console.error("Load messages failed:", e))
+    const runLoad = async (cid: string) => {
+      const seq = ++messageReqSeqRef.current;
+      messageAbortRef.current?.abort();
+      const controller = new AbortController();
+      messageAbortRef.current = controller;
+      setLoadingMessages(true);
+      try {
+        const res = await fetchConversationMessages(cid, { params: { limit: 500 }, signal: controller.signal });
+        if (seq !== messageReqSeqRef.current) return;
+        const d = res.data?.data;
+        if (!d || res.data?.code !== 200) {
+          console.error("Load messages failed:", res.data?.message);
+          return;
+        }
+        const apiMsgs = toMessages(d?.messages ?? []);
+        const currentCached = msgCacheRef.current.get(userId) || [];
+        const apiIds = new Set(apiMsgs.map(m => m.id));
+        const newCached = currentCached.filter(m => !apiIds.has(m.id));
+        const merged = [...apiMsgs, ...newCached];
+        msgCacheRef.current.set(userId, merged);
+        setMessages(merged);
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        console.error("Load messages failed:", e);
+      } finally {
+        if (seq === messageReqSeqRef.current) setLoadingMessages(false);
+      }
+    };
+
+    const cachedConvId = convId || convIdCacheRef.current.get(userId);
+    if (cachedConvId) {
+      convIdCacheRef.current.set(userId, cachedConvId);
+      void runLoad(cachedConvId);
+      return;
     }
 
-    // 通过 createConversation 获取会话 ID（查找或创建）
-    createConversation(userId).then(r => {
-      const newConv = r.data?.data
-      if (newConv?.conversation_id) loadMsgs(newConv.conversation_id)
-    }).catch(e => console.error("Create conversation failed:", e))
+    const existing = convPromiseRef.current.get(userId);
+    if (existing) {
+      void existing.then((cid) => { if (cid) void runLoad(cid); });
+      return;
+    }
+
+    const promise = createConversation(userId)
+      .then((r) => {
+        const newConv = r.data?.data;
+        const cid = newConv?.conversation_id ? String(newConv.conversation_id) : null;
+        if (cid) convIdCacheRef.current.set(userId, cid);
+        return cid;
+      })
+      .catch((e) => {
+        console.error("Create conversation failed:", e);
+        return null;
+      })
+      .finally(() => {
+        convPromiseRef.current.delete(userId);
+      });
+
+    convPromiseRef.current.set(userId, promise);
+    void promise.then((cid) => { if (cid) void runLoad(cid); });
   }, []);
 
   useEffect(()=>{if(!me){setLoading(false);return;}loadAll();},[me]);
@@ -323,17 +341,16 @@ const ChatPage = () => {
     activeContactIdRef.current = contactId;
     activeConvIdRef.current = contacts[idx]?.convId || "";
     localStorage.setItem("chat_active_contact", String(contactId));
-    // 清空旧消息，防止切换时看到上一个联系人的消息
-    setMessages([]);
     // 标记已读：调用后端 API + 更新本地未读计数
     const convId = contacts[idx]?.convId
     if (convId) {
       markConversationRead(convId).catch(() => {})
       setContacts(prev => prev.map(c => c.id === contactId ? { ...c, unread: 0 } : c))
+      convIdCacheRef.current.set(contactId, convId)
     }
-    loadForUser(contactId);
+    void loadConversationMessages(contactId, convId || undefined);
     if (window.innerWidth < 768) setShowMobileContacts(false);
-  }, [contacts, loadForUser]);
+  }, [contacts, loadConversationMessages]);
 
   /* ─── Send ─── */
   const sendMsg = useCallback((type: string, content: string, fileName?: string, fileData?: string) => {
@@ -465,7 +482,7 @@ const ChatPage = () => {
                   // 加载团队群聊消息
                   setActiveIdx(-2) // special index for team
                   activeConvIdRef.current = "g_" + teamConv.id
-                  fetchConversationMessages("g_" + teamConv.id, { limit: 500 }).then(res => {
+                  fetchConversationMessages("g_" + teamConv.id, { params: { limit: 500 } }).then(res => {
                     const d = res.data?.data
                     if (d?.messages) {
                       const my = meRef.current
@@ -500,8 +517,8 @@ const ChatPage = () => {
               {/* Personal section */}
               <div className="px-4 md:px-5 pt-4 md:pt-6 pb-2 md:pb-3" style={{fontWeight:500,color:"rgba(255,255,255,0.85)"}}>Personal</div>
 
-              {filtered.map((c, idx) => (
-                <ContactItem key={`contact-${c.id}-${c.convId || "none"}-${idx}`} contact={c} active={c.id === contacts[activeIdx]?.id} onSelect={switchContact} online={online(c)} />
+              {filtered.map((c) => (
+                <ContactItem key={`contact-${c.id}`} contact={c} active={c.id === contacts[activeIdx]?.id} onSelect={switchContact} online={online(c)} />
               ))}
             </>}
           </div>
@@ -609,6 +626,7 @@ const ChatPage = () => {
           <div className="flex-1 overflow-y-auto csb px-5 py-4 space-y-1.5 transition-opacity duration-300">
             {loading?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/10 animate-pulse">Loading...</p></div>
             :(!contact||contact.id===0)&&activeIdx!==-2?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{isGuest ? "Login to start chatting" : (authLoading ? "" : "Select a contact to start chatting")}</p>{isGuest && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
+            :loadingMessages?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20 animate-pulse">Loading messages...</p></div>
             :messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
             :messages.map((m,i)=>{
               const isMe=m.sender==="me";
