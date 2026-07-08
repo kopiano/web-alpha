@@ -57,7 +57,7 @@ export function compressImageToBlob(file: File, maxWidth = 256, quality = 0.8): 
           if (blob) resolve(blob)
           else reject(new Error("Failed to compress image"))
         },
-        "image/jpeg",
+        "image/webp",
         quality,
       )
     }
@@ -81,7 +81,7 @@ export function compressImageToDataUrl(file: File, maxWidth = 256, quality = 0.8
       const ctx = canvas.getContext("2d")
       if (!ctx) { reject(new Error("Failed to get canvas context")); return }
       ctx.drawImage(img, 0, 0, width, height)
-      resolve(canvas.toDataURL("image/jpeg", quality))
+      resolve(canvas.toDataURL("image/webp", quality))
     }
     img.onerror = () => reject(new Error("Failed to load image"))
     img.src = URL.createObjectURL(file)

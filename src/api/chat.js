@@ -22,8 +22,8 @@ export function fetchConversationMessages(convId, config = {}) {
 }
 
 /** POST /api/v1/chat/messages — 发送消息
- * private: { chat_type: "private", receiver_id, message_type, content }
- * group:   { chat_type: "group", group_id, message_type, content }
+ * private: { chat_type: "private", receiver_id, recipient_id, conversation_id?, message_type, content, file_name?, file_url? }
+ * group:   { chat_type: "group", group_id, conversation_id?, message_type, content, file_name?, file_url? }
  */
 export function sendChatMessage(msg) {
   return unwrapChatResponse(request.post('/chat/messages', msg))

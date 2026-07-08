@@ -3,7 +3,7 @@ import { User, Lock, Mail, Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { updateSettings } from "@/api/auth";
 import { useNotifications } from "./NotificationProvider";
-import { resolveAvatar } from "@/lib/avatar";
+import { compressImageToBlob, compressImageToDataUrl, resolveAvatar } from "@/lib/avatar";
 
 interface SettingsModalProps {
   user: { id: number; username: string; email: string; avatar: string | null };
@@ -27,9 +27,13 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
     const file = e.target.files?.[0];
     if (file) {
       setAvatarFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setAvatarPreview(reader.result as string);
-      reader.readAsDataURL(file);
+      compressImageToDataUrl(file, 256, 0.8)
+        .then((dataUrl) => setAvatarPreview(dataUrl))
+        .catch(() => {
+          const reader = new FileReader();
+          reader.onloadend = () => setAvatarPreview(reader.result as string);
+          reader.readAsDataURL(file);
+        });
     }
   };
 
@@ -41,7 +45,11 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
       formData.append("username", username.trim());
       formData.append("email", email.trim());
       if (password) formData.append("password", password);
-      if (avatarFile) formData.append("avatar", avatarFile);
+      if (avatarFile) {
+        const compressed = await compressImageToBlob(avatarFile, 256, 0.8);
+        const compressedFile = new File([compressed], avatarFile.name.replace(/\.[^.]+$/, ".webp"), { type: "image/webp" });
+        formData.append("avatar", compressedFile);
+      }
 
       await updateSettings(formData);
       pushNotification({ kind: "settings_update", actor: username.trim(), title: "updated settings", text: `${username.trim()} updated settings` });

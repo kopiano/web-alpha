@@ -88,7 +88,7 @@ function WeiboLogo() {
 
 function Kr36Logo() {
   return (
-    <img src="/36kr_logo.png" alt="36kr"
+    <img src="/36kr.webp" alt="36kr"
       className="w-5 h-5 rounded" loading="lazy" decoding="async" />
   )
 }

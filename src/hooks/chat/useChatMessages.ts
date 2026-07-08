@@ -44,6 +44,11 @@ export function useChatMessages(conversationId?: string, enabled = true) {
     },
     staleTime: 15_000,
     refetchOnWindowFocus: false,
+    retry: (failureCount, error: any) => {
+      const status = error?.response?.status;
+      if (status && status < 500) return false;
+      return failureCount < 2;
+    },
   });
 }
 

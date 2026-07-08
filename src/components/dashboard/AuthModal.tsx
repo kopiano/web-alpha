@@ -30,6 +30,9 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
     const lower = raw.toLowerCase();
 
     if (!err?.response) return "服务器未响应，请检查网络连接后重试";
+    if (status === 502) return "网关错误：后端服务不可用或代理转发失败，请确认后端已启动";
+    if (status === 503) return "服务暂不可用，请稍后重试";
+    if (status === 504) return "请求超时，后端响应过慢，请稍后重试";
     if (status === 400 || status === 422) {
       if (lower.includes("username") && lower.includes("password")) return "用户名和密码都不能为空";
       if (lower.includes("username")) return "用户名不能为空或格式不正确";
@@ -85,11 +88,12 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
     try {
       if (mode === "login") {
         const res = await login({ username: username.trim(), password });
-        if (res?.data?.code !== 200) {
-          toast.error(getAuthErrorMessage({ response: { status: 400, data: res?.data } }, "登录失败", "login"));
+        const code = res?.data?.code ?? res?.status;
+        if (code !== 200) {
+          toast.error(getAuthErrorMessage({ response: { status: res?.status || 400, data: res?.data } }, "登录失败", "login"));
           return;
         }
-        const token = res?.data?.data?.token;
+        const token = res?.data?.data?.token || res?.data?.token;
         if (!token) {
           toast.error("Login failed: no token received");
           return;
@@ -106,12 +110,13 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         if (avatar) {
           // Compress avatar before upload so the server stores a smaller image
           const compressed = await compressImageToBlob(avatar, 256, 0.8)
-          const compressedFile = new File([compressed], avatar.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" })
+          const compressedFile = new File([compressed], avatar.name.replace(/\.[^.]+$/, ".webp"), { type: "image/webp" })
           formData.append("avatar", compressedFile)
         }
         const regRes = await register(formData)
-        if (regRes?.data?.code !== 200) {
-          toast.error(getAuthErrorMessage({ response: { status: 400, data: regRes?.data } }, "注册失败", "signup"));
+        const code = regRes?.data?.code ?? regRes?.status;
+        if (code !== 200) {
+          toast.error(getAuthErrorMessage({ response: { status: regRes?.status || 400, data: regRes?.data } }, "注册失败", "signup"));
           return;
         }
         toast.success("Account created successfully");

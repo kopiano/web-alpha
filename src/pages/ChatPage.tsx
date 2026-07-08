@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo, startTransition, useDeferredValue } from "react";
 import { Search, Smile, Image, Send, ChevronDown, FileText, Download, AlignJustify, Plus } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useOnlineStatus, type WsMessage } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
-import { getConversations, markConversationRead, createConversation, sendChatMessage } from "@/api/chat";
+import { getConversations, markConversationRead, createConversation, sendChatMessage, fetchConversationMessages } from "@/api/chat";
 import { EMOJI_LIST } from "@/config/chat";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatConversations } from "@/hooks/chat/useChatConversations";
@@ -124,7 +124,7 @@ function normalizeServerMessage(m: any, meName: string, meId: number): Message {
     time: timeFmt(m.created_at || m.CreatedAt || ""),
     rawTime: m.created_at || m.CreatedAt || m.updated_at || "",
     fileName: m.file_name,
-    fileData: m.file_url,
+    fileData: m.file_url || m.fileData || "",
     username: senderName,
     senderAvatar: m.sender_avatar || "",
   };
@@ -164,13 +164,23 @@ function getChatErrorMessage(err: any, fallback = "发送失败") {
   return String(data?.message || data?.msg || data?.error || err?.message || fallback);
 }
 
+function extractConversationId(payload: any) {
+  return String(
+    payload?.conversation_id ||
+    payload?.data?.conversation_id ||
+    payload?.conversation?.conversation_id ||
+    payload?.data?.conversation?.conversation_id ||
+    ""
+  );
+}
+
 function mergeMessages(existing: Message[], incoming: Message[]) {
   const map = new Map<string, Message>();
   for (const msg of existing) {
-    map.set(`${msg.rawTime || msg.time || ""}:${msg.sender}:${msg.content}`, msg);
+    map.set(messageKey(msg), msg);
   }
   for (const msg of incoming) {
-    map.set(`${msg.rawTime || msg.time || ""}:${msg.sender}:${msg.content}`, msg);
+    map.set(messageKey(msg), msg);
   }
   return [...map.values()].sort((a, b) => String(a.rawTime || a.time).localeCompare(String(b.rawTime || b.time)));
 }
@@ -519,6 +529,20 @@ const ChatPage = () => {
     patchConversation(conversationId, next as any);
   }, []);
 
+  const preloadConversationMessages = useCallback((conversationId?: string) => {
+    if (!conversationId) return;
+    const existing = queryClient.getQueryData(["chat", "messages", conversationId]);
+    if (existing) return;
+    void queryClient.prefetchInfiniteQuery({
+      queryKey: ["chat", "messages", conversationId],
+      queryFn: async () => {
+        const res = await fetchConversationMessages(conversationId, { params: { limit: 30 } });
+        return extractMessageRows(res.data?.data);
+      },
+      initialPageParam: undefined,
+    });
+  }, [queryClient]);
+
   const mergeContacts = useCallback((prev: Contact[], next: Contact[]) => {
     const map = new Map<string, Contact>();
     prev.forEach((item) => {
@@ -546,15 +570,21 @@ const ChatPage = () => {
   const activeMessagesQuery = useChatMessages(activeConversationId || undefined, !!activeConversationId);
   /* ─── Load data ─── */
   const loadAll = useCallback(async () => {
-    const res = await getConversations();
-    const body = res.data?.data || {};
+    const queryItems = conversationsQuery.data || [];
+    let body: any = { conversations: queryItems };
+    if (!queryItems.length) {
+      const res = await getConversations();
+      body = res.data?.data || {};
+    }
     const rawConversations: ConversationRow[] = body.conversations ?? [];
     const rawTeam = body.team as { id?: number; name?: string; members?: { user_id: number; username?: string; avatar?: string }[] } | undefined;
     const rawUsers: { user_id: number; username?: string; avatar?: string }[] = body.users ?? [];
     const convMap = new Map<number, ConversationRow>();
+    const knownConversationIds = new Set<string>();
     const personalFromConversations = rawConversations
       .filter((conv) => conv.type === "private")
       .map((conv) => {
+        knownConversationIds.add(conv.conversation_id);
         const members = Array.isArray(conv.users) ? conv.users : [];
         const peer = members.find((u) => u?.user_id && u.user_id !== me?.id) || members[0];
         const peerId = peer?.user_id || 0;
@@ -602,7 +632,10 @@ const ChatPage = () => {
         username: teamMembers[0].username || "",
         avatar: teamMembers[0].avatar,
       } : undefined,
-    } satisfies Contact] : [];
+      } satisfies Contact] : [];
+    if (rawTeam?.id) {
+      knownConversationIds.add(`g_${rawTeam.id}`);
+    }
     const cs = [...teamContacts, ...personalFromConversations, ...personalFallback];
     const savedSelection = localStorage.getItem(getChatSelectionStorageKey());
     const selectedTeam = savedSelection === "team"
@@ -633,26 +666,56 @@ const ChatPage = () => {
           }))
       );
     }
-    setContacts((prev) => mergeContacts(prev, cs.length ? cs : [{ id: -1, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }]));
+    startTransition(() => {
+      setContacts((prev) => mergeContacts(prev, cs.length ? cs : [{ id: -1, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }]));
+    });
+
+    const preloadTargets = [
+      selectedTeam?.convId,
+      selectedContact?.convId,
+      ...cs
+        .filter((item) => item.convId)
+        .filter((item) => item.convId && knownConversationIds.has(item.convId))
+        .sort((a, b) => String(b.lastTimeRaw || "").localeCompare(String(a.lastTimeRaw || "")))
+        .slice(0, 5)
+        .map((item) => item.convId),
+    ].filter((value, index, arr): value is string => Boolean(value) && arr.indexOf(value) === index);
+    preloadTargets.forEach((convId) => preloadConversationMessages(convId));
+
     if (selectedTeam) {
       setActiveIdx(cs.findIndex((c) => c.convId === selectedTeam.convId))
       activeContactIdRef.current = selectedTeam.id
       activeConvIdRef.current = selectedTeam.convId || ""
       setSelectedConversationId(selectedTeam.convId || "")
-      setMessages(convoMessagesRef.current.get(selectedTeam.convId || "") || [])
+      const cached = convoMessagesRef.current.get(selectedTeam.convId || "") || []
+      setMessages(cached)
+      setLoadingMessages(cached.length === 0)
     } else if (selectedContact) {
-      setActiveIdx(cs.findIndex((c) => c.id === selectedContact.id))
-      activeContactIdRef.current = selectedContact.id
-      activeConvIdRef.current = selectedContact.convId || ""
-      setSelectedConversationId(selectedContact.convId || "")
-      setMessages(convoMessagesRef.current.get(selectedContact.convId || "") || [])
+      const selectedConvId = selectedContact.convId || ""
+      const hasRealConversation = selectedConvId && knownConversationIds.has(selectedConvId)
+      if (hasRealConversation) {
+        setActiveIdx(cs.findIndex((c) => c.id === selectedContact.id))
+        activeContactIdRef.current = selectedContact.id
+        activeConvIdRef.current = selectedConvId
+        setSelectedConversationId(selectedConvId)
+        const cached = convoMessagesRef.current.get(selectedConvId) || []
+        setMessages(cached)
+        setLoadingMessages(cached.length === 0)
+      } else {
+        setActiveIdx(-1)
+        activeContactIdRef.current = 0
+        activeConvIdRef.current = ""
+        setSelectedConversationId("")
+        setMessages([])
+        setLoadingMessages(false)
+      }
     } else {
       setActiveIdx(-1)
       activeContactIdRef.current = 0
       activeConvIdRef.current = ""
       setSelectedConversationId("")
     }
-  }, [me?.id, mergeContacts]);
+  }, [me?.id, mergeContacts, preloadConversationMessages, conversationsQuery.data]);
   // 同步 loadAllRef，避免 WebSocket 闭包中的 TDZ 问题
   useEffect(() => { loadAllRef.current = loadAll; }, [loadAll]);
 
@@ -757,14 +820,12 @@ const ChatPage = () => {
     activeContactIdRef.current = contactId;
     const isTeamContact = isGroupConversationId(nextContact?.convId);
     localStorage.setItem(getChatSelectionStorageKey(), isTeamContact ? "team" : String(contactId));
-    setSelectedConversationId("");
-    activeConvIdRef.current = "";
-    setMessages([]);
+    setLoadingMessages(true);
     let convId = nextContact?.convId || "";
     if (!convId && contactId > 0) {
       try {
         const res = await createConversation(contactId);
-        convId = String(res.data?.data?.conversation_id || "");
+        convId = extractConversationId(res.data);
       } catch (e) {
         const message = getChatErrorMessage(e, "创建会话失败");
         console.error("Create conversation failed:", e);
@@ -775,7 +836,9 @@ const ChatPage = () => {
     setSelectedConversationId(convId);
     activeConvIdRef.current = convId;
     const cached = convoMessagesRef.current.get(convId || "") || [];
-    setMessages(cached);
+    if (cached.length > 0) {
+      setMessages(cached);
+    }
     setLoadingMessages(cached.length === 0);
     // 标记已读：调用后端 API + 更新本地未读计数
     if (convId) {
@@ -783,13 +846,14 @@ const ChatPage = () => {
       convIdCacheRef.current.set(contactId, convId)
       setUnread(convId, 0)
       queryClient.invalidateQueries({ queryKey: ["chat", "messages", convId] });
+      preloadConversationMessages(convId);
     }
     if (window.innerWidth < 768) setShowMobileContacts(false);
-  }, [baseContacts, queryClient]);
+  }, [baseContacts, preloadConversationMessages, queryClient]);
 
   /* ─── Send ─── */
   const sendMsg = useCallback(async (type: string, content: string, fileName?: string, fileData?: string) => {
-    const isTeam = activeIdx === -2 || isGroupConversationId(activeConversationId)
+    const isTeam = isGroupConversationId(activeConversationId) || Boolean(selectedConversationId.startsWith("g_"))
     const targetContactId = activeContactIdRef.current || activeContact?.id || 0
     const targetContact = baseContacts.find((c) => c.id === targetContactId) || activeContact || null
     const targetReceiverId = targetContact?.id || targetContactId || 0
@@ -808,7 +872,7 @@ const ChatPage = () => {
     if (!isTeam && !conversationId) {
       try {
         const res = await createConversation(targetReceiverId)
-        conversationId = String(res.data?.data?.conversation_id || "")
+        conversationId = extractConversationId(res.data)
         if (conversationId) {
           setSelectedConversationId(conversationId)
           activeConvIdRef.current = conversationId
@@ -820,6 +884,9 @@ const ChatPage = () => {
         setSendError(message);
         toast.error(message);
       }
+    }
+    if (!isTeam && !conversationId) {
+      return;
     }
     const optimisticTime = new Date().toISOString();
     const local = makeLocalMessage(++midRef.current, type as Message["type"], content, fileName, fileData);
@@ -853,12 +920,23 @@ const ChatPage = () => {
         activeConvIdRef.current = serverConvId;
         setSelectedConversationId(serverConvId);
       }
-      const serverMessage: Message = body.message
-        ? { ...normalizeServerMessage(body.message, meName, meId), sender: "me" }
+      const normalizedBody = Object.keys(body).length
+        ? normalizeServerMessage(body, meName, meId)
+        : null;
+      const serverMessage: Message = normalizedBody
+        ? { ...normalizedBody, sender: "me" }
         : {
             ...local,
             rawTime: body.created_at || optimisticTime,
           };
+      const messageId = Number(body.id || serverMessage.id || local.id);
+      if (Number.isFinite(messageId) && messageId > 0) {
+        serverMessage.id = messageId;
+      }
+      serverMessage.type = messageTypeToString(serverMessage.type, body.message_type || messageType);
+      serverMessage.content = body.content || serverMessage.content || content;
+      serverMessage.fileName = body.file_name || fileName;
+      serverMessage.fileData = body.file_url || fileData || serverMessage.fileData;
       if (conversationId || activeConversationId) {
         const currentConvId = conversationId || activeConversationId;
         const existing = convoMessagesRef.current.get(currentConvId) || [];
@@ -874,15 +952,15 @@ const ChatPage = () => {
           name: meName,
           avatar: meAvatar || "",
           lastMsg: content,
-          lastTimeRaw: new Date().toISOString(),
+          lastTimeRaw: body.created_at || optimisticTime,
           unread: 0,
-          lastMessageType: messageType,
+          lastMessageType: body.message_type || messageType,
         })
       }
       queryClient.setQueryData(["chat", "messages", conversationId || activeConversationId], (old: any) => {
         const pages = Array.isArray(old?.pages) ? old.pages : [];
         if (!pages.length) {
-          return { ...old, pages: [[serverMessage]], pageParams: [1] };
+          return { ...old, pages: [[serverMessage]], pageParams: [undefined] };
         }
         const firstPage = extractMessageRows(pages[0]);
         const mergedFirst = mergeMessages(firstPage, [serverMessage]);
@@ -909,7 +987,7 @@ const ChatPage = () => {
       setMessages((prev) => prev.filter((m) => m.id !== local.id));
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
     }
-  }, [baseContacts,activeIdx,activeConversationId,meAvatar,meId,meName,upsertConversationSummary,activeContact,queryClient,selectedConversationId]);
+  }, [baseContacts,activeConversationId,meAvatar,meId,meName,upsertConversationSummary,activeContact,queryClient,selectedConversationId]);
 
   const sendText = () => { const v=input.trim(); if(!v) return; sendMsg(/^\p{Emoji}+$/u.test(v)?"emoji":"text",v); setInput(""); setShowEmoji(false); };
   const sendImg = () => { if(!previewImg) return; sendMsg("image",previewImg,"image.png",previewImg); setPreviewImg(null); };
@@ -925,9 +1003,10 @@ const ChatPage = () => {
     return AVATAR_GRADS[Math.abs(hash) % 7];
   }
   const online = (c: Contact) => c.online;
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const sortAndFilterContacts = useCallback((items: Contact[]) => {
     return [...items]
-      .filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter(c => c.name.toLowerCase().includes(deferredSearchQuery.toLowerCase()))
       .sort((a,b) => {
         const aOn = online(a) ? 1 : 0
         const bOn = online(b) ? 1 : 0
@@ -944,7 +1023,7 @@ const ChatPage = () => {
         if (aAv !== bAv) return bAv - aAv
         return a.name.localeCompare(b.name)
       })
-  }, [searchQuery]);
+  }, [deferredSearchQuery]);
   const filteredTeamContacts = useMemo(() => sortAndFilterContacts(teamContacts), [sortAndFilterContacts, teamContacts]);
   const filteredPersonalContacts = useMemo(() => sortAndFilterContacts(personalContacts), [sortAndFilterContacts, personalContacts]);
   const contact = activeContact || baseContacts[activeIdx];
