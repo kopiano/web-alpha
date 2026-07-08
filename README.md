@@ -121,6 +121,27 @@ vite打包后index.js如果超过500KB就需要优化
 * 目前是消息驱动，而主流聊天网站是会话驱动，需要调整整个聊天架构(重新设计后端接口)
 * 真正拖慢的是重复请求、重复渲染、以及首次进入时拉太多消息
 
+获取联系人列表(所有用户和群聊)          GET /chat/conversations
+    * 登录获取？还是进入chat页面获取？（前者）
+      1. 登录后预加载 GET /chat/conversations
+      2. 将返回的会话列表存入全局状态（如Vuex、Redux）或本地缓存。
+    * 内容：联系人名称、头像、最后一条消息、未读消息数等
+    * 进入Chat页面：刷新数据
+       - 核心原则是“增量合并”而非“全量覆盖（UI状态管理）
+         1. 强刷模式（Hard Refresh）：当Store/缓存中无数据时，显示加载骨架屏或Loading图标，完全等待接口返回后渲染。
+         2. 静默模式（Silent Refresh）：当Store/缓存中有数据时，立即展示旧数据（保证秒开），然后在后台调用接口，用新数据无闪
+  烁地更新列表
+       - 要区分“首次加载（骨架屏）”和“静默刷新（无感知）”两种UI状态
+       - 获取与合并数据需要按 conversationID 进行合并，而不是直接替换整个数组。
+    * 如果数据量较大，接口应支持分页
+    * Loading状态：在数据加载和刷新期间，需要妥善管理页面的加载状态
+    * 触发刷新的多种场景：
+      - 进入页面时，除了生命周期钩子
+      - 页面生命周期（onShow / useEffect）：从其他页面返回时，必须刷新（因为可能有已读回执或新消息）
+    * 未读数归零：在 refresh 接口返回前，不要将本地未读数强制置零，完全以接口返回为准
+    * 性能优化：
+      - 防抖与节流：对刷新
+
 | 功能         | HTTP             | WebSocket |
 | ----------       | ---------------- | --------- |
 | 获取联系人列表      | ✅                | ❌         |
@@ -135,30 +156,62 @@ vite打包后index.js如果超过500KB就需要优化
 
 
 进入 ChatPage 后的逻辑是：
-  1. 先请求 GET /chat/conversations
-  2. 再请求 GET /chat/groups
-  3. 解析本地保存的 chat_active_contact
-  4. 如果本地保存的是某个联系人，就恢复那个联系人
-  5. 如果本地保存的是 team，才恢复群聊
-  6. 如果都没有保存，就保持未选中状态，等用户手动点
+1. 先请求 GET /chat/conversations
+2. 再请求 GET /chat/groups
+3. 解析本地保存的 chat_active_contact
+4. 如果本地保存的是某个联系人，就恢复那个联系人
+5. 如果本地保存的是 team，才恢复群聊
+6. 如果都没有保存，就保持未选中状态，等用户手动点
 
-  也就是说，首次进入页面通常是“未选中”，不是自动进 Team。
-  如果你想改成“首次进入默认选中 Team”，可以做，但现在代码还没这么设。
+也就是说，首次进入页面通常是“未选中”，不是自动进 Team。
+如果你想改成“首次进入默认选中 Team”，可以做，但现在代码还没这么设。
 
-  切换联系人的请求逻辑现在是：
+切换联系人的请求逻辑现在是：
 
-  1. 点击联系人
-  2. 前端只更新本地选中态、当前会话 id、已读状态
-  3. 调 PUT /chat/conversations/:id/read 标记已读
-  4. 消息列表不再额外手工请求，因为它已经交给 useChatMessages(activeConversationId) 去拉
-  5. WebSocket 继续实时推新消息和未读数
+1. 点击联系人
+2. 前端只更新本地选中态、当前会话 id、已读状态
+3. 调 PUT /chat/conversations/:id/read 标记已读
+4. 消息列表不再额外手工请求，因为它已经交给 useChatMessages(activeConversationId) 去拉
+5. WebSocket 继续实时推新消息和未读数
 
-  所以切换联系人时，当前已经没有“先创建会话再拉消息”的老流程了，主请求就是：
+所以切换联系人时，当前已经没有“先创建会话再拉消息”的老流程了，主请求就是：
 
-  - 初次加载：/chat/conversations + /chat/groups
-  - 选中会话后：/chat/conversations/:id/messages
-  - 标记已读：PUT /chat/conversations/:id/read
+- 初次加载：/chat/conversations + /chat/groups
+- 选中会话后：/chat/conversations/:id/messages
+- 标记已读：PUT /chat/conversations/:id/read
 
+### 发送消息
+流程
+POST /chat/messages(最容易) 或 WebSocket(推荐)
+流程：
+    1. 输入消息
+    2. 发送 POST /api/v1/chat/messages
+    3. MySQL（消息持久化）、更新Redis（在线状态、未读数、最近联系人等）、WebSocket推送给在线用户
+    4. React收到消息，setMessages(...)，页面实时显示消息，请根据这个要求完善前端页面用户发送私聊消息和群聊消息的前端逻辑和
+
+### 选中联系人显示历史消息记录
+选中联系人获取消息记录
+GET /chat/conversations/:id/messages
+* 历史消息：首次只加载最近30条消息， 用户向上滚动时再加载更早的消息（无限滚动）
+* WebSocket 推送新消息
+第一次选中该用户：
+    1. 立即切换 UI（显示Loading）
+    2. GET /chat/conversations/:id/messages
+    3. MySQL 查询
+    4. 返回消息
+    5. 缓存到 React（或 React Query）
+第二次选中该用户：
+    1. 点击 Alice
+    2. 直接显示缓存
+    3. 后台静默刷新最新消息（可选）
+* 预加载
+    * 当联系人列表显示出来时，可以预加载最可能会打开的会话
+    * 最近聊天的前 3～5 个联系人
+    * 当前默认选中的联系人
+* 不要每次切换联系人都把消息列表清空
+    1. 点击 Alice
+    2. 保留上一帧内容或显示骨架屏
+    3. 几十到几百毫秒后替换为新消息
 
 ## 局域网连接(同一wifi)
 ```bash

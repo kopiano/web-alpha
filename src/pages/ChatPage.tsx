@@ -404,12 +404,7 @@ const ChatPage = () => {
       if((d.event==="message.new" || d.type==="message") && d.content) {
         const normalized = normalizeServerMessage(d, meRef.current, meId);
         const isMe = normalized.sender === "me";
-        if(isMe) {
-          if (targetConvId) {
-            pushMessage(targetConvId, normalized);
-          }
-          return;
-        }
+        if(isMe) return;
         const msgTime = d.time || timeFmt(new Date().toISOString())
         const newMsg: Message = normalized;
 
@@ -886,13 +881,6 @@ const ChatPage = () => {
       return
     }
     const optimisticTime = new Date().toISOString();
-    const local = makeLocalMessage(++midRef.current, type as Message["type"], content, fileName, fileData);
-    setMessages(p=>[...p,local]);
-    const pendingKey = selectedConvId || activeConversationId || "";
-    if (pendingKey) {
-      const pending = pendingMessagesRef.current.get(pendingKey) || [];
-      pendingMessagesRef.current.set(pendingKey, mergeMessages(pending, [local]));
-    }
     let messageType = 1;
     if (type==="emoji") messageType = 2;
     else if (type==="image") messageType = 3;
@@ -927,7 +915,7 @@ const ChatPage = () => {
             ...local,
             rawTime: body.created_at || optimisticTime,
           };
-      const messageId = Number(body.id || serverMessage.id || local.id);
+      const messageId = Number(body.id || serverMessage.id || 0);
       if (Number.isFinite(messageId) && messageId > 0) {
         serverMessage.id = messageId;
       }
@@ -940,11 +928,7 @@ const ChatPage = () => {
         const existing = convoMessagesRef.current.get(currentConvId) || [];
         const nextMessages = mergeMessages(existing, [serverMessage]);
         convoMessagesRef.current.set(currentConvId, nextMessages);
-        pendingMessagesRef.current.set(
-          currentConvId,
-          (pendingMessagesRef.current.get(currentConvId) || []).filter((msg) => msg.id !== local.id)
-        );
-        setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== local.id), [serverMessage]));
+        setMessages((prev) => mergeMessages(prev, [serverMessage]));
         upsertConversationSummary(currentConvId, {
           id: meId,
           name: meName,
@@ -976,13 +960,8 @@ const ChatPage = () => {
       if (selectedConvId || activeConversationId) {
         const currentConvId = selectedConvId || activeConversationId;
         const cached = convoMessagesRef.current.get(currentConvId) || [];
-        convoMessagesRef.current.set(currentConvId, cached.filter((m) => m.id !== local.id));
-        pendingMessagesRef.current.set(
-          currentConvId,
-          (pendingMessagesRef.current.get(currentConvId) || []).filter((msg) => msg.id !== local.id)
-        );
+        convoMessagesRef.current.set(currentConvId, cached);
       }
-      setMessages((prev) => prev.filter((m) => m.id !== local.id));
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
     }
   }, [baseContacts,activeConversationId,meAvatar,meId,meName,upsertConversationSummary,activeContact,queryClient,selectedConversationId]);
