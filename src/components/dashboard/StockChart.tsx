@@ -174,6 +174,10 @@ function computeYDomain(points: StockPoint[]) {
   };
 }
 
+function safeNumber(value: number, fallback = 0) {
+  return Number.isFinite(value) ? value : fallback;
+}
+
 function formatTickLabel(point: StockPoint, period: Period) {
   if (period === "5D" || period === "1D") {
     return new Date(point.t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
@@ -441,14 +445,14 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
   const width = chartWidth;
   const height = 420;
   const pad = { left: 28, right: 110, top: 30, bottom: 54 };
-  const chartW = width - pad.left - pad.right;
-  const chartH = height - pad.top - pad.bottom;
+  const chartW = Math.max(1, safeNumber(width - pad.left - pad.right, 1));
+  const chartH = Math.max(1, safeNumber(height - pad.top - pad.bottom, 1));
   const volumeH = 50;
 
   const plotted: ChartPoint[] = points.map((p, index) => ({
     ...p,
-    x: pad.left + (index / Math.max(1, points.length - 1)) * chartW,
-    y: pad.top + chartH - ((p.close - min) / (max - min || 1)) * (chartH - volumeH),
+    x: safeNumber(pad.left + (index / Math.max(1, points.length - 1)) * chartW, pad.left),
+    y: safeNumber(pad.top + chartH - ((p.close - min) / (max - min || 1)) * (chartH - volumeH), pad.top + chartH / 2),
   }));
 
   const linePath = smoothCurve(plotted.map(({ x, y }) => ({ x, y })));
@@ -461,9 +465,11 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
   const lineLength = Math.max(2200, plotted.length * 58);
   const xAxisLabels = xTicks.map((index) => ({ index, point: plotted[index] }));
   const bottomLabel = hoveredPoint ? hoveredPoint.label : currentPoint?.label;
-  const yLabels = yTickList.map((tick) => ({ tick, y: pad.top + chartH - ((tick - min) / (max - min || 1)) * (chartH - volumeH) }));
+  const yLabels = yTickList.map((tick) => ({ tick, y: safeNumber(pad.top + chartH - ((tick - min) / (max - min || 1)) * (chartH - volumeH), pad.top) }));
   const minVolume = points.length ? Math.min(...points.map((p) => p.volume)) : 0;
   const maxVolume = points.length ? Math.max(...points.map((p) => p.volume)) : 1;
+  const safeCurrentPoint = currentPoint ?? plotted[0] ?? null;
+  const safeActivePoint = activePoint ?? safeCurrentPoint;
 
   useEffect(() => {
     return () => {
@@ -611,7 +617,7 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
                   </clipPath>
                 </defs>
 
-                <rect x={pad.left} y={pad.top} width={chartW} height={chartH - volumeH} fill="url(#verticalDots)" opacity="0.24" />
+                <rect x={safeNumber(pad.left, 0)} y={safeNumber(pad.top, 0)} width={chartW} height={Math.max(1, chartH - volumeH)} fill="url(#verticalDots)" opacity="0.24" />
 
                 {yLabels.map(({ tick, y }) => (
                   <g key={tick}>
@@ -655,12 +661,14 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
                 />
 
                 {points.map((p, index) => {
-                  const barHeight = Math.max(2, ((p.volume - minVolume) / ((maxVolume - minVolume) || 1)) * 42);
+                  const barHeight = Math.max(2, safeNumber(((p.volume - minVolume) / ((maxVolume - minVolume) || 1)) * 42, 2));
+                  const barX = safeNumber(p.x - 1.5, pad.left);
+                  const barY = safeNumber(pad.top + chartH - volumeH + (42 - barHeight), pad.top + chartH - volumeH);
                   return (
                     <rect
                       key={p.t}
-                      x={p.x - 1.5}
-                      y={pad.top + chartH - volumeH + (42 - barHeight)}
+                      x={barX}
+                      y={barY}
                       width="3"
                       height={barHeight}
                       rx="1"
@@ -672,26 +680,26 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
 
                 {activePoint ? (
                   <>
-                    <line x1={activePoint.x} y1={pad.top} x2={activePoint.x} y2={pad.top + chartH - volumeH} stroke="#8A8A8A" strokeDasharray="5 5" opacity="0.45" />
-                    <line x1={pad.left} y1={activePoint.y} x2={width - pad.right} y2={activePoint.y} stroke="#8A8A8A" strokeDasharray="5 5" opacity="0.45" />
-                    <line x1={pad.left} y1={currentPoint.y} x2={width - pad.right} y2={currentPoint.y} stroke="#10B981" strokeDasharray="6 6" opacity="0.7" />
-                    <g transform={`translate(${width - pad.right + 10}, ${currentPoint.y})`}>
+                    <line x1={safeNumber(safeActivePoint?.x ?? 0, 0)} y1={pad.top} x2={safeNumber(safeActivePoint?.x ?? 0, 0)} y2={pad.top + chartH - volumeH} stroke="#8A8A8A" strokeDasharray="5 5" opacity="0.45" />
+                    <line x1={pad.left} y1={safeNumber(safeActivePoint?.y ?? 0, 0)} x2={width - pad.right} y2={safeNumber(safeActivePoint?.y ?? 0, 0)} stroke="#8A8A8A" strokeDasharray="5 5" opacity="0.45" />
+                    <line x1={pad.left} y1={safeNumber(safeCurrentPoint?.y ?? 0, 0)} x2={width - pad.right} y2={safeNumber(safeCurrentPoint?.y ?? 0, 0)} stroke="#10B981" strokeDasharray="6 6" opacity="0.7" />
+                    <g transform={`translate(${width - pad.right + 10}, ${safeNumber(safeCurrentPoint?.y ?? 0, 0)})`}>
                       <rect x="0" y="-19" width="84" height="38" rx="8" fill="#047857" />
                       <text x="42" y="6" textAnchor="middle" className="fill-white text-[14px] font-medium tabular-nums">
                         {formatPrice(last)}
                       </text>
                     </g>
-                    <g transform={`translate(${width - pad.right + 10}, ${activePoint.y})`}>
+                    <g transform={`translate(${width - pad.right + 10}, ${safeNumber(safeActivePoint?.y ?? 0, 0)})`}>
                       <rect x="0" y="-16" width="76" height="32" rx="8" fill="#333333" />
                       <text x="38" y="5" textAnchor="middle" className="fill-white text-[13px] font-medium tabular-nums">
-                        {formatPrice(activePoint.close)}
+                        {formatPrice(safeActivePoint?.close)}
                       </text>
                     </g>
-                    <circle cx={currentPoint.x} cy={currentPoint.y} r="6" fill="#DC2626" stroke="#FFFFFF" strokeWidth="2" />
+                    {safeCurrentPoint ? <circle cx={safeCurrentPoint.x} cy={safeCurrentPoint.y} r="6" fill="#DC2626" stroke="#FFFFFF" strokeWidth="2" /> : null}
                   </>
                 ) : null}
 
-                {currentPoint ? (
+                {safeCurrentPoint ? (
                   <g transform={`translate(${pad.left + 12}, ${pad.top + 12})`}>
                     <rect x="0" y="0" width="88" height="32" rx="10" fill="#DC2626" />
                     <path d="M 24 32 L 34 32 L 29 40 Z" fill="#DC2626" />
@@ -701,23 +709,23 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
                   </g>
                 ) : null}
 
-                {activePoint ? (
+                {safeActivePoint ? (
                   <g>
-                    <circle cx={activePoint.x} cy={activePoint.y} r="4" fill="#DC2626" stroke="#FFFFFF" strokeWidth="2" />
-                    <g transform={`translate(${clamp(activePoint.x - 160, 12, width - 332)}, ${clamp(activePoint.y - 180, 12, height - 220)})`}>
+                    <circle cx={safeActivePoint.x} cy={safeActivePoint.y} r="4" fill="#DC2626" stroke="#FFFFFF" strokeWidth="2" />
+                    <g transform={`translate(${clamp(safeActivePoint.x - 160, 12, width - 332)}, ${clamp(safeActivePoint.y - 180, 12, height - 220)})`}>
                       <rect x="0" y="0" width="320" height="180" rx="16" fill="rgba(255,255,255,0.96)" stroke="rgba(255,255,255,0.7)" />
                       <text x="18" y="28" className="fill-[#6B7280] text-[15px] font-normal">Date</text>
-                      <text x="302" y="28" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">{activePoint.label}</text>
+                      <text x="302" y="28" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">{safeActivePoint.label}</text>
                       <text x="18" y="58" className="fill-[#6B7280] text-[15px] font-normal">Close</text>
-                      <text x="302" y="58" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(activePoint.close)}</text>
+                      <text x="302" y="58" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.close)}</text>
                       <text x="18" y="88" className="fill-[#6B7280] text-[15px] font-normal">Open</text>
-                      <text x="302" y="88" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(activePoint.open)}</text>
+                      <text x="302" y="88" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.open)}</text>
                       <text x="18" y="118" className="fill-[#6B7280] text-[15px] font-normal">High</text>
-                      <text x="302" y="118" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(activePoint.high)}</text>
+                      <text x="302" y="118" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.high)}</text>
                       <text x="18" y="148" className="fill-[#6B7280] text-[15px] font-normal">Low</text>
-                      <text x="302" y="148" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(activePoint.low)}</text>
+                      <text x="302" y="148" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.low)}</text>
                       <text x="18" y="176" className="fill-[#6B7280] text-[15px] font-normal">Volume</text>
-                      <text x="302" y="176" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">{formatCompactVolume(activePoint.volume)}</text>
+                      <text x="302" y="176" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">{formatCompactVolume(safeActivePoint.volume)}</text>
                     </g>
                   </g>
                 ) : null}
@@ -727,7 +735,7 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
                 <div
                   className="pointer-events-none absolute rounded-[8px] bg-[#333333] px-[18px] py-[10px] text-[13px] font-medium text-white shadow-[0_10px_24px_rgba(0,0,0,0.14)]"
                   style={{
-                      left: clamp((hoveredPoint?.x ?? currentPoint.x) - 48, 12, chartWidth - 124),
+                      left: clamp((hoveredPoint?.x ?? safeCurrentPoint?.x ?? 0) - 48, 12, chartWidth - 124),
                     bottom: 6,
                   }}
                 >
