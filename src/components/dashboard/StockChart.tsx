@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getStockQuote } from "@/api/stocks";
 
 type Period = "1D" | "5D" | "1M" | "6M" | "YTD" | "1Y" | "5Y" | "All";
 type StockSymbol = "SPCX" | "AAPL" | "NVDA" | "TSLA";
@@ -35,10 +36,23 @@ type StockPayload = {
 };
 
 type ChartPoint = StockPoint & { x: number; y: number; vY: number };
+type QuoteResponse = {
+  symbol?: string;
+  name?: string;
+  exchange?: string;
+  currency?: string;
+  market_state?: string;
+  regular?: StockPayload["regular"];
+  pre_market?: StockPayload["pre_market"];
+  points?: StockPoint[];
+  data?: StockPayload | StockPayload[];
+  result?: StockPayload | StockPayload[];
+  quote?: StockPayload;
+};
 
 type TimeStep = { minutes: number; label: string };
 
-const PERIODS: Period[] = ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y", "All"];
+const PERIODS: Period[] = ["1D", "5D", "1M"];
 const SYMBOLS: { symbol: StockSymbol; label: string }[] = [
   { symbol: "SPCX", label: "SPCX" },
   { symbol: "AAPL", label: "AAPL" },
@@ -105,7 +119,15 @@ function smoothCurve(points: { x: number; y: number }[]) {
     const c1y = p1.y + (p2.y - p0.y) / 6;
     const c2x = p2.x - (p3.x - p1.x) / 6;
     const c2y = p2.y - (p3.y - p1.y) / 6;
-    d.push(`C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`);
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const steepness = Math.abs(dy) / Math.max(1, Math.abs(dx));
+    const clampFactor = steepness > 1.4 ? 0.35 : steepness > 0.9 ? 0.55 : 1;
+    const adjC1x = p1.x + (c1x - p1.x) * clampFactor;
+    const adjC1y = p1.y + (c1y - p1.y) * clampFactor;
+    const adjC2x = p2.x + (c2x - p2.x) * clampFactor;
+    const adjC2y = p2.y + (c2y - p2.y) * clampFactor;
+    d.push(`C ${adjC1x} ${adjC1y}, ${adjC2x} ${adjC2y}, ${p2.x} ${p2.y}`);
   }
   return d.join(" ");
 }
@@ -113,13 +135,15 @@ function smoothCurve(points: { x: number; y: number }[]) {
 function xTickIndexes(period: Period, length: number) {
   if (length <= 1) return [0];
   const list =
-    period === "5D"
-      ? [0, Math.floor(length * 0.2), Math.floor(length * 0.4), Math.floor(length * 0.6), Math.floor(length * 0.8), length - 1]
-      : period === "1M"
-        ? [0, 5, 10, 15, 20, 25, length - 1]
-        : period === "6M"
-          ? [0, 21, 42, 63, 84, 105, length - 1]
-          : [0, Math.floor(length * 0.2), Math.floor(length * 0.4), Math.floor(length * 0.6), Math.floor(length * 0.8), length - 1];
+    period === "1D"
+      ? [0, Math.floor(length * 0.25), Math.floor(length * 0.5), Math.floor(length * 0.75), length - 1]
+      : period === "5D"
+        ? [0, Math.floor(length * 0.2), Math.floor(length * 0.4), Math.floor(length * 0.6), Math.floor(length * 0.8), length - 1]
+        : period === "1M"
+          ? [0, 7, 14, 21, 28, length - 1]
+          : period === "6M"
+            ? [0, 21, 42, 63, 84, 105, length - 1]
+            : [0, Math.floor(length * 0.2), Math.floor(length * 0.4), Math.floor(length * 0.6), Math.floor(length * 0.8), length - 1];
   return [...new Set(list.map((i) => clamp(i, 0, length - 1)))];
 }
 
@@ -135,6 +159,21 @@ function yTicks(min: number, max: number, count = 6) {
   return ticks.length > 1 ? ticks : [min, max];
 }
 
+function computeYDomain(points: StockPoint[]) {
+  if (!points.length) return { min: 0, max: 1 };
+  const lows = points.map((p) => p.low);
+  const highs = points.map((p) => p.high);
+  const minValue = Math.min(...lows);
+  const maxValue = Math.max(...highs);
+  const range = maxValue - minValue || Math.max(1, maxValue * 0.01);
+  const center = (maxValue + minValue) / 2;
+  const dynamicPad = Math.max(range * 0.12, center * 0.004);
+  return {
+    min: minValue - dynamicPad,
+    max: maxValue + dynamicPad,
+  };
+}
+
 function formatTickLabel(point: StockPoint, period: Period) {
   if (period === "5D" || period === "1D") {
     return new Date(point.t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
@@ -147,7 +186,7 @@ function getPeriodConfig(period: Period): TimeStep[] {
   const now = new Date();
   const steps: TimeStep[] = [];
   if (period === "1D") {
-    for (let minute = 0; minute <= 390; minute += 10) {
+    for (let minute = 0; minute <= 390; minute += 1) {
       const d = new Date(now.getTime() - (390 - minute) * 60_000);
       steps.push({ minutes: minute, label: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) });
     }
@@ -195,7 +234,7 @@ function mockSeries(symbol: StockSymbol, period: Period): StockPayload {
   const points: StockPoint[] = [];
   let close = base * 0.97;
   const drift = symbol === "TSLA" ? 0.0008 : symbol === "NVDA" ? 0.00045 : 0.0002;
-  const volatility = period === "1D" || period === "5D" ? 0.006 : period === "1M" ? 0.01 : 0.015;
+  const volatility = period === "1D" ? 0.0045 : period === "5D" ? 0.006 : period === "1M" ? 0.01 : 0.015;
 
   steps.forEach((step, index) => {
     const seed = Math.sin(index * 1.37 + symbol.charCodeAt(0)) * 0.6 + Math.cos(index * 0.41) * 0.4;
@@ -206,7 +245,7 @@ function mockSeries(symbol: StockSymbol, period: Period): StockPayload {
     const swing = open * (volatility * 0.9);
     const high = Math.max(open, close) + Math.abs(seed) * swing * 0.45;
     const low = Math.min(open, close) - Math.abs(seed) * swing * 0.45;
-    const volumeBase = period === "1D" ? 1.8e6 : period === "5D" ? 4.5e6 : 9.5e6;
+    const volumeBase = period === "1D" ? 1.2e6 : period === "5D" ? 4.5e6 : 9.5e6;
     const volume = Math.round(volumeBase * (0.65 + Math.abs(seed) * 0.75));
     points.push({ t: now + step.minutes * 60_000, label: step.label, open, high, low, close, volume });
   });
@@ -232,6 +271,40 @@ function mockSeries(symbol: StockSymbol, period: Period): StockPayload {
   };
 }
 
+function normalizeResponse(raw: unknown, fallbackSymbol: StockSymbol, period: Period): StockPayload | null {
+  const payload = raw as QuoteResponse | undefined;
+  const candidate = Array.isArray(payload?.data)
+    ? payload?.data[0]
+    : Array.isArray(payload?.result)
+      ? payload?.result[0]
+      : payload?.data || payload?.result || payload?.quote || payload;
+
+  if (!candidate || typeof candidate !== "object") return null;
+
+  const points = Array.isArray((candidate as StockPayload).points) ? (candidate as StockPayload).points : undefined;
+  const regular = (candidate as StockPayload).regular;
+  const preMarket = (candidate as StockPayload).pre_market;
+  const symbol = (candidate as StockPayload).symbol || payload?.symbol || fallbackSymbol;
+
+  return {
+    symbol,
+    name: (candidate as StockPayload).name || payload?.name || symbol,
+    exchange: (candidate as StockPayload).exchange || payload?.exchange || "NASDAQ",
+    currency: (candidate as StockPayload).currency || payload?.currency || "USD",
+    market_state: (candidate as StockPayload).market_state || payload?.market_state || "regular",
+    regular,
+    pre_market: preMarket,
+    points:
+      period === "5D"
+        ? (points && points.length >= 150 ? points : mockSeries(fallbackSymbol, period).points)
+        : period === "1D"
+          ? (points && points.length >= 200 ? points : mockSeries(fallbackSymbol, period).points)
+          : points?.length
+            ? points
+            : mockSeries(fallbackSymbol, period).points,
+  };
+}
+
 function QuoteRow({ label, price, change, changePercent, time }: { label: string; price?: number; change?: number; changePercent?: number; time?: string }) {
   const up = (change ?? 0) >= 0;
   return (
@@ -250,8 +323,110 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
   const [period, setPeriod] = useState<Period>("5D");
   const [symbol, setSymbol] = useState<StockSymbol>("SPCX");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const [chartWidth, setChartWidth] = useState(1240);
+  const hoverFrameRef = useRef<number | null>(null);
+  const pendingHoverIndexRef = useRef<number | null>(null);
+  const periodBarRef = useRef<HTMLDivElement | null>(null);
+  const periodButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [periodIndicator, setPeriodIndicator] = useState({ left: 0, width: 0 });
 
-  const payload = useMemo(() => mockSeries(symbol, period), [period, symbol]);
+  const [payload, setPayload] = useState<StockPayload>(() => mockSeries(symbol, period));
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const el = chartContainerRef.current;
+    if (!el) return;
+
+    const updateWidth = () => {
+      const nextWidth = Math.max(920, Math.floor(el.getBoundingClientRect().width - 48));
+      setChartWidth(nextWidth);
+    };
+
+    updateWidth();
+
+    const Observer = typeof ResizeObserver !== "undefined" ? ResizeObserver : null;
+    if (!Observer) return;
+
+    const observer = new Observer(() => {
+      updateWidth();
+    });
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const activeIndex = PERIODS.indexOf(period);
+    const btn = periodButtonRefs.current[activeIndex];
+    const bar = periodBarRef.current;
+    if (!btn || !bar) return;
+
+    const barRect = bar.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    setPeriodIndicator({
+      left: btnRect.left - barRect.left,
+      width: btnRect.width,
+    });
+  }, [period, chartWidth]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const cacheKey = `stock-chart:${symbol}:${period}`;
+    const ttlMs = 12 * 60 * 60 * 1000;
+
+    const readCache = () => {
+      try {
+        const cachedRaw = localStorage.getItem(cacheKey);
+        if (!cachedRaw) return null;
+        const cached = JSON.parse(cachedRaw) as { ts: number; payload: StockPayload };
+        if (!cached?.ts || !cached?.payload) return null;
+        if (Date.now() - cached.ts > ttlMs) return null;
+        return cached.payload;
+      } catch {
+        return null;
+      }
+    };
+
+    const writeCache = (nextPayload: StockPayload) => {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), payload: nextPayload }));
+      } catch {
+        // ignore cache write failures
+      }
+    };
+
+    const cached = readCache();
+    if (cached) {
+      setPayload(cached);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const range = period === "6M" ? "6m" : period.toLowerCase();
+
+    void getStockQuote(symbol, range)
+      .then((response) => {
+        const nextPayload = normalizeResponse(response.data, symbol, period) || mockSeries(symbol, period);
+        if (cancelled) return;
+        setPayload(nextPayload);
+        writeCache(nextPayload);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPayload(mockSeries(symbol, period));
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [period, symbol]);
+
   const points = payload.points || [];
   const regular = payload.regular;
   const preMarket = payload.pre_market;
@@ -261,17 +436,9 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
   const diffPct = regular?.change_percent ?? (prev ? (diff / prev) * 100 : 0);
   const isUp = diff >= 0;
 
-  const { min, max } = useMemo(() => {
-    if (!points.length) return { min: 0, max: 1 };
-    const lows = points.map((p) => p.low);
-    const highs = points.map((p) => p.high);
-    const minValue = Math.min(...lows);
-    const maxValue = Math.max(...highs);
-    const pad = (maxValue - minValue) * 0.1 || maxValue * 0.01;
-    return { min: minValue - pad, max: maxValue + pad };
-  }, [points]);
+  const { min, max } = useMemo(() => computeYDomain(points), [points]);
 
-  const width = 1240;
+  const width = chartWidth;
   const height = 420;
   const pad = { left: 28, right: 110, top: 30, bottom: 54 };
   const chartW = width - pad.left - pad.right;
@@ -298,6 +465,14 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
   const minVolume = points.length ? Math.min(...points.map((p) => p.volume)) : 0;
   const maxVolume = points.length ? Math.max(...points.map((p) => p.volume)) : 1;
 
+  useEffect(() => {
+    return () => {
+      if (hoverFrameRef.current !== null) {
+        cancelAnimationFrame(hoverFrameRef.current);
+      }
+    };
+  }, []);
+
   return (
     <section className={`rounded-[20px] border border-white/10 bg-[rgba(9,12,18,0.76)] backdrop-blur-xl ${className}`}>
       <div className="p-5 md:p-6 lg:p-7">
@@ -311,7 +486,7 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/68">
               <span>{period}</span>
               <span>·</span>
-              <span>{period === "5D" ? "10 minute intervals" : period === "1M" ? "1 day intervals" : period === "1D" ? "10 minute intervals" : "daily intervals"}</span>
+              <span>{period === "5D" ? "10 minute intervals" : period === "1M" ? "1 day intervals" : period === "1D" ? "1 minute intervals" : "daily intervals"}</span>
               <span>·</span>
               <span>{payload.currency}</span>
             </div>
@@ -320,7 +495,7 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
               <div className={`mt-1 text-[13px] font-medium tabular-nums ${isUp ? "text-emerald-300" : "text-rose-300"}`}>
                 {formatSigned(diff)} ({formatPercent(diffPct)})
               </div>
-              <div className="mt-1 text-[11px] text-white/62">As of {regular?.time || "10:02:41 AM GMT-4. Market open."}</div>
+              <div className="mt-1 text-[11px] text-white/62">{loading ? "Loading market data..." : `As of ${regular?.time || "10:02:41 AM GMT-4. Market open."}`}</div>
             </div>
           </div>
 
@@ -348,15 +523,26 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.02] p-1 backdrop-blur-xl lg:ml-auto">
-            {PERIODS.map((item) => (
+          <div ref={periodBarRef} className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.02] p-1 backdrop-blur-xl lg:ml-auto">
+            <span
+              className="absolute top-1 bottom-1 rounded-full bg-white shadow-[0_8px_20px_rgba(255,255,255,0.12)] transition-all duration-300 ease-out"
+              style={{
+                left: periodIndicator.left,
+                width: periodIndicator.width,
+                opacity: periodIndicator.width ? 1 : 0,
+              }}
+            />
+            {PERIODS.map((item, index) => (
               <button
                 key={item}
+                ref={(node) => {
+                  periodButtonRefs.current[index] = node;
+                }}
                 onClick={() => {
                   setPeriod(item);
                   setHoverIndex(null);
                 }}
-                className={`rounded-full px-4 py-2 text-[12px] font-medium transition-all ${period === item ? "bg-white text-black shadow-[0_8px_20px_rgba(255,255,255,0.15)]" : "text-white/45 hover:text-white"}`}
+                className={`relative z-10 rounded-full px-4 py-2 text-[12px] font-medium transition-all ${period === item ? "bg-white text-black shadow-[0_8px_20px_rgba(255,255,255,0.15)]" : "text-white/45 hover:text-white"}`}
               >
                 {item}
               </button>
@@ -365,18 +551,30 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
         </div>
 
         <div className="mt-5 rounded-[24px] border border-white/[0.07] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))] p-[30px]">
-          <div className="rounded-[12px] border border-[#E5E7EB] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+          <div ref={chartContainerRef} className="rounded-[12px] border border-[#E5E7EB] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
             <div className="relative">
-              <svg
-                viewBox={`0 0 ${width} ${height}`}
-                className="h-[520px] w-full overflow-visible select-none"
-                onMouseLeave={() => setHoverIndex(null)}
+                <svg
+                  viewBox={`0 0 ${width} ${height}`}
+                  className="h-[520px] w-full overflow-visible select-none"
+                  onMouseLeave={() => {
+                    pendingHoverIndexRef.current = null;
+                    if (hoverFrameRef.current !== null) {
+                      cancelAnimationFrame(hoverFrameRef.current);
+                      hoverFrameRef.current = null;
+                    }
+                    setHoverIndex(null);
+                  }}
                 onMouseMove={(event) => {
                   if (!plotted.length) return;
                   const rect = event.currentTarget.getBoundingClientRect();
                   const x = ((event.clientX - rect.left) / rect.width) * width;
                   const index = binarySearch(plotted, x);
-                  setHoverIndex(index);
+                  pendingHoverIndexRef.current = index;
+                  if (hoverFrameRef.current !== null) return;
+                  hoverFrameRef.current = requestAnimationFrame(() => {
+                    hoverFrameRef.current = null;
+                    setHoverIndex(pendingHoverIndexRef.current);
+                  });
                 }}
               >
                 <defs>
@@ -408,7 +606,7 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
                       <feMergeNode in="SourceGraphic" />
                     </feMerge>
                   </filter>
-                  <clipPath id="areaClip">
+                  <clipPath id="areaClip" clipPathUnits="userSpaceOnUse">
                     <path d={areaPath} />
                   </clipPath>
                 </defs>
@@ -529,7 +727,7 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
                 <div
                   className="pointer-events-none absolute rounded-[8px] bg-[#333333] px-[18px] py-[10px] text-[13px] font-medium text-white shadow-[0_10px_24px_rgba(0,0,0,0.14)]"
                   style={{
-                    left: clamp((hoveredPoint?.x ?? currentPoint.x) - 48, 12, width - 124),
+                      left: clamp((hoveredPoint?.x ?? currentPoint.x) - 48, 12, chartWidth - 124),
                     bottom: 6,
                   }}
                 >
