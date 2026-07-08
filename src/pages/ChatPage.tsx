@@ -186,9 +186,11 @@ function mergeMessages(existing: Message[], incoming: Message[]) {
 }
 
 function messageKey(message: Message) {
+  // 优先用后端消息 id 去重，避免同一条消息因时间字段或缓存层差异被重复渲染
+  if (message.id && message.id > 0) {
+    return `id:${message.id}`;
+  }
   return [
-    message.id || 0,
-    message.rawTime || message.time || "",
     message.sender,
     message.type,
     message.content,
@@ -690,7 +692,7 @@ const ChatPage = () => {
         .filter((item) => item.convId)
         .filter((item) => item.convId && knownConversationIds.has(item.convId))
         .sort((a, b) => String(b.lastTimeRaw || "").localeCompare(String(a.lastTimeRaw || "")))
-        .slice(0, 5)
+        .slice(0, 4)
         .map((item) => item.convId),
     ].filter((value, index, arr): value is string => Boolean(value) && arr.indexOf(value) === index);
     preloadTargets.forEach((convId) => preloadConversationMessages(convId));
@@ -707,15 +709,22 @@ const ChatPage = () => {
       setLoadingMessages(cached.length === 0)
     } else if (selectedContact) {
       const selectedConvId = selectedContact.convId || ""
-      const hasRealConversation = selectedConvId && knownConversationIds.has(selectedConvId)
       setActiveIdx(cs.findIndex((c) => c.id === selectedContact.id))
       activeContactIdRef.current = selectedContact.id
       selectedPeerUserIdRef.current = selectedContact.id
       selectedGroupIdRef.current = 0
-      activeConvIdRef.current = hasRealConversation ? selectedConvId : ""
-      setSelectedConversationId(hasRealConversation ? selectedConvId : "")
-      if (hasRealConversation) {
-        const cached = convoMessagesRef.current.get(selectedConvId) || []
+      let resolvedConvId = selectedConvId
+      if (!resolvedConvId || !knownConversationIds.has(resolvedConvId)) {
+        try {
+          resolvedConvId = await ensurePrivateConversation(selectedContact.id)
+        } catch {
+          resolvedConvId = selectedConvId
+        }
+      }
+      activeConvIdRef.current = resolvedConvId
+      setSelectedConversationId(resolvedConvId)
+      if (resolvedConvId) {
+        const cached = convoMessagesRef.current.get(resolvedConvId) || []
         setMessages(cached)
         setLoadingMessages(cached.length === 0)
       } else {
@@ -743,8 +752,10 @@ const ChatPage = () => {
     }
     const cached = convoMessagesRef.current.get(activeConversationId) || [];
     if (!pages.length) {
-      setMessages(cached);
-      setLoadingMessages(false);
+      if (cached.length > 0) {
+        setMessages(cached);
+        setLoadingMessages(false);
+      }
       return;
     }
     const flat = pages.flatMap((page: any) => extractMessageRows(page));
@@ -756,6 +767,18 @@ const ChatPage = () => {
     setMessages(merged);
     setLoadingMessages(false)
   }, [activeMessagesQuery.data, activeMessagesQuery.isFetching, activeConversationId, meId]);
+
+  useEffect(() => {
+    if (!activeConversationId) return;
+    if (!activeMessagesQuery.isError) return;
+    const cached = convoMessagesRef.current.get(activeConversationId) || [];
+    if (cached.length > 0) {
+      setMessages(cached);
+    } else {
+      setMessages([]);
+    }
+    setLoadingMessages(false);
+  }, [activeMessagesQuery.isError, activeConversationId]);
 
   useEffect(() => {
     const el = messagesScrollRef.current;
@@ -827,6 +850,18 @@ const ChatPage = () => {
   }, [me, conversationsQuery]);
 
   /* ─── Switch contact → load private messages ─── */
+  const ensurePrivateConversation = useCallback(async (userId: number) => {
+    if (!userId || !me?.id) return "";
+    const cachedConvId = convIdCacheRef.current.get(userId);
+    if (cachedConvId) return cachedConvId;
+    const res = await createConversation(userId);
+    const convId = String(res.data?.data?.conversation_id || "");
+    if (convId) {
+      convIdCacheRef.current.set(userId, convId);
+    }
+    return convId;
+  }, [me?.id]);
+
   const switchContact = useCallback(async (contact: Contact) => {
     const idx = baseContacts.findIndex(c => c.convId === contact.convId && c.id === contact.id);
     if(idx<0) return;
@@ -844,13 +879,23 @@ const ChatPage = () => {
     localStorage.setItem(getChatSelectionStorageKey(), isTeamContact ? "team" : String(nextContact.id));
     setLoadingMessages(true);
     let convId = nextContact?.convId || "";
+    if (!isTeamContact) {
+      try {
+        convId = convId || (await ensurePrivateConversation(nextContact.id));
+      } catch (err) {
+        console.error("Ensure private conversation failed:", err);
+        convId = convId || makePrivateConversationId(me?.id || 0, nextContact.id);
+      }
+    }
     setSelectedConversationId(convId);
     activeConvIdRef.current = convId;
     const cached = convoMessagesRef.current.get(convId || "") || [];
     if (cached.length > 0) {
       setMessages(cached);
+      setLoadingMessages(false);
+    } else {
+      setLoadingMessages(true);
     }
-    setLoadingMessages(cached.length === 0);
     // 标记已读：调用后端 API + 更新本地未读计数
     if (convId) {
       markConversationRead(convId).catch(() => {})
@@ -860,7 +905,7 @@ const ChatPage = () => {
       preloadConversationMessages(convId);
     }
     if (window.innerWidth < 768) setShowMobileContacts(false);
-  }, [baseContacts, preloadConversationMessages, queryClient]);
+  }, [baseContacts, ensurePrivateConversation, preloadConversationMessages, queryClient, me?.id]);
 
   /* ─── Send ─── */
   const sendMsg = useCallback(async (type: string, content: string, fileName?: string, fileData?: string) => {
