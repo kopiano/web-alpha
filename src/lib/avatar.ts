@@ -3,6 +3,22 @@ const apiBase = import.meta.env.VITE_API_URL as string || ""
 const backendOrigin = apiBase.replace(/\/api\/v1.*$/, "").replace(/:5000/, ":8000")
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif|svg|avif)(\?.*)?$/i
+const LEGACY_AVATAR_MAP: Record<string, string> = {
+  "avatar-1": "avatar-shville",
+  "avatar-2": "avatar-kopiano",
+  "avatar-3": "avatar-admin",
+  "avatar-4": "avatar-kope",
+  "avatar-5": "avatar-amoe",
+}
+
+function normalizeLegacyAvatarPath(pathname: string): string {
+  const match = pathname.match(/\/api\/v1\/avatar\/(avatar-(\d+))(?:\.(png|jpe?g|webp))?$/i)
+  if (!match) return pathname
+  const legacyBase = match[1].toLowerCase()
+  const mapped = LEGACY_AVATAR_MAP[legacyBase]
+  if (mapped) return `/api/v1/avatar/${mapped}.webp`
+  return pathname.replace(/\.(png|jpe?g|webp)$/i, ".webp")
+}
 
 export function isLikelyAvatarAsset(avatar: string | null | undefined): boolean {
   const value = String(avatar || "").trim()
@@ -28,7 +44,7 @@ export function resolveAvatar(avatar: string | null | undefined): string | null 
   if (avatar.startsWith("http")) return avatar
   // Compat: old stored paths like /src/assets/avatar/... → /api/v1/avatar/...
   const normalized = avatar.replace("/src/assets/avatar", "/api/v1/avatar")
-  if (normalized.startsWith("/api/v1/avatar/")) return `${backendOrigin}${normalized}`
+  if (normalized.startsWith("/api/v1/avatar/")) return `${backendOrigin}${normalizeLegacyAvatarPath(normalized)}`
   return `${backendOrigin}${normalized}`
 }
 

@@ -22,7 +22,7 @@ type ChatStoreState = {
 
 type Listener = () => void;
 
-const CACHE_KEY = "chat_conversations_cache_v1";
+const CACHE_KEY = "chat_conversations_cache_v2";
 
 const state: ChatStoreState = {
   activeConversationId: "",
