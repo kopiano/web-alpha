@@ -3,7 +3,7 @@ import { User, Lock, Mail, Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { updateSettings } from "@/api/auth";
 import { useNotifications } from "./NotificationProvider";
-import { compressImageToBlob, compressImageToDataUrl, resolveAvatar } from "@/lib/avatar";
+import { compressImageToDataUrl, resolveAvatar } from "@/lib/avatar";
 
 interface SettingsModalProps {
   user: { id: number; username: string; email: string; avatar: string | null };
@@ -45,11 +45,7 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
       formData.append("username", username.trim());
       formData.append("email", email.trim());
       if (password) formData.append("password", password);
-      if (avatarFile) {
-        const compressed = await compressImageToBlob(avatarFile, 256, 0.8);
-        const compressedFile = new File([compressed], avatarFile.name.replace(/\.[^.]+$/, ".webp"), { type: "image/webp" });
-        formData.append("avatar", compressedFile);
-      }
+      if (avatarFile) formData.append("avatar", avatarFile);
 
       await updateSettings(formData);
       pushNotification({ kind: "settings_update", actor: username.trim(), title: "updated settings", text: `${username.trim()} updated settings` });

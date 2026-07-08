@@ -3,7 +3,7 @@ import { User, Loader2, Camera, Eye, EyeOff, Lock } from "lucide-react"
 import { toast } from "sonner"
 import { login, register } from "@/api/auth"
 import { useNotifications } from "./NotificationProvider"
-import { compressImageToBlob, compressImageToDataUrl } from "@/lib/avatar"
+import { compressImageToDataUrl } from "@/lib/avatar"
 
 interface AuthModalProps {
   onClose: () => void;
@@ -108,10 +108,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         formData.append("password", password)
         if (email.trim()) formData.append("email", email.trim())
         if (avatar) {
-          // Compress avatar before upload so the server stores a smaller image
-          const compressed = await compressImageToBlob(avatar, 256, 0.8)
-          const compressedFile = new File([compressed], avatar.name.replace(/\.[^.]+$/, ".webp"), { type: "image/webp" })
-          formData.append("avatar", compressedFile)
+          formData.append("avatar", avatar)
         }
         const regRes = await register(formData)
         const code = regRes?.data?.code ?? regRes?.status;
