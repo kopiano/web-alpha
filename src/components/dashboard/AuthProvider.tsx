@@ -19,7 +19,7 @@ interface AuthContextType {
   user: UserState;
   openAuth: (mode?: "login" | "signup") => void;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refreshUser: (notifyLogin?: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { push: pushNotification } = useNotifications();
   const queryClient = useQueryClient();
 
-  const refreshUser = useCallback(async () => {
+  const refreshUser = useCallback(async (notifyLogin = false) => {
     const token = localStorage.getItem("token");
     if (!token) { setUser(null); return; }
     try {
@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return res.data?.data?.conversations ?? [];
         },
       });
-      if (newUser && !prevUserRef.current) {
+      if (notifyLogin && newUser && !prevUserRef.current) {
         pushNotification({
           kind: "auth_login",
           actor: newUser.username,
@@ -71,7 +71,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [pushNotification, queryClient]);
 
   useEffect(() => {
-    refreshUser();
+    refreshUser(false);
   }, [refreshUser]);
 
   return (
@@ -108,7 +108,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         <AuthModal
           onClose={() => setAuthOpen(false)}
           initialMode={initialMode}
-          onAuthSuccess={refreshUser}
+          onAuthSuccess={(notifyLogin) => refreshUser(Boolean(notifyLogin))}
         />
       )}
     </AuthContext.Provider>

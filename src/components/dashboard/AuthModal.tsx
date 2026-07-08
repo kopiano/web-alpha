@@ -8,7 +8,7 @@ import { compressImageToDataUrl } from "@/lib/avatar"
 interface AuthModalProps {
   onClose: () => void;
   initialMode?: "login" | "signup";
-  onAuthSuccess?: () => void;
+  onAuthSuccess?: (notifyLogin?: boolean) => void;
 }
 
 export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: AuthModalProps) => {
@@ -100,7 +100,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         }
         localStorage.setItem("token", token);
         toast.success("Signed in successfully");
-        await onAuthSuccess?.();
+        await onAuthSuccess?.(true);
         onClose();
       } else {
         const formData = new FormData()
@@ -127,7 +127,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         setMode("login");
         setAvatar(null);
         setAvatarPreview(null);
-        await onAuthSuccess?.();
+        await onAuthSuccess?.(false);
       }
     } catch (err: any) {
       const message = getAuthErrorMessage(err, "登录/注册失败，请稍后再试", mode);
