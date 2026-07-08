@@ -58,9 +58,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         pushNotification({
           kind: "auth_login",
           actor: newUser.username,
-          title: "signed in",
-          text: `${newUser.username} signed in`,
-          dedupeKey: `auth_login:${newUser.id}`,
+          title: "logged in",
+          text: `${newUser.username} logged in`,
         });
       }
       prevUserRef.current = newUser;
@@ -94,8 +93,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             pushNotification({
               kind: "auth_logout",
               actor: username,
-              title: "signed out",
-              text: `${username} signed out`,
+              title: "logged out",
+              text: `${username} logged out`,
               dedupeKey: `auth_logout:${username.toLowerCase()}`,
             });
           }

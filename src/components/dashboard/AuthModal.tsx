@@ -120,8 +120,8 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
         pushNotification({
           kind: "auth_register",
           actor: username.trim(),
-          title: "registered",
-          text: `${username.trim()} registered`,
+          title: "created account",
+          text: `${username.trim()} created account`,
           dedupeKey: `auth_register:${username.trim().toLowerCase()}`,
         });
         setMode("login");
