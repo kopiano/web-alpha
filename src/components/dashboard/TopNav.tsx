@@ -139,7 +139,7 @@ export const TopNav = () => {
 
   const initials = user?.username
     ? user.username.slice(0, 2).toUpperCase()
-    : "AM";
+    : "G";
 
   const isLoading = user === undefined;
   const avatarUrl = !avatarErr && user?.avatar ? resolveAvatar(user.avatar) : null;
