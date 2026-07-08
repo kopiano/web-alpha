@@ -46,6 +46,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const res = await getMe();
       const newUser = res.data.data as User;
       setUser(newUser);
+      await queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
       void queryClient.prefetchQuery({
         queryKey: ["chat", "conversations"],
         queryFn: async () => {
@@ -54,6 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return res.data?.data?.conversations ?? [];
         },
       });
+      void queryClient.invalidateQueries({ queryKey: ["chat", "messages"] });
       if (notifyLogin && newUser && !prevUserRef.current) {
         pushNotification({
           kind: "auth_login",

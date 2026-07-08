@@ -585,11 +585,8 @@ const ChatPage = () => {
   /* ─── Load data ─── */
   const loadAll = useCallback(async () => {
     const queryItems = conversationsQuery.data || [];
-    let body: any = { conversations: queryItems };
-    if (!queryItems.length) {
-      const res = await getConversations();
-      body = res.data?.data || {};
-    }
+    const res = await getConversations();
+    const body: any = res.data?.data || { conversations: queryItems };
     const rawConversations: ConversationRow[] = body.conversations ?? [];
     const rawTeam = body.team as { id?: number; name?: string; members?: { user_id: number; username?: string; avatar?: string }[] } | undefined;
     const rawUsers: { user_id: number; username?: string; avatar?: string }[] = body.users ?? [];
