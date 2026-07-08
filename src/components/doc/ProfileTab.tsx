@@ -8,19 +8,19 @@ export const ProfileTab = () => {
         {/* Avatar */}
         <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-500 via-purple-500 to-cyan-400 p-[3px] shadow-[0_0_40px_-8px_hsla(270,95%,60%,0.4)] mb-4">
           <div className="w-full h-full rounded-full bg-[#050505] flex items-center justify-center overflow-hidden">
-            <img src={logo} alt="coulsonzero" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+            <img src={logo} alt="kopiano" className="w-full h-full object-cover" loading="lazy" decoding="async" />
           </div>
         </div>
 
-        <h2 className="text-xl font-bold text-white/90">coulsonzero</h2>
+        <h2 className="text-xl font-bold text-white/90">kopiano</h2>
         <p className="text-[12px] text-white/40 mt-1">
-          Full-stack developer · Open source enthusiast
+          front-end developer · Open source enthusiast
         </p>
 
         {/* Social Icons */}
         <div className="flex items-center gap-4 mt-5">
           <a
-            href="https://github.com/coulsonzero"
+            href="https://github.com/kopiano"
             target="_blank"
             rel="noopener noreferrer"
             className="w-11 h-11 rounded-[50%] bg-zinc-200/70 grid place-items-center border border-zinc-300/50 hover:bg-white/80 hover:backdrop-blur-md hover:border-white/60 hover:shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)] transition-all duration-300"
@@ -65,14 +65,14 @@ export const ProfileTab = () => {
               GitHub
             </p>
             <h4 className="text-sm font-semibold">
-              coulsonzero · Contributions
+              kopiano · Contributions
             </h4>
           </div>
         </div>
 
         <img
-          src="https://ghchart.rshah.org/coulsonzero"
-          alt="coulsonzero's GitHub contributions chart"
+          src="https://ghchart.rshah.org/kopiano"
+          alt="kopiano's GitHub contributions chart"
           className="w-full max-w-full rounded-xl"
           loading="lazy"
           decoding="async"
