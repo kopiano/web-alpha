@@ -1,4 +1,4 @@
-import logo from "@/assets/profile_logo.webp";
+import logo from "@/assets/profileLogo.webp";
 
 export const ProfileTab = () => {
   return (

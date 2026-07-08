@@ -204,7 +204,7 @@ function appendConversationMessages(
 }
 
 function buildSendPayload(params: {
-  isTeam: boolean;
+  chatType: "private" | "group";
   conversationId: string;
   recipientId: number;
   groupId: number;
@@ -221,7 +221,7 @@ function buildSendPayload(params: {
     ...(params.conversationId ? { conversation_id: params.conversationId } : {}),
   };
 
-  return params.isTeam
+  return params.chatType === "group"
     ? {
         chat_type: "group",
         group_id: params.groupId,
@@ -245,12 +245,12 @@ const ContactItem = memo(function ContactItem({
 }: {
   contact: Contact;
   active: boolean;
-  onSelect: (id: number) => void;
+  onSelect: (contact: Contact) => void;
   online: boolean;
 }) {
   return (
     <button
-      onClick={() => onSelect(contact.id)}
+      onClick={() => onSelect(contact)}
       className={`w-full flex items-center gap-3 md:gap-4 px-4 md:px-5 text-left contact-btn ${active ? "active" : ""}`}
       style={{
         height:"64px",
@@ -381,7 +381,7 @@ const ChatPage = () => {
   useEffect(() => {
     const unsub = subscribe((d: WsMessage) => {
       const targetConvId = String(d.conversation_id || activeConvIdRef.current || "");
-      const shouldHandleAsGroup = d.chat_type === "group";
+      const isGroupMsg = d.chat_type === "group";
       const currentConvId = activeConvIdRef.current;
       const isCurrentConversation = targetConvId && currentConvId === targetConvId;
       const pushMessage = (convId: string, msg: Message) =>
@@ -403,10 +403,9 @@ const ChatPage = () => {
           return;
         }
         const msgTime = d.time || timeFmt(new Date().toISOString())
-        const isTeamMsg = shouldHandleAsGroup
         const newMsg: Message = normalized;
 
-        if (isTeamMsg && !isCurrentConversation) {
+        if (isGroupMsg && !isCurrentConversation) {
           pushMessage(targetConvId, newMsg);
           return;
         }
@@ -432,7 +431,7 @@ const ChatPage = () => {
           pushMessage(String(d.conversation_id), newMsg);
           return
         }
-        if(!isTeamMsg) {
+        if(!isGroupMsg) {
           upsertConversationSummary(String(d.conversation_id || activeConvIdRef.current), {
             id: d.sender_id,
             name: d.username || d.sender_username || "",
@@ -560,10 +559,20 @@ const ChatPage = () => {
   const baseContacts = contacts.length ? contacts : storeContacts;
   const teamContacts = useMemo(() => baseContacts.filter((c) => isGroupConversationId(c.convId)), [baseContacts]);
   const personalContacts = useMemo(() => baseContacts.filter((c) => !isGroupConversationId(c.convId)), [baseContacts]);
-  const activeContact = activeIdx >= 0 ? baseContacts.find((c) => c.id === activeContactIdRef.current) || baseContacts[activeIdx] : null;
+  const activeContact = useMemo(() => {
+    if (selectedConversationId) {
+      const byConvId = baseContacts.find((c) => c.convId === selectedConversationId);
+      if (byConvId) return byConvId;
+    }
+    if (activeIdx >= 0) {
+      return baseContacts.find((c) => c.id === activeContactIdRef.current) || baseContacts[activeIdx] || null;
+    }
+    return null;
+  }, [activeIdx, activeContactIdRef, baseContacts, selectedConversationId]);
   const activeConversationId = activeIdx === -2
     ? (selectedConversationId || activeContact?.convId || "")
     : (activeContact?.convId || "");
+  const isActiveGroupConversation = Boolean(activeContact && isGroupConversationId(activeContact.convId));
   const isContactActive = useCallback((contact: Contact) => {
     return Boolean(contact.convId && contact.convId === activeConversationId);
   }, [activeConversationId]);
@@ -812,19 +821,19 @@ const ChatPage = () => {
   }, [me, conversationsQuery]);
 
   /* ─── Switch contact → load private messages ─── */
-  const switchContact = useCallback(async (contactId: number) => {
-    const idx = baseContacts.findIndex(c=>c.id===contactId);
+  const switchContact = useCallback(async (contact: Contact) => {
+    const idx = baseContacts.findIndex(c => c.convId === contact.convId && c.id === contact.id);
     if(idx<0) return;
     setActiveIdx(idx);
     const nextContact = baseContacts[idx];
-    activeContactIdRef.current = contactId;
+    activeContactIdRef.current = nextContact.id;
     const isTeamContact = isGroupConversationId(nextContact?.convId);
-    localStorage.setItem(getChatSelectionStorageKey(), isTeamContact ? "team" : String(contactId));
+    localStorage.setItem(getChatSelectionStorageKey(), isTeamContact ? "team" : String(nextContact.id));
     setLoadingMessages(true);
     let convId = nextContact?.convId || "";
-    if (!convId && contactId > 0) {
+    if (!convId && nextContact.id > 0) {
       try {
-        const res = await createConversation(contactId);
+        const res = await createConversation(nextContact.id);
         convId = extractConversationId(res.data);
       } catch (e) {
         const message = getChatErrorMessage(e, "创建会话失败");
@@ -843,7 +852,7 @@ const ChatPage = () => {
     // 标记已读：调用后端 API + 更新本地未读计数
     if (convId) {
       markConversationRead(convId).catch(() => {})
-      convIdCacheRef.current.set(contactId, convId)
+      convIdCacheRef.current.set(nextContact.id, convId)
       setUnread(convId, 0)
       queryClient.invalidateQueries({ queryKey: ["chat", "messages", convId] });
       preloadConversationMessages(convId);
@@ -853,30 +862,27 @@ const ChatPage = () => {
 
   /* ─── Send ─── */
   const sendMsg = useCallback(async (type: string, content: string, fileName?: string, fileData?: string) => {
-    const isTeam = isGroupConversationId(activeConversationId) || Boolean(selectedConversationId.startsWith("g_"))
     const targetContactId = activeContactIdRef.current || activeContact?.id || 0
     const targetContact = baseContacts.find((c) => c.id === targetContactId) || activeContact || null
+    const selectedConvId = targetContact?.convId || activeConversationId || selectedConversationId || ""
+    const chatType: "private" | "group" = selectedConvId && isGroupConversationId(selectedConvId) ? "group" : "private"
     const targetReceiverId = targetContact?.id || targetContactId || 0
-    const targetGroupId = isGroupConversationId(activeConversationId)
-      ? Number(activeConversationId.slice(2))
-      : (activeIdx === -2 ? (teamConv?.id || 0) : 0)
-    let conversationId = isTeam
-      ? (activeConversationId || selectedConversationId || targetContact?.convId || "")
-      : (targetContact?.convId || "")
-    if (!isTeam && targetReceiverId <= 0) {
+    const targetGroupId = chatType === "group" ? Number(targetContact?.id || 0) : 0
+    let conversationId = chatType === "group" ? selectedConvId : (targetContact?.convId || "")
+    if (chatType === "private" && targetReceiverId <= 0) {
       return
     }
-    if (isTeam && targetGroupId <= 0) {
+    if (chatType === "group" && targetGroupId <= 0) {
       return
     }
-    if (!isTeam && !conversationId) {
+    if (chatType === "private" && !conversationId) {
       try {
         const res = await createConversation(targetReceiverId)
         conversationId = extractConversationId(res.data)
         if (conversationId) {
           setSelectedConversationId(conversationId)
-          activeConvIdRef.current = conversationId
-          convIdCacheRef.current.set(targetReceiverId, conversationId)
+      activeConvIdRef.current = conversationId
+      convIdCacheRef.current.set(targetReceiverId, conversationId)
         }
       } catch (e) {
         const message = getChatErrorMessage(e, "创建会话失败，继续尝试发送");
@@ -885,7 +891,7 @@ const ChatPage = () => {
         toast.error(message);
       }
     }
-    if (!isTeam && !conversationId) {
+    if (chatType === "private" && !conversationId) {
       return;
     }
     const optimisticTime = new Date().toISOString();
@@ -901,7 +907,7 @@ const ChatPage = () => {
     else if (type==="image") messageType = 3;
     else if (type==="file") messageType = 4;
     const payload = buildSendPayload({
-      isTeam,
+      chatType,
       conversationId: conversationId || "",
       recipientId: targetReceiverId,
       groupId: targetGroupId,
@@ -1162,7 +1168,7 @@ const ChatPage = () => {
                   <div className="h-2 w-16 rounded-full bg-white/[0.04] animate-pulse"/>
                 </div>
               </>
-            ) : activeConversationId.startsWith("g_") && contact ? (
+            ) : isActiveGroupConversation && contact ? (
               <>
                 <div className="relative shrink-0">
                   <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center"
@@ -1250,7 +1256,7 @@ const ChatPage = () => {
           {/* Messages */}
           <div ref={messagesScrollRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto csb px-5 py-4 space-y-1.5 transition-opacity duration-300">
             {loading?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/10 animate-pulse">Loading...</p></div>
-            :(!contact||contact.id===0)&&!activeConversationId.startsWith("g_")?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{isGuest ? "Login to start chatting" : (authLoading ? "" : "Select a contact to start chatting")}</p>{isGuest && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
+            :(!contact||contact.id===0)&&!isActiveGroupConversation?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{isGuest ? "Login to start chatting" : (authLoading ? "" : "Select a contact to start chatting")}</p>{isGuest && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
             :loadingMessages && messages.length===0 ? (
               <div className="space-y-3 py-4">
                 {[1,2,3].map((i)=>(
@@ -1341,7 +1347,7 @@ const ChatPage = () => {
                 onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();sendText();}}}
                 className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-[13px] placeholder:text-white/15 px-1.5 md:px-2 disabled:opacity-20"/>
               {sendError && <span className="absolute -top-8 left-4 right-4 text-center text-[11px] text-rose-300/80">{sendError}</span>}
-              <button onClick={sendText} disabled={!input.trim()||(!contact&& !activeConversationId.startsWith("g_"))} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square transition-all active:scale-90 ${(input.trim()&&(contact||activeConversationId.startsWith("g_")))?"bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100":"text-white/20 scale-95"}`}><Send size={13}/></button>
+              <button onClick={sendText} disabled={!input.trim()||(!contact&& !isActiveGroupConversation)} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square transition-all active:scale-90 ${(input.trim()&&(contact||isActiveGroupConversation))?"bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(124,58,237,0.4)] scale-100":"text-white/20 scale-95"}`}><Send size={13}/></button>
             </div>
           </div>
         </div>
