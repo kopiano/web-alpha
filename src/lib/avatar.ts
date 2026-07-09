@@ -54,6 +54,21 @@ export function resolveImageAvatar(avatar: string | null | undefined): string | 
   return resolveAvatar(avatar)
 }
 
+export function resolveChatImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  const value = String(url).trim()
+  if (!value) return null
+  if (/^data:image\//i.test(value)) return value
+  if (value.startsWith("http://") || value.startsWith("https://")) return value
+  if (value.startsWith("/api/v1/chat/image/") || value.startsWith("/assets/image/")) {
+    return `${backendOrigin}${value}`
+  }
+  if (value.startsWith("/")) {
+    return `${backendOrigin}${value}`
+  }
+  return `${backendOrigin}/${value.replace(/^\/+/, "")}`
+}
+
 export function compressImageToBlob(file: File, maxWidth = 256, quality = 0.8): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image()
