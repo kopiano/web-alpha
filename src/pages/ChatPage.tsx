@@ -1708,18 +1708,18 @@ const ChatPage = () => {
             :loadingMessages && messagesConversationId !== activeConversationId ? (
               <div className="flex items-center justify-center h-full">
                 <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
-                  <ChatLoadingDots dotClassName="bg-cyan-300/35" />
+                  <ChatLoadingDots ringClassName="border-t-cyan-400" />
                 </div>
               </div>
             ) : activeMessagesQuery.isFetchingPreviousPage?<div className="flex items-center justify-center py-2">
               <div className="px-4 py-2.5 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.04)"}}>
-                <ChatLoadingDots dotClassName="bg-white/35" />
+                <ChatLoadingDots ringClassName="border-t-white/35" />
               </div>
             </div>
             :!isMessagesForActiveConversation ? (
               <div className="flex items-center justify-center h-full">
                 <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
-                  <ChatLoadingDots dotClassName="bg-cyan-300/35" />
+                  <ChatLoadingDots ringClassName="border-t-cyan-400" />
                 </div>
               </div>
             ) : activeConversationId && messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>

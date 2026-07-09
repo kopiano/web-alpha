@@ -2,22 +2,16 @@ import { memo } from "react";
 
 type ChatLoadingDotsProps = {
   className?: string;
-  dotClassName?: string;
+  ringClassName?: string;
 };
 
 export const ChatLoadingDots = memo(function ChatLoadingDots({
   className = "",
-  dotClassName = "bg-violet-300/35",
+  ringClassName = "border-t-violet-400",
 }: ChatLoadingDotsProps) {
   return (
-    <div className={`flex items-center gap-1.5 ${className}`}>
-      {[0, 160, 320].map((delay) => (
-        <span
-          key={delay}
-          className={`w-1.5 h-1.5 rounded-full ${dotClassName} animate-bounce`}
-          style={{ animationDelay: `${delay}ms`, animationDuration: "0.8s" }}
-        />
-      ))}
+    <div className={`flex items-center justify-center ${className}`}>
+      <div className={`w-8 h-8 rounded-full border-2 border-white/10 ${ringClassName} animate-spin`} />
     </div>
   );
 });
