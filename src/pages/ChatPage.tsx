@@ -1906,18 +1906,18 @@ const ChatPage = () => {
             </button>
           </div>}
 
-          <div className="relative px-3 md:px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] md:pb-4 pt-2 shrink-0">
-            <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 h-[50px] md:h-[56px] rounded-full"
+          <div className="relative px-2 md:px-3 pb-[calc(env(safe-area-inset-bottom,0px)+10px)] md:pb-3.5 pt-2 shrink-0" style={{width: "calc(100% - 110px)", margin: "auto"}}>
+            <div className="flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 h-[48px] md:h-[52px] rounded-full max-w-[960px] mx-auto w-full"
               style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(30px)",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 8px 32px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
               <div className="relative">
-                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={!canSendMessages} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square transition-all active:scale-90 ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${!canSendMessages?"opacity-20 cursor-not-allowed":""}`}><Smile size={15}/></button>
+                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={!canSendMessages} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square transition-all active:scale-90 ${showEmoji?"bg-white/[0.08] text-white":"text-white hover:text-white hover:bg-white/[0.04]"} ${!canSendMessages?"opacity-20 cursor-not-allowed":""}`}><Smile size={15} className="text-inherit"/></button>
                 {showEmoji&&<div className="absolute bottom-full left-0 mb-3 rounded-2xl p-3 w-[280px] md:w-[304px] z-50" style={{background:"rgba(18,16,30,0.97)",backdropFilter:"blur(60px)",border:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 20px 50px -10px rgba(0,0,0,0.7)"}}>
                   <div className="grid grid-cols-8 gap-1.5">{EMOJI_LIST.map(e=><button key={e} onClick={()=>{setInput(p=>p+e);setShowEmoji(false);}} className="w-7 h-7 md:w-8 md:h-8 rounded-lg grid place-items-center text-lg md:text-xl hover:bg-white/10 hover:scale-[1.15] active:scale-95">{e}</button>)}</div>
                 </div>}
               </div>
-              <button onClick={()=>imgRef.current?.click()} disabled={!canSendMessages} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${!canSendMessages?"opacity-20 cursor-not-allowed":""}`}><Image size={15}/></button>
+              <button onClick={()=>imgRef.current?.click()} disabled={!canSendMessages} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square text-white hover:text-white hover:bg-white/[0.04] transition-all active:scale-90 ${!canSendMessages?"opacity-20 cursor-not-allowed":""}`}><Image size={15} className="text-inherit"/></button>
               <input ref={imgRef} type="file" accept="image/*" onChange={pickImg} className="hidden"/>
-              <button onClick={()=>fileRef.current?.click()} disabled={!canSendMessages} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${!canSendMessages?"opacity-20 cursor-not-allowed":""}`}><AlignJustify size={15}/></button>
+              <button onClick={()=>fileRef.current?.click()} disabled={!canSendMessages} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square text-white hover:text-white hover:bg-white/[0.04] transition-all active:scale-90 ${!canSendMessages?"opacity-20 cursor-not-allowed":""}`}><AlignJustify size={15} className="text-inherit"/></button>
               <input ref={fileRef} type="file" onChange={pickFile} className="hidden"/>
               <input type="text" placeholder={contact&&contact.id>0?"Message...":"Select a contact to chat"} value={input} onChange={e=>setInput(e.target.value)}
                 disabled={!canSendMessages}
