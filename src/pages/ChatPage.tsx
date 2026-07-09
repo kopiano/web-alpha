@@ -4,7 +4,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useOnlineStatus, type WsMessage } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
-import { getConversations, markConversationRead, createConversation, sendChatMessage, fetchConversationMessages } from "@/api/chat";
+import { getConversations, markConversationRead, createConversation, fetchConversationMessages } from "@/api/chat";
 import { EMOJI_LIST } from "@/config/chat";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatConversations } from "@/hooks/chat/useChatConversations";
@@ -360,12 +360,6 @@ function buildSendPayload(params: {
   };
 }
 
-function normalizeSendResponseMessage(response: any, meName: string, meId: number): Message | null {
-  const payload = response?.data?.data || response?.data || response;
-  if (!payload) return null;
-  return normalizeServerMessage(payload, meName, meId);
-}
-
 const TEAM_AVATAR = teamAvatar
 
 const ContactItem = memo(function ContactItem({
@@ -534,40 +528,47 @@ const ChatPage = () => {
         });
       };
 
+      if (d.event === "message.ack" && d.client_msg_id) {
+        const convId = String(d.conversation_id || activeConvIdRef.current || "");
+        const nextMessage: Message = {
+          id: Number(d.id || 0),
+          sender: "me",
+          type: messageTypeToString(d.msg_type, d.message_type),
+          content: d.content || "",
+          time: timeFmt(d.created_at || d.time || new Date().toISOString()),
+          rawTime: d.created_at || d.time || new Date().toISOString(),
+          sortTs: toMessageTimestamp(d.created_at || d.time || new Date().toISOString()),
+          clientMsgId: d.client_msg_id,
+          fileName: d.file_name,
+          fileData: d.file_url || "",
+          username: meRef.current,
+          senderAvatar: "",
+          deliveryStatus: "confirmed",
+        };
+        const current = convoMessagesRef.current.get(convId) || [];
+        const confirmed = updateMessageStatus(
+          replaceMessageByClientId(current, nextMessage),
+          nextMessage,
+          "confirmed"
+        );
+        convoMessagesRef.current.set(convId, confirmed);
+        setMessages((prev) => updateMessageStatus(replaceMessageByClientId(prev, nextMessage), nextMessage, "confirmed"));
+        const timeout = pendingMessageTimeoutsRef.current.get(d.client_msg_id);
+        if (timeout) {
+          clearTimeout(timeout);
+          pendingMessageTimeoutsRef.current.delete(d.client_msg_id);
+        }
+        const pending = pendingMessageFingerprintsRef.current.get(convId);
+        pending?.delete(d.client_msg_id);
+        if (pending && pending.size === 0) pendingMessageFingerprintsRef.current.delete(convId);
+        scrollToBottom();
+        return;
+      }
+
       if((d.event==="message.new" || d.type==="message") && d.content) {
         const normalized = normalizeServerMessage(d, meRef.current, meId);
         const isMe = normalized.sender === "me";
         if(isMe) {
-          const convId = targetConvId || activeConvIdRef.current || "";
-          const pending = pendingMessageFingerprintsRef.current.get(convId);
-          const fp = messageFingerprint({
-            sender: "me",
-            type: normalized.type,
-            content: normalized.content,
-            fileName: normalized.fileName,
-            fileData: normalized.fileData,
-            clientMsgId: normalized.clientMsgId,
-          });
-          const nextMessage = { ...normalized, sortTs: toMessageTimestamp(normalized.rawTime) || Date.now() };
-          if (pending?.has(fp)) {
-            pending.delete(fp);
-            if (pending.size === 0) pendingMessageFingerprintsRef.current.delete(convId);
-          }
-          if (convId) {
-            const current = convoMessagesRef.current.get(convId) || [];
-            const replaced = normalized.clientMsgId
-              ? replaceMessageByClientId(current, nextMessage)
-              : replaceMessageByFingerprint(current, nextMessage);
-            const delivered = updateMessageStatus(replaced, nextMessage, "delivered");
-            const timeout = pendingMessageTimeoutsRef.current.get(nextMessage.clientMsgId || "");
-            if (timeout) {
-              clearTimeout(timeout);
-              pendingMessageTimeoutsRef.current.delete(nextMessage.clientMsgId || "");
-            }
-            convoMessagesRef.current.set(convId, delivered);
-            setMessages(delivered);
-            scrollToBottom();
-          }
           return;
         }
         const msgTime = d.time || timeFmt(new Date().toISOString())
@@ -600,11 +601,11 @@ const ChatPage = () => {
           if (isCurrentConversation) scrollToBottom();
           return
         }
-        if(!isGroupMsg) {
-          upsertConversationSummary(String(d.conversation_id || activeConvIdRef.current), {
-            id: d.sender_id,
-            name: d.username || d.sender_username || "",
-            avatar: d.sender_avatar || "",
+      if(!isGroupMsg) {
+        upsertConversationSummary(String(d.conversation_id || activeConvIdRef.current), {
+          id: d.sender_id,
+          name: d.username || d.sender_username || "",
+          avatar: d.sender_avatar || "",
             lastMsg: d.content,
             lastTimeRaw: new Date().toISOString(),
             unread: 0,
@@ -1116,21 +1117,10 @@ const ChatPage = () => {
     if (chatType === "group" && targetGroupId <= 0) {
       return
     }
-    const optimisticTime = new Date().toISOString();
     let messageType = 1;
     if (type==="emoji") messageType = 2;
     else if (type==="image") messageType = 3;
     else if (type==="file") messageType = 4;
-    const payload = buildSendPayload({
-      chatType,
-      recipientId: targetReceiverId,
-      groupId: targetGroupId,
-      conversationId: targetConversationId,
-      messageType,
-      content,
-      fileName,
-      fileUrl: fileData,
-    });
     const optimisticConvId = selectedConvId || activeConversationId || targetConversationId;
     const clientMsgId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const optimisticMessage = makeLocalMessage(
@@ -1161,39 +1151,21 @@ const ChatPage = () => {
         pendingMessageFingerprintsRef.current.set(optimisticConvId, current);
       }
 
-      const res = await sendChatMessage(payload);
-      const confirmedMessage = normalizeSendResponseMessage(res, meRef.current, meId);
-      if (!confirmedMessage) {
-        throw new Error("发送成功，但后端返回消息为空");
-      }
-      const finalMessage: Message = {
-        ...confirmedMessage,
-        clientMsgId,
-        deliveryStatus: "confirmed",
-        sortTs: confirmedMessage.sortTs || Date.now(),
-      };
-
-      if (optimisticConvId) {
-        const timeout = pendingMessageTimeoutsRef.current.get(clientMsgId);
-        if (timeout) {
-          clearTimeout(timeout);
-          pendingMessageTimeoutsRef.current.delete(clientMsgId);
-        }
-        const current = pendingMessageFingerprintsRef.current.get(optimisticConvId);
-        current?.delete(clientMsgId);
-        if (current && current.size === 0) {
-          pendingMessageFingerprintsRef.current.delete(optimisticConvId);
-        }
-        const currentMessages = convoMessagesRef.current.get(optimisticConvId) || [];
-        const confirmedMessages = updateMessageStatus(
-          replaceMessageByClientId(currentMessages, finalMessage),
-          finalMessage,
-          "confirmed"
-        );
-        convoMessagesRef.current.set(optimisticConvId, confirmedMessages);
-        setMessages((prev) => updateMessageStatus(replaceMessageByClientId(prev, finalMessage), finalMessage, "confirmed"));
-      }
-      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      const ok = sendMessage({
+        type: "message",
+        chat_type: chatType,
+        conversation_id: targetConversationId,
+        to_user_id: isGroup ? 0 : targetReceiverId,
+        recipient_id: isGroup ? 0 : targetReceiverId,
+        receiver_id: isGroup ? 0 : targetReceiverId,
+        group_id: targetGroupId,
+        message_type: messageType,
+        content,
+        file_name: fileName || "",
+        file_url: fileData || "",
+        client_msg_id: clientMsgId,
+      });
+      if (!ok) throw new Error("WebSocket is not ready");
     } catch (e) {
       const message = getSendMessageErrorMessage(e);
       console.error("Send failed:", e);
@@ -1222,7 +1194,7 @@ const ChatPage = () => {
       }
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
     }
-  }, [baseContacts, activeConversationId, activeContact, queryClient, selectedConversationId, meId, sendChatMessage]);
+  }, [baseContacts, activeConversationId, activeContact, queryClient, selectedConversationId, sendMessage]);
 
   const emitTyping = useCallback((typing: boolean) => {
     const convId = activeConvIdRef.current || selectedConversationId || "";
