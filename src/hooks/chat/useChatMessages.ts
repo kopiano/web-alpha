@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import request from "@/api/request";
+import { fetchConversationMessages, fetchGroupMessages } from "@/api/chat";
 
 export interface ChatMessage {
   id: number;
@@ -14,13 +14,17 @@ export interface ChatMessage {
   updated_at?: string;
 }
 
-async function fetchMessages(conversationId: string, beforeId?: number) {
-  const res = await request.get(`/chat/conversations/${conversationId}/messages`, {
+async function fetchMessages(conversationId: string, beforeId?: number, guestMode = false) {
+  const isGroupGuest = guestMode && Boolean(conversationId);
+  if (guestMode && !isGroupGuest) return [];
+  const requestParams = {
     params: {
       limit: 30,
       ...(beforeId ? { before_id: beforeId } : {}),
     },
-  });
+  };
+  const requestFn = isGroupGuest ? fetchGroupMessages : fetchConversationMessages;
+  const res = await requestFn(conversationId, requestParams);
   const data = res.data?.data;
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.messages)) return data.messages;
@@ -29,10 +33,10 @@ async function fetchMessages(conversationId: string, beforeId?: number) {
   return [];
 }
 
-export function useChatMessages(conversationId?: string, enabled = true) {
+export function useChatMessages(conversationId?: string, enabled = true, guestMode = false) {
   return useInfiniteQuery({
     queryKey: ["chat", "messages", conversationId],
-    queryFn: ({ pageParam }) => fetchMessages(conversationId!, pageParam as number | undefined),
+    queryFn: ({ pageParam }) => fetchMessages(conversationId!, pageParam as number | undefined, guestMode),
     enabled: enabled && Boolean(conversationId),
     initialPageParam: undefined,
     getNextPageParam: () => undefined,

@@ -211,7 +211,7 @@ export const AuthModal = ({ onClose, initialMode = "login", onAuthSuccess }: Aut
               <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
               <input
                 type="text"
-                placeholder="your username"
+                placeholder="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="off"

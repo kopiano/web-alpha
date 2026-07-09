@@ -4,7 +4,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useOnlineStatus, type WsMessage } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar, resolveChatImageUrl } from "@/lib/avatar";
-import { getConversations, getGroups, markConversationRead, createConversation, fetchConversationMessages, sendChatMessageForm } from "@/api/chat";
+import { getConversations, getVisitorGroups, markConversationRead, createConversation, fetchConversationMessages, sendChatMessageForm } from "@/api/chat";
 import { EMOJI_LIST } from "@/config/chat";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatConversations } from "@/hooks/chat/useChatConversations";
@@ -19,7 +19,7 @@ import { ChatLoadingDots } from "@/components/ui/ChatLoadingDots";
 /* ─── Types ─── */
 interface ChatUser { id: number; username: string; email?: string; avatar?: string; status?: string; last_login_at?: string; }
 interface ChatMsg { id?: number; user_id: number; username?: string; sender_username?: string; sender_avatar?: string; avatar?: string; type: string; content: string; file_name?: string; file_url?: string; CreatedAt?: string; created_at?: string; }
-interface Contact { id: number; chatType: "private" | "group"; name: string; avatar: string; lastMsg: string; time: string; lastTimeRaw: string; unread: number; online: boolean; userData?: ChatUser; lastSeen?: string; convId?: string; members?: ChatUser[]; }
+interface Contact { id: number; chatType: "private" | "group"; name: string; avatar: string; lastMsg: string; time: string; lastTimeRaw: string; unread: number; online: boolean; userData?: ChatUser; lastSeen?: string; convId?: string; groupId?: number; members?: ChatUser[]; }
 interface ConversationRow {
   conversation_id: string;
   type: "private" | "group";
@@ -36,6 +36,46 @@ interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image
 const AVATAR_GRADS = ["from-violet-500 to-cyan-400","from-pink-500 to-violet-500","from-cyan-400 to-blue-500","from-emerald-400 to-cyan-400","from-fuchsia-500 to-pink-500","from-violet-500 to-fuchsia-500","from-blue-400 to-cyan-400"];
 
 function initials(n: string) { return n?.slice(0,2).toUpperCase()||"??"; }
+function extractVisitorGroupsPayload(payload: any) {
+  const data = payload?.data?.data ?? payload?.data ?? payload ?? {};
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.groups)) return data.groups;
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data.list)) return data.list;
+  if (Array.isArray(data.data)) return data.data;
+  return [];
+}
+
+function buildVisitorGroupContact(team: any): Contact | null {
+  const conversationId = String(team?.conversation_id || team?.id || "").trim();
+  if (!conversationId) return null;
+  const numericId = Number(String(team?.id || "").replace(/^g_/, "")) || Number(String(conversationId).replace(/^g_/, "")) || 0;
+  const teamMembers = dedupeUsers((team?.members || []).map((m: any) => ({
+    id: m.user_id,
+    username: m.username || "",
+    avatar: m.avatar,
+  })));
+  const lastTimeRaw = team?.last_time || team?.last_message_at || "";
+  return {
+    id: numericId,
+    chatType: "group",
+    name: team?.name || team?.title || "Group",
+    avatar: "TG",
+    lastMsg: team?.last_msg || team?.last_message || "",
+    time: timeFmt(lastTimeRaw),
+    lastTimeRaw,
+    unread: 0,
+    online: false,
+    convId: conversationId,
+    groupId: numericId || undefined,
+    members: teamMembers,
+    userData: teamMembers[0] ? {
+      id: teamMembers[0].id,
+      username: teamMembers[0].username || "",
+      avatar: teamMembers[0].avatar,
+    } : undefined,
+  };
+}
 function timeFmt(ts: string) {
   if(!ts) return "";
   try {
@@ -481,7 +521,7 @@ const ChatPage = () => {
   const me = user;
   const authLoading = user === undefined;
   const isGuest = user === null;
-  const meName = isGuest ? "Quest" : (me?.username||"");
+  const meName = isGuest ? "Guest" : (me?.username||"");
   const meId = me?.id||0;
   const meInit = initials(meName);
   const meAvatar = me?.avatar ? resolveAvatar(me.avatar) : null;
@@ -795,66 +835,26 @@ const ChatPage = () => {
     return baseContacts.find((c) => c.convId === effectiveSelectedConversationId) || null;
   }, [baseContacts, effectiveSelectedConversationId]);
   const activeConversationId = effectiveSelectedConversationId || "";
+  const activeMessagesConversationId = activeConversationId;
   const isActiveGroupConversation = Boolean(activeContact && activeContact.chatType === "group");
   const isContactActive = useCallback((contact: Contact) => {
     return Boolean(contact.convId && contact.convId === activeConversationId);
   }, [activeConversationId]);
-  const activeMessagesQuery = useChatMessages(activeConversationId || undefined, !!activeConversationId);
+  const activeMessagesQuery = useChatMessages(activeMessagesConversationId || undefined, !!activeMessagesConversationId, isGuest);
   /* ─── Load data ─── */
   const loadAll = useCallback(async () => {
     if (isGuest) {
       try {
-        const [groupsRes, conversationsRes] = await Promise.all([getGroups(), getConversations()]);
-        const groups = groupsRes.data?.data?.groups || [];
-        const rawConversations: ConversationRow[] = conversationsRes.data?.data?.conversations ?? [];
-        const groupFromConversations = rawConversations
-          .filter((conv) => conv.type === "group")
-          .map((conv) => {
-            const members = Array.isArray(conv.users) ? conv.users : [];
-            const groupId = Number(String(conv.conversation_id || "").replace(/^g_/, ""));
-            return {
-              id: Number.isFinite(groupId) && groupId > 0 ? groupId : 0,
-              chatType: "group",
-              name: conv.title || "Group",
-              avatar: "TG",
-              lastMsg: conv.last_message || "",
-              time: timeFmt(conv.last_message_at || ""),
-              lastTimeRaw: conv.last_message_at || "",
-              unread: conv.unread_count || 0,
-              online: false,
-              convId: conv.conversation_id,
-              members: members.map((m) => ({ id: m.user_id, username: m.username || "", avatar: m.avatar })),
-              userData: members[0] ? {
-                id: members[0].user_id,
-                username: members[0].username || "",
-                avatar: members[0].avatar,
-              } : undefined,
-            } satisfies Contact;
-          });
-        const groupFromGroups = groups.map((team: any) => {
-          const teamMembers = dedupeUsers((team?.members || []).map((m: any) => ({ id: m.user_id, username: m.username || "", avatar: m.avatar })));
-          return team?.id ? ({
-            id: team.id,
-            chatType: "group",
-            name: team.name || "Group",
-            avatar: "TG",
-            lastMsg: "",
-            time: "",
-            lastTimeRaw: "",
-            unread: 0,
-            online: false,
-            convId: `g_${team.id}`,
-            members: teamMembers,
-            userData: teamMembers[0] ? {
-              id: teamMembers[0].id,
-              username: teamMembers[0].username || "",
-              avatar: teamMembers[0].avatar,
-            } : undefined,
-          } satisfies Contact) : null;
-        }).filter(Boolean) as Contact[];
-        const cs = dedupeContacts([...groupFromGroups, ...groupFromConversations]);
+        const groupsRes = await getVisitorGroups();
+        const groups = extractVisitorGroupsPayload(groupsRes.data);
+        const cs = dedupeContacts(
+          (Array.isArray(groups) ? groups : [])
+            .map((team: any) => buildVisitorGroupContact(team))
+            .filter((item): item is Contact => Boolean(item))
+            .sort((a, b) => String(b.lastTimeRaw || "").localeCompare(String(a.lastTimeRaw || "")))
+        );
         startTransition(() => {
-          setContacts(cs.length ? cs : [{ id: -1, chatType: "group", name: "No groups", avatar: "TG", lastMsg: "Login to see group chats", time: "", lastTimeRaw: "", unread: 0, online: false } as Contact]);
+          setContacts(cs.length ? cs : [{ id: -1, chatType: "group", name: "No groups", avatar: "TG", lastMsg: "No group chats available", time: "", lastTimeRaw: "", unread: 0, online: false } as Contact]);
         });
         const defaultTeam = cs.find((c) => c.chatType === "group" && (c.lastTimeRaw || c.lastMsg)) || cs.find((c) => c.chatType === "group");
         if (!didInitializeSelectionRef.current) {
@@ -874,7 +874,7 @@ const ChatPage = () => {
         setLoading(false);
         return;
       } catch {
-        setContacts([{ id: -1, chatType: "group", name: "No groups", avatar: "TG", lastMsg: "Login to see group chats", time: "", lastTimeRaw: "", unread: 0, online: false } as Contact]);
+        setContacts([{ id: -1, chatType: "group", name: "No groups", avatar: "TG", lastMsg: "No group chats available", time: "", lastTimeRaw: "", unread: 0, online: false } as Contact]);
         setLoading(false);
         return;
       }
@@ -1039,14 +1039,14 @@ const ChatPage = () => {
 
   useEffect(() => {
     const pages = activeMessagesQuery.data?.pages || [];
-    if (!activeConversationId) {
+    if (!activeMessagesConversationId) {
       setMessages([]);
       setMessagesConversationId("");
       setLoadingMessages(false);
       return;
     }
-    const cached = convoMessagesRef.current.get(activeConversationId) || [];
-    const queryCached = queryClient.getQueryData(["chat", "messages", activeConversationId]) as { pages?: any[] } | undefined;
+    const cached = convoMessagesRef.current.get(activeMessagesConversationId) || [];
+    const queryCached = queryClient.getQueryData(["chat", "messages", activeMessagesConversationId]) as { pages?: any[] } | undefined;
     const queryCachedPages = queryCached?.pages || [];
     const fallbackCached = queryCachedPages.length
       ? mergeMessages(
@@ -1061,11 +1061,11 @@ const ChatPage = () => {
     if (!pages.length) {
       if (fallbackCached.length > 0) {
         setMessages(fallbackCached);
-        setMessagesConversationId(activeConversationId);
+        setMessagesConversationId(activeMessagesConversationId);
         setLoadingMessages(false);
       } else if (!activeMessagesQuery.isFetching) {
         setMessages([]);
-        setMessagesConversationId(activeConversationId);
+        setMessagesConversationId(activeMessagesConversationId);
         setLoadingMessages(true);
       }
       return;
@@ -1073,27 +1073,27 @@ const ChatPage = () => {
     const flat = pages.flatMap((page: any) => extractMessageRows(page));
     const my = meRef.current;
     const parsed = normalizeAndSortMessages(flat, my, meId);
-    const pending = pendingMessagesRef.current.get(activeConversationId) || [];
+    const pending = pendingMessagesRef.current.get(activeMessagesConversationId) || [];
     const merged = mergeMessages(fallbackCached, mergeMessages(parsed, pending));
-    convoMessagesRef.current.set(activeConversationId, merged);
+    convoMessagesRef.current.set(activeMessagesConversationId, merged);
     setMessages(merged);
-    setMessagesConversationId(activeConversationId);
+    setMessagesConversationId(activeMessagesConversationId);
     setLoadingMessages(false)
-  }, [activeMessagesQuery.data, activeMessagesQuery.isFetching, activeConversationId, meId, queryClient]);
+  }, [activeMessagesQuery.data, activeMessagesQuery.isFetching, activeMessagesConversationId, meId, queryClient]);
 
   useEffect(() => {
-    if (!activeConversationId) return;
+    if (!activeMessagesConversationId) return;
     if (!activeMessagesQuery.isError) return;
-    const cached = convoMessagesRef.current.get(activeConversationId) || [];
+    const cached = convoMessagesRef.current.get(activeMessagesConversationId) || [];
     if (cached.length > 0) {
       setMessages(cached);
-      setMessagesConversationId(activeConversationId);
+      setMessagesConversationId(activeMessagesConversationId);
     } else {
       setMessages([]);
-      setMessagesConversationId(activeConversationId);
+      setMessagesConversationId(activeMessagesConversationId);
     }
     setLoadingMessages(false);
-  }, [activeMessagesQuery.isError, activeConversationId]);
+  }, [activeMessagesQuery.isError, activeMessagesConversationId]);
 
   useEffect(() => {
     const el = messagesScrollRef.current;
@@ -1105,10 +1105,10 @@ const ChatPage = () => {
       scrollAnchorRef.current = null;
       return;
     }
-    if (activeConversationId) {
+    if (activeMessagesConversationId) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [activeConversationId, activeMessagesQuery.data, activeMessagesQuery.isFetchingPreviousPage]);
+  }, [activeMessagesConversationId, activeMessagesQuery.data, activeMessagesQuery.isFetchingPreviousPage]);
 
   const handleMessagesScroll = useCallback(() => {
     const el = messagesScrollRef.current;
@@ -1560,7 +1560,7 @@ const ChatPage = () => {
   }, [highlightedConversationId]);
   const showTypingIndicator = Boolean(activeConversationId && typingByConversation[activeConversationId]);
   const currentAvatarSeed = contact?.id || 0;
-  const isMessagesForActiveConversation = Boolean(activeConversationId && messagesConversationId === activeConversationId);
+  const isMessagesForActiveConversation = Boolean(activeMessagesConversationId && messagesConversationId === activeMessagesConversationId);
   const canSendMessages = Boolean(me && contact && !isGuest);
 
   useEffect(()=>{activeContactIdRef.current=contact?.id||0;},[contact]);
@@ -1688,11 +1688,11 @@ const ChatPage = () => {
                 <>
                   <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold shadow-lg ring-1 ring-white/10 shrink-0"
                     style={{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.12)"}}>
-                    <span className="text-white/40 text-[10px]">?</span>
+                    <span className="text-white text-[15px]">?</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-medium text-white/50">Quest</p>
-                    <button onClick={() => openAuth("login")} className="text-[11px] text-cyan-400/70 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login to chat →</button>
+                    <p className="text-[14px] font-medium text-white">Guest</p>
+                    <button onClick={() => openAuth("login")} className="text-[13px] text-cyan-400/70 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login to chat →</button>
                   </div>
                 </>
               ) : (
@@ -1816,7 +1816,7 @@ const ChatPage = () => {
               <ChatLoadingDots />
             </div>
             :(!activeConversationId && (!contact||contact.id===0)&&!isActiveGroupConversation)?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{isGuest ? "Select a group to start chatting" : (authLoading ? "" : "Select a contact to start chatting")}</p>{isGuest && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
-            :loadingMessages && messagesConversationId !== activeConversationId ? (
+            :loadingMessages && messagesConversationId !== activeMessagesConversationId ? (
               <div className="flex items-center justify-center h-full">
                 <ChatLoadingDots ringClassName="border-t-cyan-400" />
               </div>

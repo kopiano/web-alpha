@@ -37,9 +37,15 @@ export function sendChatMessageForm(formData) {
   return unwrapChatResponse(request.post('/chat/messages', formData))
 }
 
-/** GET /api/v1/chat/groups — 获取团队群组信息 */
-export function getGroups() {
+
+/** GET /api/v1/chat/groups — 访客群聊联系人列表 */
+export function getVisitorGroups() {
   return unwrapChatResponse(request.get('/chat/groups'))
+}
+
+/** GET /api/v1/groups/:id/messages — 访客群聊消息 */
+export function fetchGroupMessages(convId, config = {}) {
+  return unwrapChatResponse(request.get(`/chat/groups/${convId}/messages`, config))
 }
 
 /** POST /api/v1/chat/conversations — 创建/获取私聊会话 */
