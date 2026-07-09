@@ -379,7 +379,7 @@ const ContactItem = memo(function ContactItem({
       onClick={() => onSelect(contact)}
       className={`w-full flex items-center gap-3 md:gap-4 px-4 md:px-5 text-left contact-btn ${active ? "active" : ""}`}
       style={{
-        height:"64px",
+        height:"70px",
         background:active?"rgba(0,0,0,0.26)":"transparent",
         transition:"background 120ms ease, transform 120ms ease",
       }}
