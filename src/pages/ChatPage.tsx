@@ -440,6 +440,7 @@ const ChatPage = () => {
   const [sendError, setSendError] = useState("");
   const [showMobileContacts, setShowMobileContacts] = useState(true);
   const [selectedConversationId, setSelectedConversationId] = useState<string>(() => getStoredChatSelection());
+  const [messagesConversationId, setMessagesConversationId] = useState<string>("");
   const chatEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const scrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
@@ -729,6 +730,42 @@ const ChatPage = () => {
     return [...map.values()].sort((a, b) => String(b.lastTimeRaw || "").localeCompare(String(a.lastTimeRaw || "")));
   }, []);
 
+  const dedupeContacts = useCallback((items: Contact[]) => {
+    const scoreContact = (item: Contact) => {
+      let score = 0;
+      if (item.lastTimeRaw) score += 1000;
+      if (item.lastMsg) score += 100;
+      if (item.unread > 0) score += 10;
+      if (item.userData?.avatar) score += 1;
+      return score;
+    };
+    const map = new Map<string, Contact>();
+    for (const item of items) {
+      const key = item.convId || `${item.kind}:${item.id}`;
+      const current = map.get(key);
+      if (!current) {
+        map.set(key, item);
+        continue;
+      }
+      const nextScore = scoreContact(item);
+      const currentScore = scoreContact(current);
+      if (nextScore > currentScore) {
+        map.set(key, item);
+      } else if (nextScore === currentScore) {
+        map.set(key, {
+          ...current,
+          ...item,
+          lastMsg: item.lastMsg || current.lastMsg,
+          lastTimeRaw: item.lastTimeRaw || current.lastTimeRaw,
+          time: item.time || current.time,
+          unread: Math.max(current.unread, item.unread),
+          userData: item.userData || current.userData,
+        });
+      }
+    }
+    return [...map.values()].sort((a, b) => String(b.lastTimeRaw || "").localeCompare(String(a.lastTimeRaw || "")));
+  }, []);
+
   const baseContacts = contacts.length ? contacts : storeContacts;
   const teamContacts = useMemo(() => baseContacts.filter((c) => c.kind === "group"), [baseContacts]);
   const personalContacts = useMemo(() => baseContacts.filter((c) => c.kind !== "group"), [baseContacts]);
@@ -835,9 +872,9 @@ const ChatPage = () => {
     if (rawTeam?.id) {
       knownConversationIds.add(`g_${rawTeam.id}`);
     }
-    const cs = [...teamContacts, ...groupFromConversations, ...personalFromConversations, ...personalFallback];
+    const cs = dedupeContacts([...teamContacts, ...groupFromConversations, ...personalFromConversations, ...personalFallback]);
     const savedSelection = selectedConversationId || selectedConversationIdRef.current;
-    const defaultTeam = cs.find((c) => c.kind === "group");
+    const defaultTeam = cs.find((c) => c.kind === "group" && (c.lastTimeRaw || c.lastMsg)) || cs.find((c) => c.kind === "group");
     const selectedByConvId = savedSelection
       ? cs.find((c) => c.convId === savedSelection)
       : undefined;
@@ -864,7 +901,7 @@ const ChatPage = () => {
       );
     }
     startTransition(() => {
-      setContacts((prev) => mergeContacts(prev, cs.length ? cs : [{ id: -1, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }]));
+      setContacts(cs.length ? cs : [{ id: -1, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }]);
     });
 
     const preloadTargets = [selectedByConvId?.convId, defaultTeam?.convId]
@@ -908,16 +945,31 @@ const ChatPage = () => {
     const pages = activeMessagesQuery.data?.pages || [];
     if (!activeConversationId) {
       setMessages([]);
+      setMessagesConversationId("");
       setLoadingMessages(false);
       return;
     }
     const cached = convoMessagesRef.current.get(activeConversationId) || [];
+    const queryCached = queryClient.getQueryData(["chat", "messages", activeConversationId]) as { pages?: any[] } | undefined;
+    const queryCachedPages = queryCached?.pages || [];
+    const fallbackCached = queryCachedPages.length
+      ? mergeMessages(
+          cached,
+          normalizeAndSortMessages(
+            queryCachedPages.flatMap((page: any) => extractMessageRows(page)),
+            meRef.current,
+            meId
+          )
+        )
+      : cached;
     if (!pages.length) {
-      if (cached.length > 0) {
-        setMessages(cached);
+      if (fallbackCached.length > 0) {
+        setMessages(fallbackCached);
+        setMessagesConversationId(activeConversationId);
         setLoadingMessages(false);
       } else if (!activeMessagesQuery.isFetching) {
         setMessages([]);
+        setMessagesConversationId(activeConversationId);
         setLoadingMessages(true);
       }
       return;
@@ -926,11 +978,12 @@ const ChatPage = () => {
     const my = meRef.current;
     const parsed = normalizeAndSortMessages(flat, my, meId);
     const pending = pendingMessagesRef.current.get(activeConversationId) || [];
-    const merged = mergeMessages(cached, mergeMessages(parsed, pending));
+    const merged = mergeMessages(fallbackCached, mergeMessages(parsed, pending));
     convoMessagesRef.current.set(activeConversationId, merged);
     setMessages(merged);
+    setMessagesConversationId(activeConversationId);
     setLoadingMessages(false)
-  }, [activeMessagesQuery.data, activeMessagesQuery.isFetching, activeConversationId, meId]);
+  }, [activeMessagesQuery.data, activeMessagesQuery.isFetching, activeConversationId, meId, queryClient]);
 
   useEffect(() => {
     if (!activeConversationId) return;
@@ -938,8 +991,10 @@ const ChatPage = () => {
     const cached = convoMessagesRef.current.get(activeConversationId) || [];
     if (cached.length > 0) {
       setMessages(cached);
+      setMessagesConversationId(activeConversationId);
     } else {
       setMessages([]);
+      setMessagesConversationId(activeConversationId);
     }
     setLoadingMessages(false);
   }, [activeMessagesQuery.isError, activeConversationId]);
@@ -1063,7 +1118,6 @@ const ChatPage = () => {
   const switchContact = useCallback(async (contact: Contact) => {
     const idx = baseContacts.findIndex(c => c.convId === contact.convId && c.id === contact.id);
     if(idx<0) return;
-    setActiveIdx(idx);
     const nextContact = baseContacts[idx];
     activeContactIdRef.current = nextContact.id;
     const isTeamContact = nextContact.kind === "group";
@@ -1082,9 +1136,11 @@ const ChatPage = () => {
     activeConvIdRef.current = optimisticConvId;
     if (cachedOptimisticMessages.length > 0) {
       setMessages(cachedOptimisticMessages);
+      setMessagesConversationId(optimisticConvId);
       setLoadingMessages(false);
     } else {
       setMessages([]);
+      setMessagesConversationId(optimisticConvId);
       setLoadingMessages(true);
     }
     let convId = optimisticConvId;
@@ -1101,8 +1157,11 @@ const ChatPage = () => {
     const cached = convoMessagesRef.current.get(convId || "") || [];
     if (cached.length > 0) {
       setMessages(cached);
+      setMessagesConversationId(convId);
       setLoadingMessages(false);
     } else {
+      setMessages([]);
+      setMessagesConversationId(convId);
       setLoadingMessages(true);
     }
     // 标记已读：调用后端 API + 更新本地未读计数
@@ -1313,6 +1372,7 @@ const ChatPage = () => {
   }, [highlightedConversationId]);
   const showTypingIndicator = Boolean(activeConversationId && typingByConversation[activeConversationId]);
   const currentAvatarSeed = contact?.id || 0;
+  const isMessagesForActiveConversation = Boolean(activeConversationId && messagesConversationId === activeConversationId);
 
   useEffect(()=>{activeContactIdRef.current=contact?.id||0;},[contact]);
 
@@ -1551,13 +1611,17 @@ const ChatPage = () => {
             {loading?<div className="flex items-center justify-center h-full">
               <div className="w-9 h-9 rounded-full border-2 border-white/10 border-t-violet-400 animate-spin" />
             </div>
-            :(!contact||contact.id===0)&&!isActiveGroupConversation?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{isGuest ? "Login to start chatting" : (authLoading ? "" : "Select a contact to start chatting")}</p>{isGuest && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
-            :loadingMessages && messages.length===0 ? (
+            :(!activeConversationId && (!contact||contact.id===0)&&!isActiveGroupConversation)?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{isGuest ? "Login to start chatting" : (authLoading ? "" : "Select a contact to start chatting")}</p>{isGuest && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
+            :loadingMessages && messagesConversationId !== activeConversationId ? (
               <div className="flex items-center justify-center h-full">
                 <div className="w-9 h-9 rounded-full border-2 border-white/10 border-t-cyan-400 animate-spin" />
               </div>
             ) : activeMessagesQuery.isFetchingPreviousPage?<div className="flex items-center justify-center py-2"><p className="text-[11px] text-white/18 animate-pulse">Loading older messages...</p></div>
-            :messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
+            :!isMessagesForActiveConversation ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="w-9 h-9 rounded-full border-2 border-white/10 border-t-cyan-400 animate-spin" />
+              </div>
+            ) : activeConversationId && messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
             :messages.map((m,i)=>{
               const isMe=m.sender==="me";
               const prevSame=i>0&&messages[i-1]?.sender===m.sender;
