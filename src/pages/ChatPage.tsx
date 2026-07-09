@@ -86,7 +86,15 @@ function isGroupConversationId(conversationId?: string) {
 }
 
 function getChatSelectionStorageKey() {
-  return "chat_active_selection";
+  return "chat_active_conversation_id";
+}
+
+function getStoredChatSelection(): string {
+  try {
+    return localStorage.getItem(getChatSelectionStorageKey()) || "";
+  } catch {
+    return "";
+  }
 }
 
 function makePrivateConversationId(userA: number, userB: number) {
@@ -294,6 +302,7 @@ const ContactItem = memo(function ContactItem({
       style={{
         height:"64px",
         background:active?"rgba(0,0,0,0.26)":"transparent",
+        transition:"background 120ms ease, transform 120ms ease",
       }}
     >
       <div className="relative shrink-0">
@@ -325,11 +334,11 @@ const ContactItem = memo(function ContactItem({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline">
-          <p className="text-[15px] font-medium truncate" style={{color:active?"rgba(255,255,255,0.96)":"rgba(255,255,255,0.78)",transition:"color 240ms cubic-bezier(.16,1,.3,1)"}}>{contact.name}</p>
+          <p className="text-[15px] font-medium truncate" style={{color:active?"rgba(255,255,255,0.96)":"rgba(255,255,255,0.78)",transition:"color 120ms ease"}}>{contact.name}</p>
           <span className="text-[10px] text-white/25 font-mono shrink-0 ml-1.5">{contact.time}</span>
         </div>
         <div className="flex justify-between items-center mt-0.5">
-          <p className="text-[12px] truncate" style={{color:active?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.25)",transition:"color 240ms cubic-bezier(.16,1,.3,1)"}}>{contact.lastMsg || ""}</p>
+          <p className="text-[12px] truncate" style={{color:active?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.25)",transition:"color 120ms ease"}}>{contact.lastMsg || ""}</p>
           {contact.unread>0&&<span className={`w-[16px] h-[16px] rounded-full grid place-items-center text-[8px] font-medium text-white/35 border border-white/20 leading-none shrink-0 ml-1.5 ${active?"hidden":""}`}>{contact.unread>99?"99+":contact.unread}</span>}
         </div>
       </div>
@@ -352,7 +361,7 @@ const ChatPage = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendError, setSendError] = useState("");
   const [showMobileContacts, setShowMobileContacts] = useState(true);
-  const [selectedConversationId, setSelectedConversationId] = useState("");
+  const [selectedConversationId, setSelectedConversationId] = useState<string>(() => getStoredChatSelection());
   const chatEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const scrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
@@ -616,19 +625,22 @@ const ChatPage = () => {
   const baseContacts = contacts.length ? contacts : storeContacts;
   const teamContacts = useMemo(() => baseContacts.filter((c) => isGroupConversationId(c.convId)), [baseContacts]);
   const personalContacts = useMemo(() => baseContacts.filter((c) => !isGroupConversationId(c.convId)), [baseContacts]);
+  const defaultTeamContact = useMemo(() => teamContacts[0] || null, [teamContacts]);
+  const hasStoredChatSelection = Boolean(getStoredChatSelection());
+  const effectiveSelectedConversationId = selectedConversationId || (!hasStoredChatSelection ? defaultTeamContact?.convId || "" : "");
   const activeContact = useMemo(() => {
-    if (selectedConversationId) {
-      const byConvId = baseContacts.find((c) => c.convId === selectedConversationId);
+    if (effectiveSelectedConversationId) {
+      const byConvId = baseContacts.find((c) => c.convId === effectiveSelectedConversationId);
       if (byConvId) return byConvId;
     }
     if (activeIdx >= 0) {
       return baseContacts.find((c) => c.id === activeContactIdRef.current) || baseContacts[activeIdx] || null;
     }
     return null;
-  }, [activeIdx, activeContactIdRef, baseContacts, selectedConversationId]);
+  }, [activeIdx, activeContactIdRef, baseContacts, effectiveSelectedConversationId]);
   const activeConversationId = activeIdx === -2
-    ? (selectedConversationId || "")
-    : (activeContact && isGroupConversationId(activeContact.convId) ? activeContact.convId : (selectedConversationId || ""));
+    ? (effectiveSelectedConversationId || "")
+    : (activeContact && isGroupConversationId(activeContact.convId) ? activeContact.convId : (effectiveSelectedConversationId || ""));
   const isActiveGroupConversation = Boolean(activeContact && isGroupConversationId(activeContact.convId));
   const isContactActive = useCallback((contact: Contact) => {
     return Boolean(contact.convId && contact.convId === activeConversationId);
@@ -701,14 +713,18 @@ const ChatPage = () => {
       knownConversationIds.add(`g_${rawTeam.id}`);
     }
     const cs = [...teamContacts, ...personalFromConversations, ...personalFallback];
-    const savedSelection = localStorage.getItem(getChatSelectionStorageKey());
+    const savedSelection = selectedConversationId || getStoredChatSelection();
     const defaultTeam = cs.find((c) => isGroupConversationId(c.convId));
-    const selectedTeam = savedSelection === "team"
-      ? cs.find((c) => isGroupConversationId(c.convId))
-      : defaultTeam;
-    const selectedContact = savedSelection && savedSelection !== "team"
-      ? cs.find((c) => !isGroupConversationId(c.convId) && String(c.id) === savedSelection)
+    const selectedByConvId = savedSelection
+      ? cs.find((c) => c.convId === savedSelection)
       : undefined;
+    const hasSavedSelection = Boolean(savedSelection);
+    const selectedContact = selectedByConvId && !isGroupConversationId(selectedByConvId.convId)
+      ? selectedByConvId
+      : undefined;
+    const selectedTeam = selectedByConvId && isGroupConversationId(selectedByConvId.convId)
+      ? selectedByConvId
+      : (!hasSavedSelection ? defaultTeam : undefined);
 
     if (cs.length) {
       hydrateFromServer(
@@ -747,6 +763,15 @@ const ChatPage = () => {
     ].filter((value, index, arr): value is string => Boolean(value) && arr.indexOf(value) === index);
     preloadTargets.forEach((convId) => preloadConversationMessages(convId));
 
+    if (hasSavedSelection && !selectedByConvId) {
+      try {
+        localStorage.removeItem(getChatSelectionStorageKey());
+      } catch {
+        // ignore storage failures
+      }
+      setSelectedConversationId("");
+    }
+
     if (selectedTeam) {
       setActiveIdx(cs.findIndex((c) => c.convId === selectedTeam.convId))
       activeContactIdRef.current = selectedTeam.id
@@ -757,7 +782,7 @@ const ChatPage = () => {
       const cached = convoMessagesRef.current.get(selectedTeam.convId || "") || []
       setMessages(cached)
       setLoadingMessages(cached.length === 0)
-      localStorage.setItem(getChatSelectionStorageKey(), "team");
+      localStorage.setItem(getChatSelectionStorageKey(), selectedTeam.convId || "");
     } else if (selectedContact) {
       const selectedConvId = selectedContact.convId || ""
       setActiveIdx(cs.findIndex((c) => c.id === selectedContact.id))
@@ -782,7 +807,7 @@ const ChatPage = () => {
         setMessages([])
         setLoadingMessages(false)
       }
-      localStorage.setItem(getChatSelectionStorageKey(), String(selectedContact.id));
+      localStorage.setItem(getChatSelectionStorageKey(), selectedContact.convId || String(selectedContact.id));
     } else {
       setActiveIdx(-1)
       activeContactIdRef.current = 0
@@ -791,7 +816,7 @@ const ChatPage = () => {
       activeConvIdRef.current = ""
       setSelectedConversationId("")
     }
-  }, [me?.id, mergeContacts, preloadConversationMessages, conversationsQuery.data]);
+  }, [me?.id, mergeContacts, preloadConversationMessages, conversationsQuery.data, selectedConversationId]);
   // 同步 loadAllRef，避免 WebSocket 闭包中的 TDZ 问题
   useEffect(() => { loadAllRef.current = loadAll; }, [loadAll]);
 
@@ -928,7 +953,7 @@ const ChatPage = () => {
       selectedPeerUserIdRef.current = nextContact.id
       selectedGroupIdRef.current = 0
     }
-    localStorage.setItem(getChatSelectionStorageKey(), isTeamContact ? "team" : String(nextContact.id));
+    localStorage.setItem(getChatSelectionStorageKey(), nextContact.convId || String(nextContact.id));
     setLoadingMessages(true);
     let convId = nextContact?.convId || "";
     if (!isTeamContact) {
@@ -1078,6 +1103,10 @@ const ChatPage = () => {
   const filteredTeamContacts = useMemo(() => sortAndFilterContacts(teamContacts), [sortAndFilterContacts, teamContacts]);
   const filteredPersonalContacts = useMemo(() => sortAndFilterContacts(personalContacts), [sortAndFilterContacts, personalContacts]);
   const contact = activeContact || baseContacts[activeIdx];
+  const highlightedConversationId = activeConversationId || defaultTeamContact?.convId || "";
+  const isHighlightedContact = useCallback((contact: Contact) => {
+    return Boolean(contact.convId && contact.convId === highlightedConversationId);
+  }, [highlightedConversationId]);
 
   useEffect(()=>{if(activeIdx!==-2)activeContactIdRef.current=contact?.id||0;},[contact,activeIdx]);
 
@@ -1096,11 +1125,11 @@ const ChatPage = () => {
 .msg-anim{animation:msgIn .28s cubic-bezier(.16,1,.3,1) both}
 .msg-anim-me{animation:msgInMe .28s cubic-bezier(.16,1,.3,1) both}
 .contact-btn{position:relative}
-.contact-btn::before{content:"";position:absolute;left:0;top:50%;width:3px;height:40px;border-radius:0 3px 3px 0;background:linear-gradient(to bottom,#a855f7,#06b6d4);transform:translateY(-50%) scaleY(.15);transform-origin:center;transition:transform .28s cubic-bezier(.16,1,.3,1), opacity .28s cubic-bezier(.16,1,.3,1);opacity:0}
+.contact-btn::before{content:"";position:absolute;left:0;top:50%;width:3px;height:40px;border-radius:0 3px 3px 0;background:linear-gradient(to bottom,#a855f7,#06b6d4);transform:translateY(-50%) scaleY(.15);transform-origin:center;transition:transform .14s ease, opacity .14s ease;opacity:0}
 .contact-btn.active::before{transform:translateY(-50%) scaleY(1);opacity:1}
 .contact-btn:not(.active):hover{background:rgba(255,255,255,0.04)!important}
 .contact-btn.active:hover{background:rgba(0,0,0,0.26)!important}
-.contact-btn:active{transform:translate3d(0,0,0) scale(.99)}`}</style>
+.contact-btn:active{transform:translate3d(0,0,0) scale(.995)}`}</style>
       <Sidebar/>
 
       {/* Main glass panel */}
@@ -1139,7 +1168,20 @@ const ChatPage = () => {
           {/* Contact list */}
           <div className="flex-1 overflow-y-auto csb">
             {loading ? (
-              <div className="space-y-2 px-5 py-4">{[1,2,3,4].map(i=><div key={i} className="h-[84px] flex items-center gap-4"><div className="w-[52px] h-[52px] rounded-full bg-white/[0.03] animate-pulse shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 w-3/4 rounded bg-white/[0.03] animate-pulse"/><div className="h-2 w-1/2 rounded bg-white/[0.02] animate-pulse"/></div></div>)}</div>
+              <div className="space-y-2 px-3 py-4">
+                {[1,2,3,4].map((i) => (
+                  <div
+                    key={i}
+                    className={`h-[84px] flex items-center gap-4 rounded-2xl px-2 ${i === 1 ? "bg-black/20 ring-1 ring-white/8" : "bg-transparent"}`}
+                  >
+                    <div className={`w-[52px] h-[52px] rounded-full shrink-0 ${i === 1 ? "bg-gradient-to-br from-violet-500/35 to-cyan-400/25 ring-1 ring-white/15" : "bg-white/[0.03]"} animate-pulse`} />
+                    <div className="flex-1 space-y-2">
+                      <div className={`h-3 rounded animate-pulse ${i === 1 ? "w-4/5 bg-white/[0.06]" : "w-3/4 bg-white/[0.03]"}`} />
+                      <div className={`h-2 rounded animate-pulse ${i === 1 ? "w-2/3 bg-white/[0.04]" : "w-1/2 bg-white/[0.02]"}`} />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : baseContacts.length === 0 ? (
               <div className="text-center py-10 text-white/20 text-[12px]">
                 {isGuest ? <span>Login to view contacts - <button onClick={()=>openAuth("login")} className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">Login &rarr;</button></span> : <span className="text-white/10">{authLoading ? "" : "No contacts"}</span>}
@@ -1151,7 +1193,7 @@ const ChatPage = () => {
                   <div className="px-5 py-4 text-[12px] text-white/15">No team chats</div>
                 ) : (
                   filteredTeamContacts.map((c) => (
-                    <ContactItem key={`team-${c.convId || c.id}`} contact={c} active={isContactActive(c)} onSelect={switchContact} online={online(c)} />
+                    <ContactItem key={`team-${c.convId || c.id}`} contact={c} active={isHighlightedContact(c)} onSelect={switchContact} online={online(c)} />
                   ))
                 )}
 
@@ -1160,7 +1202,7 @@ const ChatPage = () => {
                   <div className="px-5 py-4 text-[12px] text-white/15">No personal chats</div>
                 ) : (
                   filteredPersonalContacts.map((c) => (
-                    <ContactItem key={`personal-${c.convId || c.id}`} contact={c} active={isContactActive(c)} onSelect={switchContact} online={online(c)} />
+                    <ContactItem key={`personal-${c.convId || c.id}`} contact={c} active={isHighlightedContact(c)} onSelect={switchContact} online={online(c)} />
                   ))
                 )}
               </>
@@ -1300,17 +1342,13 @@ const ChatPage = () => {
 
           {/* Messages */}
           <div ref={messagesScrollRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto csb px-5 py-4 space-y-1.5 transition-opacity duration-300">
-            {loading?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/10 animate-pulse">Loading...</p></div>
+            {loading?<div className="flex items-center justify-center h-full">
+              <div className="w-9 h-9 rounded-full border-2 border-white/10 border-t-violet-400 animate-spin" />
+            </div>
             :(!contact||contact.id===0)&&!isActiveGroupConversation?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{isGuest ? "Login to start chatting" : (authLoading ? "" : "Select a contact to start chatting")}</p>{isGuest && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
             :loadingMessages && messages.length===0 ? (
-              <div className="space-y-3 py-4">
-                {[1,2,3].map((i)=>(
-                  <div key={i} className={`flex ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
-                    <div className="max-w-[72%]">
-                      <div className={`h-10 rounded-[24px] animate-pulse ${i % 2 === 0 ? "bg-white/10" : "bg-white/6"}`} style={{width: i === 2 ? "12rem" : "16rem"}} />
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center justify-center h-full">
+                <div className="w-9 h-9 rounded-full border-2 border-white/10 border-t-cyan-400 animate-spin" />
               </div>
             ) : activeMessagesQuery.isFetchingPreviousPage?<div className="flex items-center justify-center py-2"><p className="text-[11px] text-white/18 animate-pulse">Loading older messages...</p></div>
             :messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
