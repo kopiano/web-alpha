@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { useDeferredEffect } from "@/hooks/useDeferredEffect"
 import { getHotSearch, get36krHot } from "@/api/hotSearch"
 import { RefreshCw, Globe, Tags } from "lucide-react"
+import kr36Logo from "@/assets/36kr.webp"
 
 interface HotSearchItem {
   rank: number
@@ -88,8 +89,13 @@ function WeiboLogo() {
 
 function Kr36Logo() {
   return (
-    <img src="/36kr.webp" alt="36kr"
-      className="w-5 h-5 rounded" loading="lazy" decoding="async" />
+    <img
+      src={kr36Logo}
+      alt="36kr"
+      className="w-6 h-4 object-contain"
+      loading="lazy"
+      decoding="async"
+    />
   )
 }
 
