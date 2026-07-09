@@ -22,6 +22,9 @@ export function fetchConversationMessages(convId, config = {}) {
 }
 
 /** POST /api/v1/chat/messages — 发送消息
+ * 约定：
+ * - chat_type 决定消息类型，只能是 "private" 或 "group"
+ * - conversation_id 只用于定位/缓存会话，不用于判定消息类型
  * private: { chat_type: "private", receiver_id, recipient_id, conversation_id?, message_type, content, file_name?, file_url? }
  * group:   { chat_type: "group", group_id, conversation_id?, message_type, content, file_name?, file_url? }
  */
@@ -35,9 +38,9 @@ export function sendChatMessageForm(formData) {
 }
 
 /** GET /api/v1/chat/groups — 获取团队群组信息 */
-// export function getTeamInfo() {
-//   return unwrapChatResponse(request.get('/chat/groups'))
-// }
+export function getGroups() {
+  return unwrapChatResponse(request.get('/chat/groups'))
+}
 
 /** POST /api/v1/chat/conversations — 创建/获取私聊会话 */
 export function createConversation(userId) {
