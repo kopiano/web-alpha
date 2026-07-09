@@ -380,7 +380,7 @@ export const MusicPlayer = () => {
         <button onClick={doCollapse} className="shrink-0 focus:outline-none -ml-1.5">
           <div className="w-11 h-11 rounded-[50%] grid place-items-center shrink-0"
             style={playing ? {
-              background: "linear-gradient(135deg, rgba(147,51,234,0.35), rgba(79,70,229,0.25), rgba(14,165,233,0.35), rgba(236,72,153,0.25), rgba(168,85,247,0.30))",
+              background: "rgba(254, 155, 173, 0.74)",
               backgroundSize: "200% 200%",
               animation: "logo-gradient-shift 3s ease-in-out infinite alternate",
               backdropFilter: "blur(20px) saturate(180%)",
@@ -453,7 +453,7 @@ export const MusicPlayer = () => {
           <button onClick={togglePlay}
             className="w-9 h-9 rounded-full grid place-items-center transition-all duration-300 hover:scale-105 active:scale-95"
             style={{
-              background: playing ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.06)",
+              background: playing ? "rgba(207, 129, 169, 0.83)" : "rgba(255,255,255,0.06)",
               backdropFilter: "blur(20px) saturate(180%)",
               border: playing ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.08)",
               boxShadow: playing ? "0 8px 32px -8px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 2px 8px -4px rgba(0,0,0,0.15)",
