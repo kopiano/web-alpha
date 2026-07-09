@@ -1099,10 +1099,10 @@ const ChatPage = () => {
 
   const emitTyping = useCallback((typing: boolean) => {
     const convId = activeConvIdRef.current || selectedConversationId || "";
-    if (!convId || (!contact && !isActiveGroupConversation)) return;
+    if (!convId) return;
     const chatType: "private" | "group" = selectedGroupIdRef.current > 0 ? "group" : "private";
-    const receiverId = selectedPeerUserIdRef.current || contact?.id || activeContactIdRef.current || 0;
-    const groupId = chatType === "group" ? (selectedGroupIdRef.current || contact?.id || 0) : 0;
+    const receiverId = selectedPeerUserIdRef.current || activeContactIdRef.current || 0;
+    const groupId = chatType === "group" ? (selectedGroupIdRef.current || activeContactIdRef.current || 0) : 0;
     if (typing) {
       if (localTypingSentRef.current[convId]) return;
       localTypingSentRef.current[convId] = true;
@@ -1126,7 +1126,7 @@ const ChatPage = () => {
       recipient_id: receiverId,
       group_id: groupId,
     });
-  }, [contact, isActiveGroupConversation, selectedConversationId, sendMessage]);
+  }, [selectedConversationId, sendMessage]);
 
   useEffect(() => {
     if (typingStartTimerRef.current) clearTimeout(typingStartTimerRef.current);
