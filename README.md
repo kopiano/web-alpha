@@ -239,6 +239,13 @@ GET /chat/conversations/:id/messages
     2. 保留上一帧内容或显示骨架屏
     3. 几十到几百毫秒后替换为新消息
 
+### 发送图片(post方法)
+
+› 聊天界面发送图片也要转为webp格式，具体流程：一个典型的图片发送流程如下：
+  前端：用户选择图片 -> 压缩/格式转换（如转WebP） -> 通过 multipart/form-data 格式上传 -> post /chat/messages
+  后端：接收图片 -> 格式统一/生成缩略图 -> 保存到后端的assets目录下，使用image-用户名.webp的格式保存 -> 将图片URL返回前端。
+  前端：拿到URL并展示在聊天界面上
+
 ## 局域网连接(同一wifi)
 ```bash
 ipconfig getifaddr en0  # 获取本机ip

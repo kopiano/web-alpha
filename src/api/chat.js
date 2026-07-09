@@ -29,6 +29,11 @@ export function sendChatMessage(msg) {
   return unwrapChatResponse(request.post('/chat/messages', msg))
 }
 
+/** POST /api/v1/chat/messages — 发送消息（multipart/form-data） */
+export function sendChatMessageForm(formData) {
+  return unwrapChatResponse(request.post('/chat/messages', formData))
+}
+
 /** GET /api/v1/chat/groups — 获取团队群组信息 */
 // export function getTeamInfo() {
 //   return unwrapChatResponse(request.get('/chat/groups'))

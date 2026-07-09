@@ -4,7 +4,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 import { useOnlineStatus, type WsMessage } from "@/components/dashboard/OnlineStatusProvider";
 import { resolveAvatar } from "@/lib/avatar";
-import { getConversations, markConversationRead, createConversation, fetchConversationMessages } from "@/api/chat";
+import { getConversations, markConversationRead, createConversation, fetchConversationMessages, sendChatMessageForm } from "@/api/chat";
 import { EMOJI_LIST } from "@/config/chat";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatConversations } from "@/hooks/chat/useChatConversations";
@@ -436,6 +436,7 @@ const ChatPage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const { onlineUsers, subscribe, sendMessage } = useOnlineStatus();
   const [previewImg, setPreviewImg] = useState<string|null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendError, setSendError] = useState("");
@@ -447,6 +448,7 @@ const ChatPage = () => {
   const scrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
+  const imageFileRef = useRef<File | null>(null);
   const midRef = useRef(0);
   const meRef = useRef("Me");
   const activeContactIdRef = useRef(0);
@@ -1326,9 +1328,97 @@ const ChatPage = () => {
   }, [activeConversationId, emitTyping, input]);
 
   const sendText = () => { const v=input.trim(); if(!v) return; sendMsg(/^\p{Emoji}+$/u.test(v)?"emoji":"text",v); setInput(""); setShowEmoji(false); };
-  const sendImg = () => { if(!previewImg) return; sendMsg("image",previewImg,"image.png",previewImg); setPreviewImg(null); };
+  const resizeImageToWebp = async (file: File) => {
+    const bitmap = await createImageBitmap(file);
+    const maxWidth = 1600;
+    const scale = bitmap.width > maxWidth ? maxWidth / bitmap.width : 1;
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("无法处理图片");
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error("图片转换失败"));
+          return;
+        }
+        resolve(blob);
+      }, "image/webp", 0.82);
+    });
+  };
+  const sendImg = async () => {
+    const file = imageFileRef.current;
+    if (!file || !previewImg || isUploadingImage) return;
+    const targetContact =
+      baseContacts.find((c) => c.id === activeContactIdRef.current) ||
+      activeContact ||
+      baseContacts.find((c) => c.convId === activeConversationId) ||
+      null;
+    const selectedConvId = targetContact?.convId || activeConversationId || selectedConversationId || "";
+    const chatType: "private" | "group" = targetContact?.kind === "group" ? "group" : "private";
+    const isGroup = chatType === "group";
+    const targetReceiverId = isGroup ? 0 : (selectedPeerUserIdRef.current || targetContact?.id || activeContactIdRef.current || 0);
+    const targetGroupId = isGroup ? (selectedGroupIdRef.current || targetContact?.id || 0) : 0;
+    const targetConversationId = targetContact?.convId || activeConversationId || selectedConversationId || "";
+    if (chatType === "private" && targetReceiverId <= 0) return;
+    if (chatType === "group" && targetGroupId <= 0) return;
+
+    setIsUploadingImage(true);
+    setSendError("");
+    try {
+      const webpBlob = await resizeImageToWebp(file);
+      const webpFileName = `image-${meName || "user"}.webp`;
+      const webpFile = new File([webpBlob], webpFileName, { type: "image/webp" });
+      const formData = new FormData();
+      formData.append("chat_type", chatType);
+      formData.append("conversation_id", selectedConvId || targetConversationId);
+      formData.append("message_type", "3");
+      formData.append("content", "[图片]");
+      formData.append("file_name", webpFileName);
+      formData.append("receiver_id", String(isGroup ? 0 : targetReceiverId));
+      formData.append("recipient_id", String(isGroup ? 0 : targetReceiverId));
+      formData.append("group_id", String(targetGroupId));
+      formData.append("file", webpFile);
+
+      const res = await sendChatMessageForm(formData);
+      const payload = res?.data?.data || res?.data || {};
+      const sentMessage = normalizeServerMessage(payload, meName, meId);
+      if (sentMessage) {
+        sentMessage.deliveryStatus = "confirmed";
+        const optimisticConvId = targetConversationId || selectedConvId;
+        if (optimisticConvId) {
+          const existing = convoMessagesRef.current.get(optimisticConvId) || [];
+          const nextMessages = appendMessage(existing, sentMessage);
+          convoMessagesRef.current.set(optimisticConvId, nextMessages);
+          setMessages((prev) => appendMessage(prev, sentMessage));
+        }
+        queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+        queryClient.invalidateQueries({ queryKey: ["chat", "messages", optimisticConvId] });
+      }
+      setPreviewImg(null);
+      imageFileRef.current = null;
+    } catch (e) {
+      const message = getChatErrorMessage(e, "图片发送失败，请稍后重试");
+      setSendError(message);
+      toast.error(message);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
   const pickFile = (e: React.ChangeEvent<HTMLInputElement>) => { const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>sendMsg("file",f.name,f.name,r.result as string); r.readAsDataURL(f); e.target.value=""; };
-  const pickImg = (e: React.ChangeEvent<HTMLInputElement>) => { const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>setPreviewImg(r.result as string); r.readAsDataURL(f); e.target.value=""; };
+  const pickImg = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    imageFileRef.current = f;
+    const r = new FileReader();
+    r.onload = () => setPreviewImg(r.result as string);
+    r.readAsDataURL(f);
+    e.target.value = "";
+  };
 
   useLayoutEffect(() => {
     requestAnimationFrame(() => {
@@ -1655,7 +1745,7 @@ const ChatPage = () => {
                       {m.type==="text"||m.type==="emoji"&&m.content.length>2?<div className={`px-5 py-3 text-[13px] leading-relaxed rounded-[3rem] ${isMe?"rounded-br-lg text-white/95":"rounded-bl-lg text-white/88"}`}
                         style={isMe?{background:"linear-gradient(135deg, #7c3aed, #06b6d4)",boxShadow:"0 6px 20px -6px rgba(124,58,237,0.4), inset 0 1px 0 rgba(255,255,255,0.15)"}:{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.06)",boxShadow:"0 4px 12px -4px rgba(0,0,0,0.15)"}}>{m.content}</div>
                       :m.type==="emoji"?<div className="text-[40px] leading-none select-none">{m.content}</div>
-                      :m.type==="image"?<img src={m.content} alt="" className="max-w-[280px] rounded-2xl object-cover cursor-pointer hover:scale-[1.02] transition-transform" loading="lazy" decoding="async"/>
+                      :m.type==="image"?<img src={m.fileData || ""} alt="" className="max-w-[280px] rounded-2xl object-cover cursor-pointer hover:scale-[1.02] transition-transform" loading="lazy" decoding="async"/>
                       :m.type==="file"?<div className="flex items-center gap-3 px-4 py-3 rounded-[20px] max-w-[280px]" style={{background:"rgba(255,255,255,0.05)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.06)"}}>
                         <FileText size={16} className="text-violet-400 shrink-0"/><div className="flex-1 min-w-0"><p className="text-[11px] font-medium truncate">{m.fileName}</p></div>
                         {m.fileData&&<a href={m.fileData} download={m.fileName} className="w-7 h-7 rounded-lg grid place-items-center hover:bg-white/10"><Download size={12} className="text-white/30 hover:text-white/60"/></a>}
@@ -1706,7 +1796,9 @@ const ChatPage = () => {
             <img src={previewImg} alt="" className="w-12 h-12 rounded-xl object-cover" loading="lazy" decoding="async"/>
             <span className="text-[11px] text-white/50 flex-1">Image ready</span>
             <button onClick={()=>setPreviewImg(null)} className="text-white/20 hover:text-white/60 text-xs px-2">✕</button>
-            <button onClick={sendImg} className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-violet-500 to-cyan-400 text-white">Send</button>
+            <button onClick={sendImg} disabled={isUploadingImage} className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-violet-500 to-cyan-400 text-white disabled:opacity-60">
+              {isUploadingImage ? "Sending..." : "Send"}
+            </button>
           </div>}
 
           <div className="relative px-3 md:px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] md:pb-4 pt-2 shrink-0">
