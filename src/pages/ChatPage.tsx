@@ -459,6 +459,8 @@ const ChatPage = () => {
   const loadAllRef = useRef<() => void>(() => {});
   const onlineUsersRef = useRef<Set<number>>(new Set());
   const didInitializeSelectionRef = useRef(false);
+  const selectedConversationIdRef = useRef<string>("");
+  const hasLoadedContactsRef = useRef(false);
   const queryClient = useQueryClient();
 
   const me = user;
@@ -470,6 +472,7 @@ const ChatPage = () => {
   const meAvatar = me?.avatar ? resolveAvatar(me.avatar) : null;
   meRef.current = meName;
   onlineUsersRef.current = onlineUsers;
+  selectedConversationIdRef.current = selectedConversationId;
   const conversationsQuery = useChatConversations(false);
   const storeConversationOrder = useChatStore((s) => s.conversationOrder);
   const storeConversations = useChatStore((s) => s.conversations);
@@ -797,17 +800,11 @@ const ChatPage = () => {
       knownConversationIds.add(`g_${rawTeam.id}`);
     }
     const cs = [...teamContacts, ...personalFromConversations, ...personalFallback];
-    const savedSelection = selectedConversationId;
+    const savedSelection = selectedConversationIdRef.current;
     const defaultTeam = cs.find((c) => c.kind === "group");
     const selectedByConvId = savedSelection
       ? cs.find((c) => c.convId === savedSelection)
       : undefined;
-    const selectedContact = selectedByConvId && selectedByConvId.kind !== "group"
-      ? selectedByConvId
-      : undefined;
-    const selectedTeam = selectedByConvId && selectedByConvId.kind === "group"
-      ? selectedByConvId
-      : (!didInitializeSelectionRef.current && !savedSelection ? defaultTeam : undefined);
 
     if (cs.length) {
       hydrateFromServer(
@@ -848,53 +845,18 @@ const ChatPage = () => {
 
     if (!didInitializeSelectionRef.current) {
       didInitializeSelectionRef.current = true;
-    }
-
-    if (selectedTeam) {
-      setActiveIdx(cs.findIndex((c) => c.convId === selectedTeam.convId))
-      activeContactIdRef.current = selectedTeam.id
-      selectedGroupIdRef.current = selectedTeam.id
-      selectedPeerUserIdRef.current = 0
-      activeConvIdRef.current = selectedTeam.convId || ""
-      setSelectedConversationId(selectedTeam.convId || "")
-      const cached = convoMessagesRef.current.get(selectedTeam.convId || "") || []
-      setMessages(cached)
-      setLoadingMessages(cached.length === 0)
-    } else if (selectedContact) {
-      const selectedConvId = selectedContact.convId || ""
-      setActiveIdx(cs.findIndex((c) => c.id === selectedContact.id))
-      activeContactIdRef.current = selectedContact.id
-      selectedPeerUserIdRef.current = selectedContact.id
-      selectedGroupIdRef.current = 0
-      let resolvedConvId = selectedConvId
-      if (!resolvedConvId || !knownConversationIds.has(resolvedConvId)) {
-        try {
-          resolvedConvId = await ensurePrivateConversation(selectedContact.id)
-        } catch {
-          resolvedConvId = selectedConvId
-        }
-      }
-      activeConvIdRef.current = resolvedConvId
-      setSelectedConversationId(resolvedConvId)
-      if (resolvedConvId) {
-        const cached = convoMessagesRef.current.get(resolvedConvId) || []
-        setMessages(cached)
-        setLoadingMessages(cached.length === 0)
-      } else {
-        setMessages([])
-        setLoadingMessages(false)
-      }
-    } else {
-      if (!savedSelection && !didInitializeSelectionRef.current && defaultTeam?.convId) {
-        setActiveIdx(cs.findIndex((c) => c.convId === defaultTeam.convId))
-        activeContactIdRef.current = defaultTeam.id
-        selectedGroupIdRef.current = defaultTeam.id
-        selectedPeerUserIdRef.current = 0
-        activeConvIdRef.current = defaultTeam.convId || ""
-        setSelectedConversationId(defaultTeam.convId || "")
+      if (!savedSelection && defaultTeam?.convId) {
+        activeContactIdRef.current = defaultTeam.id;
+        selectedGroupIdRef.current = defaultTeam.id;
+        selectedPeerUserIdRef.current = 0;
+        activeConvIdRef.current = defaultTeam.convId || "";
+        setSelectedConversationId(defaultTeam.convId || "");
+        const cached = convoMessagesRef.current.get(defaultTeam.convId || "") || [];
+        setMessages(cached);
+        setLoadingMessages(cached.length === 0);
       }
     }
-  }, [me?.id, mergeContacts, preloadConversationMessages, conversationsQuery.data, selectedConversationId]);
+  }, [me?.id, mergeContacts, preloadConversationMessages, conversationsQuery.data]);
   // 同步 loadAllRef，避免 WebSocket 闭包中的 TDZ 问题
   useEffect(() => { loadAllRef.current = loadAll; }, [loadAll]);
 
@@ -964,11 +926,12 @@ const ChatPage = () => {
       setLoading(false);
       return;
     }
-    const hasLocalData = hasStoredConversations || contacts.length > 0;
+    const hasLocalData = hasStoredConversations || hasLoadedContactsRef.current;
     setLoading(!hasLocalData);
     (async () => {
       try {
         await loadAll();
+        hasLoadedContactsRef.current = true;
         if (cancelled) return;
       } catch (e) {
         if (!cancelled) {
@@ -982,7 +945,7 @@ const ChatPage = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [me, loadAll, hasStoredConversations, contacts.length]);
+  }, [me, loadAll, hasStoredConversations]);
 
   useEffect(() => {
     if (user === undefined) return;
@@ -996,6 +959,8 @@ const ChatPage = () => {
     selectedPeerUserIdRef.current = 0;
     selectedGroupIdRef.current = 0;
     didInitializeSelectionRef.current = false;
+    selectedConversationIdRef.current = "";
+    hasLoadedContactsRef.current = false;
   }, [user?.id]);
 
   useEffect(() => {

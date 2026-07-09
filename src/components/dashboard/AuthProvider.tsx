@@ -62,10 +62,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
       }
       prevUserRef.current = newUser;
-    } catch {
-      localStorage.removeItem("token");
-      setUser(null);
-      prevUserRef.current = null;
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 401 || status === 403) {
+        localStorage.removeItem("token");
+        setUser(null);
+        prevUserRef.current = null;
+        return;
+      }
+      // 网络抖动或后端短暂不可用时，保留 token，避免把用户误踢下线
+      setUser((current) => current ?? undefined);
     }
   }, [pushNotification, queryClient]);
 
