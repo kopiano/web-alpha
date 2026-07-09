@@ -20,6 +20,14 @@ const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 const queryClient = new QueryClient();
 
+function RouteLoadingFallback() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <div className="w-8 h-8 rounded-full border-2 border-white/10 border-t-violet-400 animate-spin" />
+    </div>
+  );
+}
+
 const preloadRoutes = () => {
   void import("./pages/Index.tsx");
   void import("./pages/ChatPage.tsx");
@@ -62,11 +70,7 @@ const App = () => {
               <VisitorTracker />
               <MusicPlayer />
               <Suspense
-                fallback={
-                  <div className="flex min-h-[50vh] items-center justify-center text-white/40">
-                    Loading...
-                  </div>
-                }
+                fallback={<RouteLoadingFallback />}
               >
                 <Routes>
                   <Route path="/" element={<Index />} />

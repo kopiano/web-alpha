@@ -13,6 +13,7 @@ import { patchConversation, setUnread, setTyping, hydrateFromServer, clearChatSt
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import teamAvatar from "@/assets/teamGroup.webp";
+import { ChatLoadingDots } from "@/components/ui/ChatLoadingDots";
 // import { getUsers } from "@/api/user";
 
 /* ─── Types ─── */
@@ -1609,17 +1610,27 @@ const ChatPage = () => {
           {/* Messages */}
           <div ref={messagesScrollRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto csb px-5 py-4 space-y-1.5 transition-opacity duration-300">
             {loading?<div className="flex items-center justify-center h-full">
-              <div className="w-9 h-9 rounded-full border-2 border-white/10 border-t-violet-400 animate-spin" />
+              <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
+                <ChatLoadingDots />
+              </div>
             </div>
             :(!activeConversationId && (!contact||contact.id===0)&&!isActiveGroupConversation)?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{isGuest ? "Login to start chatting" : (authLoading ? "" : "Select a contact to start chatting")}</p>{isGuest && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
             :loadingMessages && messagesConversationId !== activeConversationId ? (
               <div className="flex items-center justify-center h-full">
-                <div className="w-9 h-9 rounded-full border-2 border-white/10 border-t-cyan-400 animate-spin" />
+                <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
+                  <ChatLoadingDots dotClassName="bg-cyan-300/35" />
+                </div>
               </div>
-            ) : activeMessagesQuery.isFetchingPreviousPage?<div className="flex items-center justify-center py-2"><p className="text-[11px] text-white/18 animate-pulse">Loading older messages...</p></div>
+            ) : activeMessagesQuery.isFetchingPreviousPage?<div className="flex items-center justify-center py-2">
+              <div className="px-4 py-2.5 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.04)"}}>
+                <ChatLoadingDots dotClassName="bg-white/35" />
+              </div>
+            </div>
             :!isMessagesForActiveConversation ? (
               <div className="flex items-center justify-center h-full">
-                <div className="w-9 h-9 rounded-full border-2 border-white/10 border-t-cyan-400 animate-spin" />
+                <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
+                  <ChatLoadingDots dotClassName="bg-cyan-300/35" />
+                </div>
               </div>
             ) : activeConversationId && messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
             :messages.map((m,i)=>{
@@ -1678,7 +1689,7 @@ const ChatPage = () => {
               <div className="flex justify-start transition-opacity duration-200">
                 <div className="flex flex-row-reverse items-start gap-2.5 max-w-[88%] md:max-w-[72%]">
                   <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
-                    {[0,160,320].map(d=><span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce" style={{animationDelay:`${d}ms`,animationDuration:"0.8s"}}/>)}
+                    <ChatLoadingDots />
                   </div>
                   <div className="shrink-0 flex flex-col items-center gap-0.5">
                     <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${grad(currentAvatarSeed)} grid place-items-center text-[9px] font-bold`}>{contact?.avatar||"?"}</div>
