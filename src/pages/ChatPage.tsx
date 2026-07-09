@@ -435,6 +435,11 @@ const ChatPage = () => {
           currentConvId,
           setMessages,
         );
+      const scrollToBottom = () => {
+        requestAnimationFrame(() => {
+          messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior: "smooth" });
+        });
+      };
 
       if((d.event==="message.new" || d.type==="message") && d.content) {
         const normalized = normalizeServerMessage(d, meRef.current, meId);
@@ -462,9 +467,7 @@ const ChatPage = () => {
               : appendMessage(current, nextMessage);
             convoMessagesRef.current.set(convId, replaced);
             setMessages(replaced);
-            requestAnimationFrame(() => {
-              messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior: "smooth" });
-            });
+            scrollToBottom();
           }
           return;
         }
@@ -495,6 +498,7 @@ const ChatPage = () => {
           const cachedMsg = { ...newMsg, time: msgTime, rawTime: d.time || new Date().toISOString() }
           msgCacheRef.current.set(d.sender_id, mergeMessages(cached, [cachedMsg]))
           pushMessage(String(d.conversation_id), newMsg);
+          if (isCurrentConversation) scrollToBottom();
           return
         }
         if(!isGroupMsg) {
@@ -526,6 +530,7 @@ const ChatPage = () => {
           lastMessageType: messageTypeToNumber(d.msg_type),
         })
         setIsTyping(true); setTimeout(()=>setIsTyping(false),1500);
+        if (isCurrentConversation) scrollToBottom();
         return
       }
       if(d.event==="message.edit") {
