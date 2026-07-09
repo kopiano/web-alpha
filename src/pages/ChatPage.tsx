@@ -959,6 +959,9 @@ const ChatPage = () => {
     const nextContact = baseContacts[idx];
     activeContactIdRef.current = nextContact.id;
     const isTeamContact = isGroupConversationId(nextContact?.convId);
+    const optimisticConvId = nextContact?.convId || "";
+    setSelectedConversationId(optimisticConvId);
+    activeConvIdRef.current = optimisticConvId;
     if (isTeamContact) {
       selectedGroupIdRef.current = nextContact.id
       selectedPeerUserIdRef.current = 0
@@ -967,8 +970,17 @@ const ChatPage = () => {
       selectedGroupIdRef.current = 0
     }
     localStorage.setItem(getChatSelectionStorageKey(), nextContact.convId || String(nextContact.id));
-    setLoadingMessages(true);
-    let convId = nextContact?.convId || "";
+    const cachedOptimisticMessages = convoMessagesRef.current.get(optimisticConvId) || [];
+    setSelectedConversationId(optimisticConvId);
+    activeConvIdRef.current = optimisticConvId;
+    if (cachedOptimisticMessages.length > 0) {
+      setMessages(cachedOptimisticMessages);
+      setLoadingMessages(false);
+    } else {
+      setMessages([]);
+      setLoadingMessages(true);
+    }
+    let convId = optimisticConvId;
     if (!isTeamContact) {
       try {
         convId = convId || (await ensurePrivateConversation(nextContact.id));
