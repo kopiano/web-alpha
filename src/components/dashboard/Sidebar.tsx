@@ -17,7 +17,7 @@ const items = [
   { icon: Users,label: "User",path: "/user" },
   { icon: MessageSquare, label: "Chat", path: "/chat" },
   { icon: Map,label: "Map",path: "/map" },
-  { icon: Sparkles, label: "ChatGPT", path: "/ai" },
+  // { icon: Sparkles, label: "ChatGPT", path: "/ai" },
 ];
 
 export const Sidebar = () => {
@@ -30,7 +30,7 @@ export const Sidebar = () => {
     if (location.pathname === "/user") return 3;
     if (location.pathname === "/chat") return 4;
     if (location.pathname === "/map") return 5;
-    if (location.pathname === "/ai") return 6;
+    // if (location.pathname === "/ai") return 6;
     return 0;
   };
 
