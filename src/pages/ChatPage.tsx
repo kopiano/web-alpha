@@ -836,7 +836,7 @@ const ChatPage = () => {
       knownConversationIds.add(`g_${rawTeam.id}`);
     }
     const cs = [...teamContacts, ...groupFromConversations, ...personalFromConversations, ...personalFallback];
-    const savedSelection = selectedConversationIdRef.current;
+    const savedSelection = selectedConversationId || selectedConversationIdRef.current;
     const defaultTeam = cs.find((c) => c.kind === "group");
     const selectedByConvId = savedSelection
       ? cs.find((c) => c.convId === savedSelection)
@@ -875,7 +875,21 @@ const ChatPage = () => {
 
     if (!didInitializeSelectionRef.current) {
       didInitializeSelectionRef.current = true;
-      if (!savedSelection && defaultTeam?.convId) {
+      if (selectedByConvId?.convId) {
+        activeContactIdRef.current = selectedByConvId.id;
+        activeConvIdRef.current = selectedByConvId.convId || "";
+        if (selectedByConvId.kind === "group") {
+          selectedGroupIdRef.current = selectedByConvId.id;
+          selectedPeerUserIdRef.current = 0;
+        } else {
+          selectedPeerUserIdRef.current = selectedByConvId.id;
+          selectedGroupIdRef.current = 0;
+        }
+        setSelectedConversationId(selectedByConvId.convId || "");
+        const cached = convoMessagesRef.current.get(selectedByConvId.convId || "") || [];
+        setMessages(cached);
+        setLoadingMessages(cached.length === 0);
+      } else if (!savedSelection && defaultTeam?.convId) {
         activeContactIdRef.current = defaultTeam.id;
         selectedGroupIdRef.current = defaultTeam.id;
         selectedPeerUserIdRef.current = 0;
@@ -902,6 +916,9 @@ const ChatPage = () => {
       if (cached.length > 0) {
         setMessages(cached);
         setLoadingMessages(false);
+      } else if (!activeMessagesQuery.isFetching) {
+        setMessages([]);
+        setLoadingMessages(true);
       }
       return;
     }
@@ -979,17 +996,18 @@ const ChatPage = () => {
 
   useEffect(() => {
     if (user === undefined) return;
+    const storedSelection = getStoredChatSelection();
     clearChatStore();
     setContacts([]);
     setActiveIdx(-1);
     setMessages([]);
-    setSelectedConversationId(getStoredChatSelection());
+    setSelectedConversationId(storedSelection);
     activeContactIdRef.current = 0;
     activeConvIdRef.current = "";
     selectedPeerUserIdRef.current = 0;
     selectedGroupIdRef.current = 0;
     didInitializeSelectionRef.current = false;
-    selectedConversationIdRef.current = "";
+    selectedConversationIdRef.current = storedSelection;
     hasLoadedContactsRef.current = false;
   }, [user?.id]);
 
