@@ -30,7 +30,7 @@ interface ConversationRow {
   unread_count?: number;
   users?: { user_id: number; username?: string; avatar?: string }[];
 }
-interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; rawTime?: string; sortTs?: number; clientMsgId?: string; fileName?: string; fileSize?: string; fileData?: string; username?: string; senderAvatar?: string; }
+interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; rawTime?: string; sortTs?: number; clientMsgId?: string; fileName?: string; fileSize?: string; fileData?: string; username?: string; senderAvatar?: string; deliveryStatus?: "sending" | "delivered" | "confirmed"; }
 
 const AVATAR_GRADS = ["from-violet-500 to-cyan-400","from-pink-500 to-violet-500","from-cyan-400 to-blue-500","from-emerald-400 to-cyan-400","from-fuchsia-500 to-pink-500","from-violet-500 to-fuchsia-500","from-blue-400 to-cyan-400"];
 
@@ -143,6 +143,7 @@ function normalizeServerMessage(m: any, meName: string, meId: number): Message {
     fileData: m.file_url || m.fileData || "",
     username: senderName,
     senderAvatar: m.sender_avatar || "",
+    deliveryStatus: isMe ? "confirmed" : undefined,
   };
 }
 
@@ -160,6 +161,7 @@ function makeLocalMessage(messageId: number, type: Message["type"], content: str
     fileData,
     username: "",
     senderAvatar: "",
+    deliveryStatus: "sending",
   };
 }
 
@@ -179,6 +181,17 @@ function normalizeAndSortMessages(rows: any[], meName: string, meId: number) {
 function getChatErrorMessage(err: any, fallback = "发送失败") {
   const data = err?.response?.data;
   return String(data?.message || data?.msg || data?.error || err?.message || fallback);
+}
+
+function getSendMessageErrorMessage(err: any) {
+  const msg = String(err?.message || err || "");
+  if (/WebSocket is not ready/i.test(msg) || /not ready/i.test(msg)) {
+    return "消息发送失败：连接未就绪";
+  }
+  if (/timeout/i.test(msg) || /超时/.test(msg)) {
+    return "消息发送失败：发送超时，后端未确认落库";
+  }
+  return getChatErrorMessage(err, "消息发送失败，请稍后重试");
 }
 
 function extractConversationId(payload: any) {
@@ -230,6 +243,55 @@ function replaceMessageByFingerprint(existing: Message[], next: Message) {
     clientMsgId: item.clientMsgId,
   }) !== nextFingerprint);
   return appendMessage(filtered, next);
+}
+
+function updateMessageStatus(existing: Message[], match: Message, status: Message["deliveryStatus"]) {
+  const matchFingerprint = messageFingerprint({
+    sender: match.sender,
+    type: match.type,
+    content: match.content,
+    fileName: match.fileName,
+    fileData: match.fileData,
+    clientMsgId: match.clientMsgId,
+  });
+  return existing.map((item) => {
+    const itemFingerprint = messageFingerprint({
+      sender: item.sender,
+      type: item.type,
+      content: item.content,
+      fileName: item.fileName,
+      fileData: item.fileData,
+      clientMsgId: item.clientMsgId,
+    });
+    if (itemFingerprint !== matchFingerprint && item.clientMsgId !== match.clientMsgId) return item;
+    return { ...item, deliveryStatus: status };
+  });
+}
+
+function removeMessageByFingerprint(existing: Message[], target: Message) {
+  const targetFingerprint = messageFingerprint({
+    sender: target.sender,
+    type: target.type,
+    content: target.content,
+    fileName: target.fileName,
+    fileData: target.fileData,
+    clientMsgId: target.clientMsgId,
+  });
+  return existing.filter((item) => messageFingerprint({
+    sender: item.sender,
+    type: item.type,
+    content: item.content,
+    fileName: item.fileName,
+    fileData: item.fileData,
+    clientMsgId: item.clientMsgId,
+  }) !== targetFingerprint);
+}
+
+function deliveryLabel(status?: Message["deliveryStatus"]) {
+  if (status === "sending") return "发送中";
+  if (status === "delivered") return "已送达";
+  if (status === "confirmed") return "已确认";
+  return "";
 }
 
 function messageFingerprint(message: Pick<Message, "sender" | "type" | "content" | "fileName" | "fileData" | "clientMsgId">) {
@@ -400,6 +462,7 @@ const ChatPage = () => {
   const convoMessagesRef = useRef<Map<string, Message[]>>(new Map());
   const pendingMessagesRef = useRef<Map<string, Message[]>>(new Map());
   const pendingMessageFingerprintsRef = useRef<Map<string, Set<string>>>(new Map());
+  const pendingMessageTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const convIdCacheRef = useRef<Map<number, string>>(new Map());
   const loadAllRef = useRef<() => void>(() => {});
   const onlineUsersRef = useRef<Set<number>>(new Set());
@@ -490,8 +553,14 @@ const ChatPage = () => {
             const replaced = normalized.clientMsgId
               ? replaceMessageByClientId(current, nextMessage)
               : replaceMessageByFingerprint(current, nextMessage);
-            convoMessagesRef.current.set(convId, replaced);
-            setMessages(replaced);
+            const delivered = updateMessageStatus(replaced, nextMessage, "delivered");
+            const timeout = pendingMessageTimeoutsRef.current.get(nextMessage.clientMsgId || "");
+            if (timeout) {
+              clearTimeout(timeout);
+              pendingMessageTimeoutsRef.current.delete(nextMessage.clientMsgId || "");
+            }
+            convoMessagesRef.current.set(convId, delivered);
+            setMessages(delivered);
             scrollToBottom();
           }
           return;
@@ -1089,6 +1158,7 @@ const ChatPage = () => {
       const optimisticMessage = makeLocalMessage(-Date.now(), type === "emoji" ? "emoji" : type === "image" ? "image" : type === "file" ? "file" : "text", content, fileName, fileData);
       optimisticMessage.clientMsgId = clientMsgId;
       optimisticMessage.sortTs = Date.now();
+      optimisticMessage.deliveryStatus = "sending";
 
       if (optimisticConvId) {
         const existing = convoMessagesRef.current.get(optimisticConvId) || [];
@@ -1107,13 +1177,45 @@ const ChatPage = () => {
         const current = pendingMessageFingerprintsRef.current.get(optimisticConvId) || new Set<string>();
         current.add(clientMsgId);
         pendingMessageFingerprintsRef.current.set(optimisticConvId, current);
+        const timeout = window.setTimeout(() => {
+          const pending = pendingMessageFingerprintsRef.current.get(optimisticConvId);
+          if (!pending?.has(clientMsgId)) return;
+          pending.delete(clientMsgId);
+          if (pending.size === 0) pendingMessageFingerprintsRef.current.delete(optimisticConvId);
+          pendingMessageTimeoutsRef.current.delete(clientMsgId);
+          const timedOutMessage = optimisticMessage;
+          const currentMessages = convoMessagesRef.current.get(optimisticConvId) || [];
+          const rolledBack = removeMessageByFingerprint(currentMessages, timedOutMessage);
+          convoMessagesRef.current.set(optimisticConvId, rolledBack);
+          setMessages((prev) => removeMessageByFingerprint(prev, timedOutMessage));
+          const failMessage = "消息发送失败：发送超时，后端未确认落库";
+          setSendError(failMessage);
+          toast.error(failMessage);
+        }, 15000);
+        pendingMessageTimeoutsRef.current.set(clientMsgId, timeout);
       }
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
     } catch (e) {
-      const message = getChatErrorMessage(e, "发送失败，请稍后重试");
+      const message = getSendMessageErrorMessage(e);
       console.error("Send failed:", e);
       setSendError(message);
       toast.error(message);
+      if (optimisticConvId) {
+        const timeout = pendingMessageTimeoutsRef.current.get(clientMsgId);
+        if (timeout) {
+          clearTimeout(timeout);
+          pendingMessageTimeoutsRef.current.delete(clientMsgId);
+        }
+        const currentPending = pendingMessageFingerprintsRef.current.get(optimisticConvId);
+        currentPending?.delete(clientMsgId);
+        if (currentPending && currentPending.size === 0) {
+          pendingMessageFingerprintsRef.current.delete(optimisticConvId);
+        }
+        const currentMessages = convoMessagesRef.current.get(optimisticConvId) || [];
+        const rolledBack = removeMessageByFingerprint(currentMessages, optimisticMessage);
+        convoMessagesRef.current.set(optimisticConvId, rolledBack);
+        setMessages((prev) => removeMessageByFingerprint(prev, optimisticMessage));
+      }
       if (selectedConvId || activeConversationId) {
         const currentConvId = selectedConvId || activeConversationId;
         const cached = convoMessagesRef.current.get(currentConvId) || [];
@@ -1493,7 +1595,20 @@ const ChatPage = () => {
                         <FileText size={16} className="text-violet-400 shrink-0"/><div className="flex-1 min-w-0"><p className="text-[11px] font-medium truncate">{m.fileName}</p></div>
                         {m.fileData&&<a href={m.fileData} download={m.fileName} className="w-7 h-7 rounded-lg grid place-items-center hover:bg-white/10"><Download size={12} className="text-white/30 hover:text-white/60"/></a>}
                       </div>:null}
-                      <span className="text-[9px] text-white/40 px-1">{m.time}</span>
+                      <div className="flex items-center gap-1 px-1">
+                        <span className="text-[9px] text-white/40">{m.time}</span>
+                        {isMe && deliveryLabel(m.deliveryStatus) && (
+                          <span className={`text-[9px] font-medium ${
+                            m.deliveryStatus === "sending"
+                              ? "text-amber-300/70"
+                              : m.deliveryStatus === "delivered"
+                                ? "text-cyan-300/70"
+                                : "text-emerald-300/70"
+                          }`}>
+                            {deliveryLabel(m.deliveryStatus)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {/* Avatar + username — me: right side / them: left side */}
                     <div className="shrink-0 flex flex-col items-center gap-0.5">
