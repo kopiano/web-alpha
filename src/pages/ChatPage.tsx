@@ -9,7 +9,7 @@ import { EMOJI_LIST } from "@/config/chat";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatConversations } from "@/hooks/chat/useChatConversations";
 import { useChatStore } from "@/store/chatStore";
-import { patchConversation, setUnread, setTyping, hydrateFromServer } from "@/store/chatStore";
+import { patchConversation, setUnread, setTyping, hydrateFromServer, clearChatStore } from "@/store/chatStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import teamAvatar from "@/assets/teamGroup.webp";
@@ -905,6 +905,19 @@ const ChatPage = () => {
     })();
     return () => { cancelled = true; };
   }, [me, loadAll, hasStoredConversations, contacts.length]);
+
+  useEffect(() => {
+    if (user === undefined) return;
+    clearChatStore();
+    setContacts([]);
+    setActiveIdx(-1);
+    setMessages([]);
+    setSelectedConversationId(getStoredChatSelection());
+    activeContactIdRef.current = 0;
+    activeConvIdRef.current = "";
+    selectedPeerUserIdRef.current = 0;
+    selectedGroupIdRef.current = 0;
+  }, [user?.id]);
 
   useEffect(() => {
     if (!me) return;

@@ -134,6 +134,20 @@ export function setTyping(id: string, typing: boolean) {
   emit();
 }
 
+export function clearChatStore() {
+  state.activeConversationId = "";
+  state.conversationOrder = [];
+  state.conversations = {};
+  state.unreadByConversation = {};
+  state.typingByConversation = {};
+  try {
+    localStorage.removeItem(CACHE_KEY);
+  } catch {
+    // ignore cache failures
+  }
+  emit();
+}
+
 export function useChatStore<T>(selector: (state: ChatStoreState) => T) {
   return useSyncExternalStore(subscribe, () => selector(state), () => selector(state));
 }
