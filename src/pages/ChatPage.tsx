@@ -721,18 +721,10 @@ const ChatPage = () => {
   const defaultTeamContact = useMemo(() => teamContacts[0] || null, [teamContacts]);
   const effectiveSelectedConversationId = selectedConversationId || "";
   const activeContact = useMemo(() => {
-    if (effectiveSelectedConversationId) {
-      const byConvId = baseContacts.find((c) => c.convId === effectiveSelectedConversationId);
-      if (byConvId) return byConvId;
-    }
-    if (activeIdx >= 0) {
-      return baseContacts.find((c) => c.id === activeContactIdRef.current) || baseContacts[activeIdx] || null;
-    }
-    return null;
-  }, [activeIdx, activeContactIdRef, baseContacts, effectiveSelectedConversationId]);
-  const activeConversationId = activeIdx === -2
-    ? (effectiveSelectedConversationId || "")
-    : (activeContact?.kind === "group" ? activeContact.convId || effectiveSelectedConversationId : (effectiveSelectedConversationId || ""));
+    if (!effectiveSelectedConversationId) return null;
+    return baseContacts.find((c) => c.convId === effectiveSelectedConversationId) || null;
+  }, [baseContacts, effectiveSelectedConversationId]);
+  const activeConversationId = effectiveSelectedConversationId || "";
   const isActiveGroupConversation = Boolean(activeContact && activeContact.kind === "group");
   const isContactActive = useCallback((contact: Contact) => {
     return Boolean(contact.convId && contact.convId === activeConversationId);
@@ -1309,14 +1301,15 @@ const ChatPage = () => {
   }, [deferredSearchQuery]);
   const filteredTeamContacts = useMemo(() => sortAndFilterContacts(teamContacts), [sortAndFilterContacts, teamContacts]);
   const filteredPersonalContacts = useMemo(() => sortAndFilterContacts(personalContacts), [sortAndFilterContacts, personalContacts]);
-  const contact = activeContact || baseContacts[activeIdx];
+  const contact = activeContact;
   const highlightedConversationId = activeConversationId || defaultTeamContact?.convId || "";
   const isHighlightedContact = useCallback((contact: Contact) => {
     return Boolean(contact.convId && contact.convId === highlightedConversationId);
   }, [highlightedConversationId]);
   const showTypingIndicator = Boolean(activeConversationId && typingByConversation[activeConversationId]);
+  const currentAvatarSeed = contact?.id || 0;
 
-  useEffect(()=>{if(activeIdx!==-2)activeContactIdRef.current=contact?.id||0;},[contact,activeIdx]);
+  useEffect(()=>{activeContactIdRef.current=contact?.id||0;},[contact]);
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden"
@@ -1604,7 +1597,7 @@ const ChatPage = () => {
                     </div>
                     {/* Avatar + username — me: right side / them: left side */}
                     <div className="shrink-0 flex flex-col items-center gap-0.5">
-                      {showAv?<div className={`w-7 h-7 rounded-full overflow-hidden grid place-items-center text-[9px] font-bold ring-1 ring-white/10 ${isMe?"":`bg-gradient-to-br ${m.senderAvatar?userGrad(m.username||''):grad(activeIdx)}`}`}
+                      {showAv?<div className={`w-7 h-7 rounded-full overflow-hidden grid place-items-center text-[9px] font-bold ring-1 ring-white/10 ${isMe?"":`bg-gradient-to-br ${m.senderAvatar?userGrad(m.username||''):grad(currentAvatarSeed)}`}`}
                         style={isMe&&!meAvatar?{background:"rgba(255,255,255,0.10)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.18)"}:{}}>{avEl}</div>:<div className="w-7"/>}
                       {showAv&&<span className="text-[9px] text-white font-medium px-0.5 whitespace-nowrap">{isMe?meName:m.username}</span>}
                     </div>
@@ -1619,7 +1612,7 @@ const ChatPage = () => {
                     {[0,160,320].map(d=><span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce" style={{animationDelay:`${d}ms`,animationDuration:"0.8s"}}/>)}
                   </div>
                   <div className="shrink-0 flex flex-col items-center gap-0.5">
-                    <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${grad(activeIdx)} grid place-items-center text-[9px] font-bold`}>{contact?.avatar||"?"}</div>
+                    <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${grad(currentAvatarSeed)} grid place-items-center text-[9px] font-bold`}>{contact?.avatar||"?"}</div>
                     <span className="text-[9px] text-white font-medium whitespace-nowrap">{contact?.name||"?"}</span>
                   </div>
                 </div>
@@ -1640,17 +1633,17 @@ const ChatPage = () => {
             <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 h-[50px] md:h-[56px] rounded-full"
               style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(30px)",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 8px 32px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"}}>
               <div className="relative">
-                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square transition-all active:scale-90 ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><Smile size={15}/></button>
+                <button onClick={()=>setShowEmoji(!showEmoji)} disabled={!contact} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square transition-all active:scale-90 ${showEmoji?"bg-white/[0.08] text-violet-400":"text-white/25 hover:text-white/60 hover:bg-white/[0.04]"} ${!contact?"opacity-20 cursor-not-allowed":""}`}><Smile size={15}/></button>
                 {showEmoji&&<div className="absolute bottom-full left-0 mb-3 rounded-2xl p-3 w-[280px] md:w-[304px] z-50" style={{background:"rgba(18,16,30,0.97)",backdropFilter:"blur(60px)",border:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 20px 50px -10px rgba(0,0,0,0.7)"}}>
                   <div className="grid grid-cols-8 gap-1.5">{EMOJI_LIST.map(e=><button key={e} onClick={()=>{setInput(p=>p+e);setShowEmoji(false);}} className="w-7 h-7 md:w-8 md:h-8 rounded-lg grid place-items-center text-lg md:text-xl hover:bg-white/10 hover:scale-[1.15] active:scale-95">{e}</button>)}</div>
                 </div>}
               </div>
-              <button onClick={()=>imgRef.current?.click()} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><Image size={15}/></button>
+              <button onClick={()=>imgRef.current?.click()} disabled={!contact} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${!contact?"opacity-20 cursor-not-allowed":""}`}><Image size={15}/></button>
               <input ref={imgRef} type="file" accept="image/*" onChange={pickImg} className="hidden"/>
-              <button onClick={()=>fileRef.current?.click()} disabled={(!contact||contact.id===0)&&activeIdx!==-2} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${(!contact||contact.id===0)&&activeIdx!==-2?"opacity-20 cursor-not-allowed":""}`}><AlignJustify size={15}/></button>
+              <button onClick={()=>fileRef.current?.click()} disabled={!contact} className={`w-8 h-8 md:w-9 md:h-9 rounded-full grid place-items-center shrink-0 aspect-square text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all active:scale-90 ${!contact?"opacity-20 cursor-not-allowed":""}`}><AlignJustify size={15}/></button>
               <input ref={fileRef} type="file" onChange={pickFile} className="hidden"/>
               <input type="text" placeholder={contact&&contact.id>0?"Message...":"Select a contact to chat"} value={input} onChange={e=>setInput(e.target.value)}
-                disabled={(!contact||contact.id===0)&&activeIdx!==-2}
+                disabled={!contact}
                 onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();sendText();}}}
                 className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-[13px] placeholder:text-white/15 px-1.5 md:px-2 disabled:opacity-20"/>
               {sendError && <span className="absolute -top-8 left-4 right-4 text-center text-[11px] text-rose-300/80">{sendError}</span>}
