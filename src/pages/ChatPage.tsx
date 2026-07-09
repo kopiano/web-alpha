@@ -373,6 +373,9 @@ const ChatPage = () => {
   const activeConvIdRef = useRef("");
   const selectedPeerUserIdRef = useRef(0);
   const selectedGroupIdRef = useRef(0);
+  const typingStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localTypingSentRef = useRef<Record<string, boolean>>({});
   const msgCacheRef = useRef<Map<number, Message[]>>(new Map());
   const convoMessagesRef = useRef<Map<string, Message[]>>(new Map());
   const pendingMessagesRef = useRef<Map<string, Message[]>>(new Map());
@@ -394,6 +397,7 @@ const ChatPage = () => {
   const conversationsQuery = useChatConversations(false);
   const storeConversationOrder = useChatStore((s) => s.conversationOrder);
   const storeConversations = useChatStore((s) => s.conversations);
+  const typingByConversation = useChatStore((s) => s.typingByConversation);
   const hasStoredConversations = storeConversationOrder.length > 0;
   const storeContacts = useMemo(() => {
     return storeConversationOrder
@@ -569,13 +573,15 @@ const ChatPage = () => {
         return
       }
       if(d.event==="typing.start" && d.sender_id) {
-        if (activeContactIdRef.current === d.sender_id) setIsTyping(true)
+        if (Number(d.sender_id) === meId) return
         if (d.conversation_id) setTyping(String(d.conversation_id), true)
+        if (String(d.conversation_id || "") === activeConvIdRef.current) setIsTyping(true)
         return
       }
       if(d.event==="typing.stop") {
-        setIsTyping(false)
+        if (Number(d.sender_id || 0) === meId) return
         if (d.conversation_id) setTyping(String(d.conversation_id), false)
+        if (String(d.conversation_id || "") === activeConvIdRef.current) setIsTyping(false)
         return
       }
       if(d.event==="user_registered"&&d.user_id!==meRef.current) {
@@ -1091,6 +1097,57 @@ const ChatPage = () => {
     }
   }, [baseContacts,activeConversationId,activeContact,queryClient,selectedConversationId,sendMessage]);
 
+  const emitTyping = useCallback((typing: boolean) => {
+    const convId = activeConvIdRef.current || selectedConversationId || "";
+    if (!convId || (!contact && !isActiveGroupConversation)) return;
+    const chatType: "private" | "group" = selectedGroupIdRef.current > 0 ? "group" : "private";
+    const receiverId = selectedPeerUserIdRef.current || contact?.id || activeContactIdRef.current || 0;
+    const groupId = chatType === "group" ? (selectedGroupIdRef.current || contact?.id || 0) : 0;
+    if (typing) {
+      if (localTypingSentRef.current[convId]) return;
+      localTypingSentRef.current[convId] = true;
+      sendMessage({
+        event: "typing.start",
+        chat_type: chatType,
+        conversation_id: convId,
+        receiver_id: receiverId,
+        recipient_id: receiverId,
+        group_id: groupId,
+      });
+      return;
+    }
+    if (!localTypingSentRef.current[convId]) return;
+    localTypingSentRef.current[convId] = false;
+    sendMessage({
+      event: "typing.stop",
+      chat_type: chatType,
+      conversation_id: convId,
+      receiver_id: receiverId,
+      recipient_id: receiverId,
+      group_id: groupId,
+    });
+  }, [contact, isActiveGroupConversation, selectedConversationId, sendMessage]);
+
+  useEffect(() => {
+    if (typingStartTimerRef.current) clearTimeout(typingStartTimerRef.current);
+    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+    if (!activeConversationId) {
+      emitTyping(false);
+      return;
+    }
+    const text = input.trim();
+    if (!text) {
+      typingStopTimerRef.current = setTimeout(() => emitTyping(false), 250);
+      return;
+    }
+    typingStartTimerRef.current = setTimeout(() => emitTyping(true), 120);
+    typingStopTimerRef.current = setTimeout(() => emitTyping(false), 1500);
+    return () => {
+      if (typingStartTimerRef.current) clearTimeout(typingStartTimerRef.current);
+      if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+    };
+  }, [activeConversationId, emitTyping, input]);
+
   const sendText = () => { const v=input.trim(); if(!v) return; sendMsg(/^\p{Emoji}+$/u.test(v)?"emoji":"text",v); setInput(""); setShowEmoji(false); };
   const sendImg = () => { if(!previewImg) return; sendMsg("image",previewImg,"image.png",previewImg); setPreviewImg(null); };
   const pickFile = (e: React.ChangeEvent<HTMLInputElement>) => { const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>sendMsg("file",f.name,f.name,r.result as string); r.readAsDataURL(f); e.target.value=""; };
@@ -1137,6 +1194,7 @@ const ChatPage = () => {
   const isHighlightedContact = useCallback((contact: Contact) => {
     return Boolean(contact.convId && contact.convId === highlightedConversationId);
   }, [highlightedConversationId]);
+  const showTypingIndicator = Boolean(activeConversationId && typingByConversation[activeConversationId]);
 
   useEffect(()=>{if(activeIdx!==-2)activeContactIdRef.current=contact?.id||0;},[contact,activeIdx]);
 
@@ -1360,7 +1418,7 @@ const ChatPage = () => {
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-semibold text-white/90">{contact?.name||"Select a conversation"}</p>
                   <p className="text-[10px] text-white/20">
-                    {isTyping?<span className="text-violet-300/60">typing...</span>
+                    {showTypingIndicator?<span className="text-violet-300/60">对方正在输入...</span>
                     :contact&&online(contact)?<span className="text-emerald-400/60">Online</span>
                     :contact?<span className="text-white/15 italic">offline</span>
                     :""}
@@ -1421,18 +1479,21 @@ const ChatPage = () => {
                 </div>
               );
             })}
-            {isTyping&&<div className="flex justify-start transition-opacity duration-200">
-              <div className="flex flex-row-reverse items-start gap-2.5 max-w-[88%] md:max-w-[72%]">
-                <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
-                  {[0,160,320].map(d=><span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce" style={{animationDelay:`${d}ms`,animationDuration:"0.8s"}}/>)}
-                </div>
-                <div className="shrink-0 flex flex-col items-center gap-0.5">
-                  <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${grad(activeIdx)} grid place-items-center text-[9px] font-bold`}>{contact?.avatar||"?"}</div>
-                  <span className="text-[9px] text-white font-medium whitespace-nowrap">{contact?.name||"?"}</span>
+            {showTypingIndicator && (
+              <div className="flex justify-start transition-opacity duration-200">
+                <div className="flex flex-row-reverse items-start gap-2.5 max-w-[88%] md:max-w-[72%]">
+                  <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
+                    {[0,160,320].map(d=><span key={d} className="w-[5px] h-[5px] rounded-full bg-violet-300/30 animate-bounce" style={{animationDelay:`${d}ms`,animationDuration:"0.8s"}}/>)}
+                  </div>
+                  <div className="shrink-0 flex flex-col items-center gap-0.5">
+                    <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${grad(activeIdx)} grid place-items-center text-[9px] font-bold`}>{contact?.avatar||"?"}</div>
+                    <span className="text-[9px] text-white font-medium whitespace-nowrap">{contact?.name||"?"}</span>
+                  </div>
                 </div>
               </div>
-            </div>}
-            <div ref={chatEndRef}/>
+            )}
+            {!showTypingIndicator && messages.length > 0 && <div ref={chatEndRef} />}
+            {showTypingIndicator && <div ref={chatEndRef} />}
           </div>
 
           {previewImg&&<div className="mx-5 mb-1 p-3 rounded-2xl flex items-center gap-3" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.06)"}}>
