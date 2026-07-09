@@ -276,6 +276,10 @@ function removeMessageByFingerprint(existing: Message[], target: Message) {
   }) !== targetFingerprint);
 }
 
+function replaceMessageStatusByClientId(existing: Message[], clientMsgId: string, patch: Partial<Message>) {
+  return existing.map((item) => item.clientMsgId === clientMsgId ? { ...item, ...patch } : item);
+}
+
 function deliveryLabel(status?: Message["deliveryStatus"]) {
   if (status === "sending") return "发送中";
   if (status === "delivered") return "已送达";
@@ -354,6 +358,12 @@ function buildSendPayload(params: {
     recipient_id: params.recipientId,
     receiver_id: params.recipientId,
   };
+}
+
+function normalizeSendResponseMessage(response: any, meName: string, meId: number): Message | null {
+  const payload = response?.data?.data || response?.data || response;
+  if (!payload) return null;
+  return normalizeServerMessage(payload, meName, meId);
 }
 
 const TEAM_AVATAR = teamAvatar
@@ -1121,17 +1131,20 @@ const ChatPage = () => {
       fileName,
       fileUrl: fileData,
     });
+    const optimisticConvId = selectedConvId || activeConversationId || targetConversationId;
+    const clientMsgId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const optimisticMessage = makeLocalMessage(
+      -Date.now(),
+      type === "emoji" ? "emoji" : type === "image" ? "image" : type === "file" ? "file" : "text",
+      content,
+      fileName,
+      fileData
+    );
+    optimisticMessage.clientMsgId = clientMsgId;
+    optimisticMessage.sortTs = Date.now();
+    optimisticMessage.deliveryStatus = "sending";
     try {
       setSendError("");
-      const optimisticConvId = selectedConvId || activeConversationId;
-      const clientMsgId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-      payload.client_msg_id = clientMsgId;
-
-      const optimisticMessage = makeLocalMessage(-Date.now(), type === "emoji" ? "emoji" : type === "image" ? "image" : type === "file" ? "file" : "text", content, fileName, fileData);
-      optimisticMessage.clientMsgId = clientMsgId;
-      optimisticMessage.sortTs = Date.now();
-      optimisticMessage.deliveryStatus = "sending";
-
       if (optimisticConvId) {
         const existing = convoMessagesRef.current.get(optimisticConvId) || [];
         const nextMessages = appendMessage(existing, optimisticMessage);
@@ -1142,29 +1155,43 @@ const ChatPage = () => {
         });
       }
 
-      const ok = sendMessage(payload);
-      if (!ok) throw new Error("WebSocket is not ready");
-
       if (optimisticConvId) {
         const current = pendingMessageFingerprintsRef.current.get(optimisticConvId) || new Set<string>();
         current.add(clientMsgId);
         pendingMessageFingerprintsRef.current.set(optimisticConvId, current);
-        const timeout = window.setTimeout(() => {
-          const pending = pendingMessageFingerprintsRef.current.get(optimisticConvId);
-          if (!pending?.has(clientMsgId)) return;
-          pending.delete(clientMsgId);
-          if (pending.size === 0) pendingMessageFingerprintsRef.current.delete(optimisticConvId);
+      }
+
+      const res = await sendChatMessage(payload);
+      const confirmedMessage = normalizeSendResponseMessage(res, meRef.current, meId);
+      if (!confirmedMessage) {
+        throw new Error("发送成功，但后端返回消息为空");
+      }
+      const finalMessage: Message = {
+        ...confirmedMessage,
+        clientMsgId,
+        deliveryStatus: "confirmed",
+        sortTs: confirmedMessage.sortTs || Date.now(),
+      };
+
+      if (optimisticConvId) {
+        const timeout = pendingMessageTimeoutsRef.current.get(clientMsgId);
+        if (timeout) {
+          clearTimeout(timeout);
           pendingMessageTimeoutsRef.current.delete(clientMsgId);
-          const timedOutMessage = optimisticMessage;
-          const currentMessages = convoMessagesRef.current.get(optimisticConvId) || [];
-          const rolledBack = removeMessageByFingerprint(currentMessages, timedOutMessage);
-          convoMessagesRef.current.set(optimisticConvId, rolledBack);
-          setMessages((prev) => removeMessageByFingerprint(prev, timedOutMessage));
-          const failMessage = "消息发送失败：发送超时，后端未确认落库";
-          setSendError(failMessage);
-          toast.error(failMessage);
-        }, 15000);
-        pendingMessageTimeoutsRef.current.set(clientMsgId, timeout);
+        }
+        const current = pendingMessageFingerprintsRef.current.get(optimisticConvId);
+        current?.delete(clientMsgId);
+        if (current && current.size === 0) {
+          pendingMessageFingerprintsRef.current.delete(optimisticConvId);
+        }
+        const currentMessages = convoMessagesRef.current.get(optimisticConvId) || [];
+        const confirmedMessages = updateMessageStatus(
+          replaceMessageByClientId(currentMessages, finalMessage),
+          finalMessage,
+          "confirmed"
+        );
+        convoMessagesRef.current.set(optimisticConvId, confirmedMessages);
+        setMessages((prev) => updateMessageStatus(replaceMessageByClientId(prev, finalMessage), finalMessage, "confirmed"));
       }
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
     } catch (e) {
@@ -1195,7 +1222,7 @@ const ChatPage = () => {
       }
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
     }
-  }, [baseContacts,activeConversationId,activeContact,queryClient,selectedConversationId,sendMessage]);
+  }, [baseContacts, activeConversationId, activeContact, queryClient, selectedConversationId, meId, sendChatMessage]);
 
   const emitTyping = useCallback((typing: boolean) => {
     const convId = activeConvIdRef.current || selectedConversationId || "";
