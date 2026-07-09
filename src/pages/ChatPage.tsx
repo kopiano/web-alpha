@@ -30,7 +30,7 @@ interface ConversationRow {
   unread_count?: number;
   users?: { user_id: number; username?: string; avatar?: string }[];
 }
-interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; rawTime?: string; sortTs?: number; fileName?: string; fileSize?: string; fileData?: string; username?: string; senderAvatar?: string; }
+interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; rawTime?: string; sortTs?: number; clientMsgId?: string; fileName?: string; fileSize?: string; fileData?: string; username?: string; senderAvatar?: string; }
 
 const AVATAR_GRADS = ["from-violet-500 to-cyan-400","from-pink-500 to-violet-500","from-cyan-400 to-blue-500","from-emerald-400 to-cyan-400","from-fuchsia-500 to-pink-500","from-violet-500 to-fuchsia-500","from-blue-400 to-cyan-400"];
 
@@ -130,6 +130,7 @@ function normalizeServerMessage(m: any, meName: string, meId: number): Message {
     time: timeFmt(m.created_at || m.CreatedAt || m.updated_at || ""),
     rawTime: m.created_at || m.CreatedAt || m.updated_at || "",
     sortTs: toMessageTimestamp(m.created_at || m.CreatedAt || m.updated_at || ""),
+    clientMsgId: m.client_msg_id || m.clientMsgId || "",
     fileName: m.file_name,
     fileData: m.file_url || m.fileData || "",
     username: senderName,
@@ -198,13 +199,19 @@ function appendMessage(existing: Message[], next: Message) {
   return [...filtered, next];
 }
 
-function messageFingerprint(message: Pick<Message, "sender" | "type" | "content" | "fileName" | "fileData">) {
+function replaceMessageByClientId(existing: Message[], next: Message) {
+  const filtered = existing.filter((item) => item.clientMsgId !== next.clientMsgId);
+  return appendMessage(filtered, next);
+}
+
+function messageFingerprint(message: Pick<Message, "sender" | "type" | "content" | "fileName" | "fileData" | "clientMsgId">) {
   return [
     message.sender,
     message.type,
     message.content,
     message.fileName || "",
     message.fileData || "",
+    message.clientMsgId || "",
   ].join("|");
 }
 
@@ -219,6 +226,7 @@ function messageKey(message: Message) {
     message.content,
     message.fileName || "",
     message.fileData || "",
+    message.clientMsgId || "",
   ].join("|");
 }
 
@@ -285,15 +293,7 @@ const ContactItem = memo(function ContactItem({
       className={`w-full flex items-center gap-3 md:gap-4 px-4 md:px-5 text-left contact-btn ${active ? "active" : ""}`}
       style={{
         height:"64px",
-        borderBottom:"1px solid rgba(255,255,255,0.05)",
-        background:active?"rgba(0,0,0,0.26)":"rgba(255,255,255,0.015)",
-        backdropFilter:"blur(18px)",
-        WebkitBackdropFilter:"blur(18px)",
-        boxShadow:active?"inset 0 1px 0 rgba(255,255,255,0.05)":"none",
-        transform:active?"translate3d(0,0,0) scale(1.01)":"translate3d(0,0,0) scale(1)",
-        transition:"background-color 240ms cubic-bezier(.16,1,.3,1), box-shadow 240ms cubic-bezier(.16,1,.3,1), transform 240ms cubic-bezier(.16,1,.3,1), color 240ms cubic-bezier(.16,1,.3,1), opacity 240ms cubic-bezier(.16,1,.3,1)",
-        willChange:"transform, background-color, box-shadow, opacity",
-        overflow:"hidden"
+        background:active?"rgba(0,0,0,0.26)":"transparent",
       }}
     >
       <div className="relative shrink-0">
@@ -346,7 +346,7 @@ const ChatPage = () => {
   const [showEmoji, setShowEmoji] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const { onlineUsers, subscribe } = useOnlineStatus();
+  const { onlineUsers, subscribe, sendMessage } = useOnlineStatus();
   const [previewImg, setPreviewImg] = useState<string|null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -382,7 +382,7 @@ const ChatPage = () => {
   const meAvatar = me?.avatar ? resolveAvatar(me.avatar) : null;
   meRef.current = meName;
   onlineUsersRef.current = onlineUsers;
-  const conversationsQuery = useChatConversations(Boolean(me));
+  const conversationsQuery = useChatConversations(false);
   const storeConversationOrder = useChatStore((s) => s.conversationOrder);
   const storeConversations = useChatStore((s) => s.conversations);
   const hasStoredConversations = storeConversationOrder.length > 0;
@@ -439,10 +439,23 @@ const ChatPage = () => {
             content: normalized.content,
             fileName: normalized.fileName,
             fileData: normalized.fileData,
+            clientMsgId: normalized.clientMsgId,
           });
+          const nextMessage = { ...normalized, sortTs: toMessageTimestamp(normalized.rawTime) || Date.now() };
           if (pending?.has(fp)) {
             pending.delete(fp);
             if (pending.size === 0) pendingMessageFingerprintsRef.current.delete(convId);
+          }
+          if (convId) {
+            const current = convoMessagesRef.current.get(convId) || [];
+            const replaced = normalized.clientMsgId
+              ? replaceMessageByClientId(current, nextMessage)
+              : appendMessage(current, nextMessage);
+            convoMessagesRef.current.set(convId, replaced);
+            setMessages(replaced);
+            requestAnimationFrame(() => {
+              messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior: "smooth" });
+            });
           }
           return;
         }
@@ -689,9 +702,10 @@ const ChatPage = () => {
     }
     const cs = [...teamContacts, ...personalFromConversations, ...personalFallback];
     const savedSelection = localStorage.getItem(getChatSelectionStorageKey());
+    const defaultTeam = cs.find((c) => isGroupConversationId(c.convId));
     const selectedTeam = savedSelection === "team"
       ? cs.find((c) => isGroupConversationId(c.convId))
-      : undefined;
+      : defaultTeam;
     const selectedContact = savedSelection && savedSelection !== "team"
       ? cs.find((c) => !isGroupConversationId(c.convId) && String(c.id) === savedSelection)
       : undefined;
@@ -743,6 +757,7 @@ const ChatPage = () => {
       const cached = convoMessagesRef.current.get(selectedTeam.convId || "") || []
       setMessages(cached)
       setLoadingMessages(cached.length === 0)
+      localStorage.setItem(getChatSelectionStorageKey(), "team");
     } else if (selectedContact) {
       const selectedConvId = selectedContact.convId || ""
       setActiveIdx(cs.findIndex((c) => c.id === selectedContact.id))
@@ -767,6 +782,7 @@ const ChatPage = () => {
         setMessages([])
         setLoadingMessages(false)
       }
+      localStorage.setItem(getChatSelectionStorageKey(), String(selectedContact.id));
     } else {
       setActiveIdx(-1)
       activeContactIdRef.current = 0
@@ -978,92 +994,33 @@ const ChatPage = () => {
     try {
       setSendError("");
       const optimisticConvId = selectedConvId || activeConversationId;
+      const clientMsgId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      payload.client_msg_id = clientMsgId;
+      payload.clientMsgId = clientMsgId;
+      payload.client_message_id = clientMsgId;
+
+      const optimisticMessage = makeLocalMessage(-Date.now(), type === "emoji" ? "emoji" : type === "image" ? "image" : type === "file" ? "file" : "text", content, fileName, fileData);
+      optimisticMessage.clientMsgId = clientMsgId;
+      optimisticMessage.sortTs = Date.now();
+
       if (optimisticConvId) {
-        const fp = messageFingerprint({
-          sender: "me",
-          type: type === "emoji" ? "emoji" : type === "image" ? "image" : type === "file" ? "file" : "text",
-          content,
-          fileName,
-          fileData,
+        const existing = convoMessagesRef.current.get(optimisticConvId) || [];
+        const nextMessages = appendMessage(existing, optimisticMessage);
+        convoMessagesRef.current.set(optimisticConvId, nextMessages);
+        setMessages((prev) => appendMessage(prev, optimisticMessage));
+        requestAnimationFrame(() => {
+          messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior: "auto" });
         });
+      }
+
+      const ok = sendMessage(payload);
+      if (!ok) throw new Error("WebSocket is not ready");
+
+      if (optimisticConvId) {
         const current = pendingMessageFingerprintsRef.current.get(optimisticConvId) || new Set<string>();
-        current.add(fp);
+        current.add(clientMsgId);
         pendingMessageFingerprintsRef.current.set(optimisticConvId, current);
       }
-      const res = await sendChatMessage(payload);
-      const body = res.data?.data || {};
-      const serverConvId = String(body.conversation_id || selectedConvId || activeConversationId || "");
-      if (serverConvId) {
-        activeConvIdRef.current = serverConvId;
-        setSelectedConversationId(serverConvId);
-        if (chatType === "private" && targetReceiverId > 0) {
-          convIdCacheRef.current.set(targetReceiverId, serverConvId);
-        }
-      }
-      const normalizedBody = Object.keys(body).length
-        ? normalizeServerMessage(body, meName, meId)
-        : null;
-      const serverMessage: Message = normalizedBody
-        ? { ...normalizedBody, sender: "me" }
-        : {
-            ...local,
-            rawTime: body.created_at || optimisticTime,
-          };
-      const effectiveTime = body.created_at || body.CreatedAt || body.updated_at || optimisticTime;
-      const messageId = Number(body.id || serverMessage.id || 0);
-      if (Number.isFinite(messageId) && messageId > 0) {
-        serverMessage.id = messageId;
-      }
-      serverMessage.type = messageTypeToString(serverMessage.type, body.message_type || messageType);
-      serverMessage.content = body.content || serverMessage.content || content;
-      serverMessage.fileName = body.file_name || fileName;
-      serverMessage.fileData = body.file_url || fileData || serverMessage.fileData;
-      serverMessage.rawTime = effectiveTime;
-      serverMessage.time = timeFmt(effectiveTime);
-      serverMessage.sortTs = toMessageTimestamp(effectiveTime) || Date.now();
-      if (serverConvId || activeConversationId) {
-        const currentConvId = serverConvId || activeConversationId;
-        const fp = messageFingerprint({
-          sender: "me",
-          type: serverMessage.type,
-          content: serverMessage.content,
-          fileName: serverMessage.fileName,
-          fileData: serverMessage.fileData,
-        });
-        const pending = pendingMessageFingerprintsRef.current.get(currentConvId);
-        if (pending?.has(fp)) {
-          pending.delete(fp);
-          if (pending.size === 0) pendingMessageFingerprintsRef.current.delete(currentConvId);
-        }
-        const existing = convoMessagesRef.current.get(currentConvId) || [];
-        const nextMessages = appendMessage(existing, serverMessage);
-        convoMessagesRef.current.set(currentConvId, nextMessages);
-        setMessages((prev) => appendMessage(prev, serverMessage));
-        requestAnimationFrame(() => {
-          messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior: "smooth" });
-        });
-        upsertConversationSummary(currentConvId, {
-          id: meId,
-          name: meName,
-          avatar: meAvatar || "",
-          lastMsg: content,
-          lastTimeRaw: body.created_at || optimisticTime,
-          unread: 0,
-          lastMessageType: body.message_type || messageType,
-        })
-      }
-      queryClient.setQueryData(["chat", "messages", serverConvId || activeConversationId], (old: any) => {
-        const pages = Array.isArray(old?.pages) ? old.pages : [];
-        if (!pages.length) {
-          return { ...old, pages: [[serverMessage]], pageParams: [undefined] };
-        }
-        const firstPage = extractMessageRows(pages[0]);
-        const mergedFirst = mergeMessages(firstPage, [serverMessage]);
-        return {
-          ...old,
-          pages: [mergedFirst, ...pages.slice(1)],
-        };
-      });
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
     } catch (e) {
       const message = getChatErrorMessage(e, "发送失败，请稍后重试");
@@ -1077,7 +1034,7 @@ const ChatPage = () => {
       }
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
     }
-  }, [baseContacts,activeConversationId,meAvatar,meId,meName,upsertConversationSummary,activeContact,queryClient,selectedConversationId]);
+  }, [baseContacts,activeConversationId,activeContact,queryClient,selectedConversationId,sendMessage]);
 
   const sendText = () => { const v=input.trim(); if(!v) return; sendMsg(/^\p{Emoji}+$/u.test(v)?"emoji":"text",v); setInput(""); setShowEmoji(false); };
   const sendImg = () => { if(!previewImg) return; sendMsg("image",previewImg,"image.png",previewImg); setPreviewImg(null); };

@@ -113,6 +113,31 @@ vite打包后index.js如果超过500KB就需要优化
 ### 功能
 * localStorage：刷新、关闭浏览器后还保留
 
+## chat
+登录
+    │
+    ▼
+获取当前用户信息（/me）
+    │
+    ▼
+进入 Chat 页面
+    │
+    ├── 建立 WebSocket
+    ├── 获取联系人(用户和群聊)列表（GET /chat/conversations）
+    └── 获取未读统计（可并行）
+            │
+            ▼
+联系人列表渲染完成
+            │
+            ▼
+选择一个联系人
+            │
+            ▼
+获取该联系人的聊天记录（GET /conversations/:id/messages）
+            │
+            ▼
+开始实时聊天（WebSocket）
+
 ### 联系人聊天界面
 切换联系人和显示聊天记录很慢
 原因可能有：
@@ -188,7 +213,7 @@ POST /chat/messages(最容易) 或 WebSocket(推荐)
     2. 发送 POST /api/v1/chat/messages
     3. MySQL（消息持久化）、更新Redis（在线状态、未读数、最近联系人等）、WebSocket推送给在线用户
     4. React收到消息，setMessages(...)，页面实时显示消息，请根据这个要求完善前端页面用户发送私聊消息和群聊消息的前端逻辑和
-    5. 乐观更新ui
+    5. 用户发送消息 -> 立即显示ui(乐观更新) -> WebSocket推送 -> redis先写、React收到消息、后台异步mysql、 -> setMessages(...) -> 实时显示消息
 
 ### 选中联系人显示历史消息记录
 选中联系人获取消息记录

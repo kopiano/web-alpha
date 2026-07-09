@@ -41,6 +41,7 @@ export function isLikelyAvatarAsset(avatar: string | null | undefined): boolean 
 
 export function resolveAvatar(avatar: string | null | undefined): string | null {
   if (!avatar) return null
+  if (/^data:image\//i.test(avatar)) return avatar
   if (avatar.startsWith("http")) return avatar
   // Compat: old stored paths like /src/assets/avatar/... → /api/v1/avatar/...
   const normalized = avatar.replace("/src/assets/avatar", "/api/v1/avatar")

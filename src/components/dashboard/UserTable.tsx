@@ -24,11 +24,12 @@ interface User {
 
 interface UserTableProps {
   className?: string;
+  refreshKey?: number;
 }
 
 const PAGE_SIZE = 5;
 
-export const UserTable = ({ className = "" }: UserTableProps) => {
+export const UserTable = ({ className = "", refreshKey = 0 }: UserTableProps) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -51,7 +52,18 @@ export const UserTable = ({ className = "" }: UserTableProps) => {
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, refreshKey]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    setUsers((prev) =>
+      prev.map((item) =>
+        item.id === user.id || item.user_id === user.id || item.ID === user.id
+          ? { ...item, username: user.username, email: user.email, avatar: user.avatar ?? item.avatar }
+          : item,
+      ),
+    );
+  }, [user?.id, user?.username, user?.email, user?.avatar]);
 
   const filtered = useMemo(() => {
     return [...users].sort((a, b) => {

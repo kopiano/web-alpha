@@ -66,7 +66,7 @@ export const TopNav = () => {
   const [profileDropdownPos, setProfileDropdownPos] = useState({ top: 0, right: 0 });
   const bellRef = useRef<HTMLButtonElement>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
-  const { user, openAuth, logout, refreshUser } = useAuth();
+  const { user, openAuth, logout, refreshUser, mergeUser, bumpUserRefreshVersion } = useAuth();
   const { notifications, unreadCount, markAllRead } = useNotifications();
   const visibleNotifications = useMemo(
     () => notifications.slice(0, expandedNotifications ? 50 : 6),
@@ -128,14 +128,14 @@ export const TopNav = () => {
   }, [profileOpen, updateProfilePos]);
 
   const [avatarErr, setAvatarErr] = useState(false);
-  const prevUserIdRef = useRef(user?.id);
+  const prevAvatarRef = useRef(user?.avatar);
 
   useEffect(() => {
-    if (prevUserIdRef.current !== user?.id) {
+    if (prevAvatarRef.current !== user?.avatar) {
       setAvatarErr(false);
-      prevUserIdRef.current = user?.id;
+      prevAvatarRef.current = user?.avatar;
     }
-  }, [user?.id]);
+  }, [user?.avatar]);
 
   const initials = user?.username
     ? user.username.slice(0, 2).toUpperCase()
@@ -335,7 +335,15 @@ export const TopNav = () => {
         <SettingsModal
           user={{ id: user.id, username: user.username, email: user.email, avatar: user.avatar }}
           onClose={() => setSettingsOpen(false)}
-          onSaved={refreshUser}
+          onSaved={async (patch) => {
+            if (patch.username || patch.email || patch.avatar) {
+              mergeUser(patch);
+            }
+            bumpUserRefreshVersion();
+            if (!patch.avatar) {
+              await refreshUser(false);
+            }
+          }}
         />
       )}
     </>

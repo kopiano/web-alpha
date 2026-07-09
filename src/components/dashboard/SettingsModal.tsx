@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { User, Lock, Mail, Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { updateSettings } from "@/api/auth";
@@ -8,7 +8,7 @@ import { compressImageToDataUrl, resolveAvatar } from "@/lib/avatar";
 interface SettingsModalProps {
   user: { id: number; username: string; email: string; avatar: string | null };
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (patch: { username?: string; email?: string; avatar?: string }) => Promise<void> | void;
 }
 
 export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) => {
@@ -22,6 +22,14 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
   );
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setUsername(user.username);
+    setEmail(user.email);
+    setPassword("");
+    setAvatarFile(null);
+    setAvatarPreview(user.avatar ? resolveAvatar(user.avatar) : null);
+  }, [user.id, user.username, user.email, user.avatar]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -42,16 +50,46 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append("username", username.trim());
-      formData.append("email", email.trim());
-      if (password) formData.append("password", password);
+      const nextUsername = username.trim();
+      const nextEmail = email.trim();
+      const patch: { username?: string; email?: string; avatar?: string } = {};
+      const rollbackPatch: { username?: string; email?: string; avatar?: string } = { username: user.username, email: user.email };
+
+      if (nextUsername && nextUsername !== user.username) formData.append("username", nextUsername);
+      if (nextEmail && nextEmail !== user.email) formData.append("email", nextEmail);
+      if (password.trim()) formData.append("password", password.trim());
       if (avatarFile) formData.append("avatar", avatarFile);
 
-      await updateSettings(formData);
-      pushNotification({ kind: "settings_update", actor: username.trim(), title: "updated settings", text: `${username.trim()} updated settings` });
-      toast.success("Settings saved");
-      onSaved();
+      if ([...formData.keys()].length === 0) {
+        toast.info("No changes to save");
+        onClose();
+        return;
+      }
+
+      if (nextUsername && nextUsername !== user.username) patch.username = nextUsername;
+      if (nextEmail && nextEmail !== user.email) patch.email = nextEmail;
+      if (avatarPreview) patch.avatar = avatarPreview;
+      if (user.avatar) rollbackPatch.avatar = user.avatar;
+
+      await Promise.resolve(onSaved(patch));
       onClose();
+
+      void updateSettings(formData)
+        .then(() => {
+          toast.success("Settings saved");
+        })
+        .catch((err: any) => {
+          console.error("[SettingsModal] save failed:", err);
+          void Promise.resolve(onSaved(rollbackPatch));
+          toast.error(err?.response?.data?.message || err?.message || "Failed to save settings");
+        });
+
+      pushNotification({
+        kind: "settings_update",
+        actor: user.username,
+        title: "updated settings",
+        text: `${user.username} updated settings`,
+      });
     } catch (err: any) {
       console.error("[SettingsModal] save failed:", err);
       toast.error(err?.response?.data?.message || err?.message || "Failed to save settings");
@@ -74,7 +112,7 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
       >
         <div className="text-center mb-7">
           <h2 className="text-xl font-semibold text-white">Settings</h2>
-          <p className="text-xs text-white/40 mt-1.5">Update your profile</p>
+          <p className="text-xs text-white/40 mt-1.5">Leave fields blank to keep current values</p>
         </div>
 
         <form className="space-y-3.5" onSubmit={handleSubmit}>
@@ -99,7 +137,10 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
 
           {/* Username */}
           <div>
-            <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1.5 font-medium">Username</label>
+            <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1.5 font-medium">
+              Username <span className="text-white/20">(optional)</span>
+            </label>
+            <p className="mb-1 text-[10px] text-white/25">Empty means keep your current username.</p>
             <div className="relative">
               <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
               <input
@@ -113,7 +154,10 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
 
           {/* Email */}
           <div>
-            <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1.5 font-medium">Email</label>
+            <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1.5 font-medium">
+              Email <span className="text-white/20">(optional)</span>
+            </label>
+            <p className="mb-1 text-[10px] text-white/25">Empty means keep your current email address.</p>
             <div className="relative">
               <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
               <input
@@ -130,6 +174,7 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
             <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1.5 font-medium">
               New Password <span className="text-white/20">(optional)</span>
             </label>
+            <p className="mb-1 text-[10px] text-white/25">Leave blank to keep the current password.</p>
             <div className="relative">
               <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
               <input

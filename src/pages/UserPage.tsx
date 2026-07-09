@@ -7,7 +7,7 @@ import { Particles } from "@/components/dashboard/Particles";
 import { useAuth } from "@/components/dashboard/AuthProvider";
 
 export default function UserPage() {
-  const { user } = useAuth();
+  const { user, userRefreshVersion } = useAuth();
 
   return (
     <div className="relative min-h-screen w-full">
@@ -20,7 +20,7 @@ export default function UserPage() {
       <main className="relative z-10 lg:pl-32 px-4 sm:px-6 py-4 sm:py-8 pb-20 lg:pb-8 max-w-[1600px] mx-auto">
         <TopNav />
         <div className="flex flex-col gap-6">
-          <UserTable key={`user-${user?.id ?? "guest"}`} />
+          <UserTable key={`user-${user?.id ?? "guest"}`} refreshKey={userRefreshVersion} />
           <VisitorTable key={`visitor-${user?.id ?? "guest"}`} />
           <DailyVisitorTable key={`daily-${user?.id ?? "guest"}`} />
         </div>
