@@ -21,6 +21,7 @@ const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 const queryClient = new QueryClient();
 
 const preloadRoutes = () => {
+  void import("./pages/Index.tsx");
   void import("./pages/ChatPage.tsx");
   void import("./pages/DocsPage.tsx");
   void import("./pages/UserPage.tsx");

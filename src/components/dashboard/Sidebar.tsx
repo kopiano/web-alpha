@@ -41,6 +41,7 @@ export const Sidebar = () => {
   }, [location.pathname]);
 
   const handleClick = (index: number) => {
+    if (items[index].path === location.pathname) return;
     setActive(index);
     navigate(items[index].path);
   };
