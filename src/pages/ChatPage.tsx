@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo, memo, startTransition, useDeferredValue } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, startTransition, useDeferredValue } from "react";
 import { Search, Smile, Image, Send, ChevronDown, FileText, Download, AlignJustify, Plus } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { useAuth } from "@/components/dashboard/AuthProvider";
@@ -30,7 +30,7 @@ interface ConversationRow {
   unread_count?: number;
   users?: { user_id: number; username?: string; avatar?: string }[];
 }
-interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; rawTime?: string; fileName?: string; fileSize?: string; fileData?: string; username?: string; senderAvatar?: string; }
+interface Message { id: number; sender: "me"|"them"; type: "text"|"emoji"|"image"|"file"; content: string; time: string; rawTime?: string; sortTs?: number; fileName?: string; fileSize?: string; fileData?: string; username?: string; senderAvatar?: string; }
 
 const AVATAR_GRADS = ["from-violet-500 to-cyan-400","from-pink-500 to-violet-500","from-cyan-400 to-blue-500","from-emerald-400 to-cyan-400","from-fuchsia-500 to-pink-500","from-violet-500 to-fuchsia-500","from-blue-400 to-cyan-400"];
 
@@ -109,6 +109,12 @@ function messageTypeToString(type?: string, messageType?: number) {
   return "text";
 }
 
+function toMessageTimestamp(value?: string) {
+  if (!value) return 0;
+  const ts = Date.parse(value);
+  return Number.isFinite(ts) ? ts : 0;
+}
+
 function normalizeServerMessage(m: any, meName: string, meId: number): Message {
   const senderName = m.sender_username || m.username || "";
   const senderId = Number(m.sender_id || m.user_id || 0);
@@ -121,8 +127,9 @@ function normalizeServerMessage(m: any, meName: string, meId: number): Message {
     sender: isMe ? "me" : "them",
     type: messageTypeToString(m.type, m.message_type),
     content: m.content || "",
-    time: timeFmt(m.created_at || m.CreatedAt || ""),
+    time: timeFmt(m.created_at || m.CreatedAt || m.updated_at || ""),
     rawTime: m.created_at || m.CreatedAt || m.updated_at || "",
+    sortTs: toMessageTimestamp(m.created_at || m.CreatedAt || m.updated_at || ""),
     fileName: m.file_name,
     fileData: m.file_url || m.fileData || "",
     username: senderName,
@@ -139,6 +146,7 @@ function makeLocalMessage(messageId: number, type: Message["type"], content: str
     content,
     time: timeFmt(now),
     rawTime: now,
+    sortTs: toMessageTimestamp(now),
     fileName,
     fileData,
     username: "",
@@ -156,7 +164,7 @@ function extractMessageRows(payload: any) {
 
 function normalizeAndSortMessages(rows: any[], meName: string, meId: number) {
   const parsed = rows.map((m: any) => normalizeServerMessage(m, meName, meId));
-  return parsed.sort((a, b) => String(a.rawTime || a.time).localeCompare(String(b.rawTime || b.time)));
+  return parsed.sort((a, b) => (a.sortTs || 0) - (b.sortTs || 0));
 }
 
 function getChatErrorMessage(err: any, fallback = "发送失败") {
@@ -182,7 +190,12 @@ function mergeMessages(existing: Message[], incoming: Message[]) {
   for (const msg of incoming) {
     map.set(messageKey(msg), msg);
   }
-  return [...map.values()].sort((a, b) => String(a.rawTime || a.time).localeCompare(String(b.rawTime || b.time)));
+  return [...map.values()].sort((a, b) => (a.sortTs || 0) - (b.sortTs || 0));
+}
+
+function appendMessage(existing: Message[], next: Message) {
+  const filtered = existing.filter((item) => messageKey(item) !== messageKey(next));
+  return [...filtered, next];
 }
 
 function messageKey(message: Message) {
@@ -208,7 +221,7 @@ function appendConversationMessages(
 ) {
   if (!convId || incoming.length === 0) return;
   const existing = store.get(convId) || [];
-  const next = mergeMessages(existing, incoming);
+  const next = incoming.reduce((acc, msg) => appendMessage(acc, msg), existing);
   store.set(convId, next);
   if (convId === activeConvId && onActive) onActive(next);
 }
@@ -938,6 +951,18 @@ const ChatPage = () => {
     });
     try {
       setSendError("");
+      const optimisticMessage = makeLocalMessage(-Date.now(), type === "emoji" ? "emoji" : type === "image" ? "image" : type === "file" ? "file" : "text", content, fileName, fileData);
+      optimisticMessage.sortTs = Date.now();
+      const optimisticConvId = selectedConvId || activeConversationId;
+      if (optimisticConvId) {
+        const existing = convoMessagesRef.current.get(optimisticConvId) || [];
+        const nextMessages = appendMessage(existing, optimisticMessage);
+        convoMessagesRef.current.set(optimisticConvId, nextMessages);
+        setMessages((prev) => appendMessage(prev, optimisticMessage));
+        requestAnimationFrame(() => {
+          messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior: "auto" });
+        });
+      }
       const res = await sendChatMessage(payload);
       const body = res.data?.data || {};
       const serverConvId = String(body.conversation_id || selectedConvId || activeConversationId || "");
@@ -957,6 +982,7 @@ const ChatPage = () => {
             ...local,
             rawTime: body.created_at || optimisticTime,
           };
+      const effectiveTime = body.created_at || body.CreatedAt || body.updated_at || optimisticTime;
       const messageId = Number(body.id || serverMessage.id || 0);
       if (Number.isFinite(messageId) && messageId > 0) {
         serverMessage.id = messageId;
@@ -965,12 +991,18 @@ const ChatPage = () => {
       serverMessage.content = body.content || serverMessage.content || content;
       serverMessage.fileName = body.file_name || fileName;
       serverMessage.fileData = body.file_url || fileData || serverMessage.fileData;
+      serverMessage.rawTime = effectiveTime;
+      serverMessage.time = timeFmt(effectiveTime);
+      serverMessage.sortTs = toMessageTimestamp(effectiveTime) || Date.now();
       if (serverConvId || activeConversationId) {
         const currentConvId = serverConvId || activeConversationId;
         const existing = convoMessagesRef.current.get(currentConvId) || [];
-        const nextMessages = mergeMessages(existing, [serverMessage]);
+        const nextMessages = appendMessage(existing, serverMessage);
         convoMessagesRef.current.set(currentConvId, nextMessages);
-        setMessages((prev) => mergeMessages(prev, [serverMessage]));
+        setMessages((prev) => appendMessage(prev, serverMessage));
+        requestAnimationFrame(() => {
+          messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior: "smooth" });
+        });
         upsertConversationSummary(currentConvId, {
           id: meId,
           name: meName,
@@ -1013,7 +1045,11 @@ const ChatPage = () => {
   const pickFile = (e: React.ChangeEvent<HTMLInputElement>) => { const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>sendMsg("file",f.name,f.name,r.result as string); r.readAsDataURL(f); e.target.value=""; };
   const pickImg = (e: React.ChangeEvent<HTMLInputElement>) => { const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>setPreviewImg(r.result as string); r.readAsDataURL(f); e.target.value=""; };
 
-  useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:"smooth"});},[messages.length]);
+  useLayoutEffect(() => {
+    requestAnimationFrame(() => {
+      messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior: "auto" });
+    });
+  }, [activeConversationId, messages]);
 
   const grad = (i: number) => AVATAR_GRADS[i%7];
   const userGrad = (name: string) => {
