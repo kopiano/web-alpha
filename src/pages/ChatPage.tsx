@@ -866,14 +866,10 @@ const ChatPage = () => {
       setContacts((prev) => mergeContacts(prev, cs.length ? cs : [{ id: -1, name: "No users", avatar: "??", lastMsg: "Register to start chatting", time: "", lastTimeRaw: "", unread: 0, online: false }]));
     });
 
-    const preloadTargets = [
-      ...cs
-        .filter((item) => item.convId)
-        .filter((item) => item.convId && knownConversationIds.has(item.convId))
-        .sort((a, b) => String(b.lastTimeRaw || "").localeCompare(String(a.lastTimeRaw || "")))
-        .slice(0, 4)
-        .map((item) => item.convId),
-    ].filter((value, index, arr): value is string => Boolean(value) && arr.indexOf(value) === index);
+    const preloadTargets = [selectedByConvId?.convId, defaultTeam?.convId]
+      .filter((value): value is string => Boolean(value) && knownConversationIds.has(value))
+      .filter((value, index, arr) => arr.indexOf(value) === index)
+      .slice(0, 1);
     preloadTargets.forEach((convId) => preloadConversationMessages(convId));
 
     if (!didInitializeSelectionRef.current) {
@@ -1011,7 +1007,11 @@ const ChatPage = () => {
   useEffect(() => {
     if (!me) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastRefreshAt = 0;
     const triggerRefresh = () => {
+      const now = Date.now();
+      if (now - lastRefreshAt < 1000) return;
+      lastRefreshAt = now;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         void conversationsQuery.refetch();
