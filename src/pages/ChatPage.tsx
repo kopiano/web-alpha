@@ -1700,27 +1700,19 @@ const ChatPage = () => {
           {/* Messages */}
           <div ref={messagesScrollRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto csb px-5 py-4 space-y-1.5 transition-opacity duration-300">
             {loading?<div className="flex items-center justify-center h-full">
-              <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
-                <ChatLoadingDots />
-              </div>
+              <ChatLoadingDots />
             </div>
             :(!activeConversationId && (!contact||contact.id===0)&&!isActiveGroupConversation)?<div className="flex items-center justify-center h-full flex-col gap-2"><p className="text-[13px] text-white/20">{isGuest ? "Login to start chatting" : (authLoading ? "" : "Select a contact to start chatting")}</p>{isGuest && <button onClick={()=>openAuth("login")} className="text-[12px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">Login →</button>}</div>
             :loadingMessages && messagesConversationId !== activeConversationId ? (
               <div className="flex items-center justify-center h-full">
-                <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
-                  <ChatLoadingDots ringClassName="border-t-cyan-400" />
-                </div>
+                <ChatLoadingDots ringClassName="border-t-cyan-400" />
               </div>
             ) : activeMessagesQuery.isFetchingPreviousPage?<div className="flex items-center justify-center py-2">
-              <div className="px-4 py-2.5 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.04)"}}>
-                <ChatLoadingDots ringClassName="border-t-white/35" />
-              </div>
+              <ChatLoadingDots ringClassName="border-t-white/35" />
             </div>
             :!isMessagesForActiveConversation ? (
               <div className="flex items-center justify-center h-full">
-                <div className="px-4 py-3 rounded-[3rem] rounded-bl-lg flex items-center gap-1" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.04)"}}>
-                  <ChatLoadingDots ringClassName="border-t-cyan-400" />
-                </div>
+                <ChatLoadingDots ringClassName="border-t-cyan-400" />
               </div>
             ) : activeConversationId && messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
             :messages.map((m,i)=>{
