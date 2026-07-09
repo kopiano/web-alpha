@@ -179,10 +179,12 @@ function safeNumber(value: number, fallback = 0) {
 }
 
 function formatTickLabel(point: StockPoint, period: Period) {
-  if (period === "5D" || period === "1D") {
+  if (period === "1D") {
     return new Date(point.t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   }
-  if (period === "1M") return new Date(point.t).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" });
+  if (period === "5D" || period === "1M") {
+    return new Date(point.t).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" });
+  }
   return new Date(point.t).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" });
 }
 
@@ -480,15 +482,15 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
   }, []);
 
   return (
-    <section className={`rounded-[20px] border border-white/10 bg-[rgba(9,12,18,0.76)] backdrop-blur-xl ${className}`}>
+    <section className={`rounded-[20px] border border-white/10 bg-[rgba(255,255,255,0.06)] backdrop-blur-[30px] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.6),_inset_0_1px_0_rgba(255,255,255,0.06)] ${className}`}>
       <div className="p-5 md:p-6 lg:p-7">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.11),rgba(255,255,255,0.035))] px-5 py-4 shadow-[0_20px_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-[15px] md:text-[16px] font-semibold tracking-[0.01em] text-white">{payload.symbol}</h3>
+          <div className="min-w-[280px] max-w-[280px] rounded-[20px] border border-white/10 bg-[rgba(255,255,255,0.04)] px-5 py-4 shadow-[0_20px_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="w-[88px] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] md:text-[16px] font-semibold tracking-[0.01em] text-white">{payload.symbol}</h3>
               <span className="rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[10px] font-medium tracking-[0.18em] text-white/70 backdrop-blur-md">{payload.exchange}</span>
             </div>
-            <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-white/62">{payload.name}</p>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-white/62 truncate">{payload.name}</p>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/68">
               <span>{period}</span>
               <span>·</span>
@@ -556,8 +558,8 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
           </div>
         </div>
 
-        <div className="mt-5 rounded-[24px] border border-white/[0.07] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))] p-[30px]">
-          <div ref={chartContainerRef} className="rounded-[12px] border border-[#E5E7EB] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+        <div className="mt-5 rounded-[24px] border border-white/[0.07] bg-[rgba(255,255,255,0.03)] p-[30px] backdrop-blur-2xl">
+          <div ref={chartContainerRef} className="rounded-[16px] p-6">
             <div className="relative">
                 <svg
                   viewBox={`0 0 ${width} ${height}`}
@@ -621,7 +623,6 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
 
                 {yLabels.map(({ tick, y }) => (
                   <g key={tick}>
-                    <line x1={pad.left} y1={y} x2={width - pad.right} y2={y} stroke="#E5E7EB" strokeWidth="1" opacity="0.95" />
                     <text x={width - 12} y={y + 4} textAnchor="end" className="fill-[#6B7280] text-[12px]">
                       {tick.toFixed(2)}
                     </text>
@@ -709,33 +710,34 @@ export const StockChart = ({ className = "" }: { className?: string }) => {
                   </g>
                 ) : null}
 
-                {safeActivePoint ? (
+                {hoveredPoint ? (
                   <g>
                     <circle cx={safeActivePoint.x} cy={safeActivePoint.y} r="4" fill="#DC2626" stroke="#FFFFFF" strokeWidth="2" />
                     <g transform={`translate(${clamp(safeActivePoint.x - 160, 12, width - 332)}, ${clamp(safeActivePoint.y - 180, 12, height - 220)})`}>
-                      <rect x="0" y="0" width="320" height="180" rx="16" fill="rgba(255,255,255,0.96)" stroke="rgba(255,255,255,0.7)" />
-                      <text x="18" y="28" className="fill-[#6B7280] text-[15px] font-normal">Date</text>
-                      <text x="302" y="28" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">{safeActivePoint.label}</text>
-                      <text x="18" y="58" className="fill-[#6B7280] text-[15px] font-normal">Close</text>
-                      <text x="302" y="58" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.close)}</text>
-                      <text x="18" y="88" className="fill-[#6B7280] text-[15px] font-normal">Open</text>
-                      <text x="302" y="88" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.open)}</text>
-                      <text x="18" y="118" className="fill-[#6B7280] text-[15px] font-normal">High</text>
-                      <text x="302" y="118" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.high)}</text>
-                      <text x="18" y="148" className="fill-[#6B7280] text-[15px] font-normal">Low</text>
-                      <text x="302" y="148" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.low)}</text>
-                      <text x="18" y="176" className="fill-[#6B7280] text-[15px] font-normal">Volume</text>
-                      <text x="302" y="176" textAnchor="end" className="fill-[#1F2937] text-[15px] font-semibold tabular-nums">{formatCompactVolume(safeActivePoint.volume)}</text>
+                      <rect x="0" y="0" width="320" height="180" rx="16" fill="rgba(255,255,255,0.22)" stroke="rgba(255,255,255,0.34)" />
+                      <rect x="0.5" y="0.5" width="319" height="179" rx="15.5" fill="rgba(255,255,255,0.06)" />
+                      <text x="18" y="28" className="fill-white/55 text-[15px] font-normal">Date</text>
+                      <text x="302" y="28" textAnchor="end" className="fill-white/90 text-[15px] font-semibold tabular-nums">{safeActivePoint.label}</text>
+                      <text x="18" y="58" className="fill-white/55 text-[15px] font-normal">Close</text>
+                      <text x="302" y="58" textAnchor="end" className="fill-white/90 text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.close)}</text>
+                      <text x="18" y="88" className="fill-white/55 text-[15px] font-normal">Open</text>
+                      <text x="302" y="88" textAnchor="end" className="fill-white/90 text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.open)}</text>
+                      <text x="18" y="118" className="fill-white/55 text-[15px] font-normal">High</text>
+                      <text x="302" y="118" textAnchor="end" className="fill-white/90 text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.high)}</text>
+                      <text x="18" y="148" className="fill-white/55 text-[15px] font-normal">Low</text>
+                      <text x="302" y="148" textAnchor="end" className="fill-white/90 text-[15px] font-semibold tabular-nums">${formatPrice(safeActivePoint.low)}</text>
+                      <text x="18" y="176" className="fill-white/55 text-[15px] font-normal">Volume</text>
+                      <text x="302" y="176" textAnchor="end" className="fill-white/90 text-[15px] font-semibold tabular-nums">{formatCompactVolume(safeActivePoint.volume)}</text>
                     </g>
                   </g>
                 ) : null}
               </svg>
 
-              {bottomLabel ? (
+              {hoveredPoint ? (
                 <div
                   className="pointer-events-none absolute rounded-[8px] bg-[#333333] px-[18px] py-[10px] text-[13px] font-medium text-white shadow-[0_10px_24px_rgba(0,0,0,0.14)]"
                   style={{
-                      left: clamp((hoveredPoint?.x ?? safeCurrentPoint?.x ?? 0) - 48, 12, chartWidth - 124),
+                      left: clamp((hoveredPoint.x ?? safeCurrentPoint?.x ?? 0) - 48, 12, chartWidth - 124),
                     bottom: 6,
                   }}
                 >
