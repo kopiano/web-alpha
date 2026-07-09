@@ -71,18 +71,7 @@ function dedupeUsers(users: ChatUser[]) {
 
 function parseConversationPeerId(conversationId: string, users?: ConversationRow["users"]) {
   const directPeer = users?.find((u) => u?.user_id) || null;
-  if (conversationId.startsWith("p_")) {
-    return directPeer?.user_id || 0;
-  }
-  if (conversationId.startsWith("g_")) {
-    const groupId = Number(conversationId.slice(2));
-    return Number.isNaN(groupId) ? 0 : groupId;
-  }
   return directPeer?.user_id || 0;
-}
-
-function isGroupConversationId(conversationId?: string) {
-  return Boolean(conversationId && conversationId.startsWith("g_"));
 }
 
 function getChatSelectionStorageKey() {
@@ -338,30 +327,33 @@ function buildSendPayload(params: {
   chatType: "private" | "group";
   recipientId: number;
   groupId: number;
+  conversationId: string;
   messageType: number;
   content: string;
   fileName?: string;
   fileUrl?: string;
 }) {
   const base = {
+    conversation_id: params.conversationId,
+    chat_type: params.chatType,
     message_type: params.messageType,
     content: params.content,
-    ...(params.fileName ? { file_name: params.fileName } : {}),
-    ...(params.fileUrl ? { file_url: params.fileUrl } : {}),
+    file_name: params.fileName || "",
+    file_url: params.fileUrl || "",
   };
 
-  return params.chatType === "group"
-    ? {
-        chat_type: "group",
-        group_id: params.groupId,
-        ...base,
-      }
-    : {
-        chat_type: "private",
-        recipient_id: params.recipientId,
-        receiver_id: params.recipientId,
-        ...base,
-      };
+  if (params.chatType === "group") {
+    return {
+      ...base,
+      group_id: params.groupId,
+    };
+  }
+
+  return {
+    ...base,
+    recipient_id: params.recipientId,
+    receiver_id: params.recipientId,
+  };
 }
 
 const TEAM_AVATAR = teamAvatar
@@ -389,10 +381,10 @@ const ContactItem = memo(function ContactItem({
     >
       <div className="relative shrink-0">
         <div className="w-[52px] h-[52px] rounded-full grid place-items-center text-[13px] font-bold overflow-hidden shadow-lg ring-1 ring-white/10"
-          style={contact.convId && isGroupConversationId(contact.convId)
+          style={contact.kind === "group"
             ? {background:"linear-gradient(135deg, rgba(139,92,246,0.35), rgba(6,182,212,0.28))",border:"1px solid rgba(255,255,255,0.15)",boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}
             : contact.userData?.avatar?{boxShadow:"0 0 8px rgba(59,246,243,0.83), 0 0 24px rgba(201,68,242,0.61)"}:{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.15)"}}>
-          {contact.convId && isGroupConversationId(contact.convId) ? (
+          {contact.kind === "group" ? (
             <>
               <img src={TEAM_AVATAR} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
             </>
@@ -724,8 +716,8 @@ const ChatPage = () => {
   }, []);
 
   const baseContacts = contacts.length ? contacts : storeContacts;
-  const teamContacts = useMemo(() => baseContacts.filter((c) => isGroupConversationId(c.convId)), [baseContacts]);
-  const personalContacts = useMemo(() => baseContacts.filter((c) => !isGroupConversationId(c.convId)), [baseContacts]);
+  const teamContacts = useMemo(() => baseContacts.filter((c) => c.kind === "group"), [baseContacts]);
+  const personalContacts = useMemo(() => baseContacts.filter((c) => c.kind !== "group"), [baseContacts]);
   const defaultTeamContact = useMemo(() => teamContacts[0] || null, [teamContacts]);
   const effectiveSelectedConversationId = selectedConversationId || "";
   const activeContact = useMemo(() => {
@@ -740,8 +732,8 @@ const ChatPage = () => {
   }, [activeIdx, activeContactIdRef, baseContacts, effectiveSelectedConversationId]);
   const activeConversationId = activeIdx === -2
     ? (effectiveSelectedConversationId || "")
-    : (activeContact && isGroupConversationId(activeContact.convId) ? activeContact.convId : (effectiveSelectedConversationId || ""));
-  const isActiveGroupConversation = Boolean(activeContact && isGroupConversationId(activeContact.convId));
+    : (activeContact?.kind === "group" ? activeContact.convId || effectiveSelectedConversationId : (effectiveSelectedConversationId || ""));
+  const isActiveGroupConversation = Boolean(activeContact && activeContact.kind === "group");
   const isContactActive = useCallback((contact: Contact) => {
     return Boolean(contact.convId && contact.convId === activeConversationId);
   }, [activeConversationId]);
@@ -814,14 +806,14 @@ const ChatPage = () => {
     }
     const cs = [...teamContacts, ...personalFromConversations, ...personalFallback];
     const savedSelection = selectedConversationId;
-    const defaultTeam = cs.find((c) => isGroupConversationId(c.convId));
+    const defaultTeam = cs.find((c) => c.kind === "group");
     const selectedByConvId = savedSelection
       ? cs.find((c) => c.convId === savedSelection)
       : undefined;
-    const selectedContact = selectedByConvId && !isGroupConversationId(selectedByConvId.convId)
+    const selectedContact = selectedByConvId && selectedByConvId.kind !== "group"
       ? selectedByConvId
       : undefined;
-    const selectedTeam = selectedByConvId && isGroupConversationId(selectedByConvId.convId)
+    const selectedTeam = selectedByConvId && selectedByConvId.kind === "group"
       ? selectedByConvId
       : (!didInitializeSelectionRef.current && !savedSelection ? defaultTeam : undefined);
 
@@ -831,7 +823,7 @@ const ChatPage = () => {
           .filter((item) => item.convId)
           .map((item) => ({
             conversationId: item.convId || "",
-            type: item.convId?.startsWith("g_") ? "group" : "private",
+            type: item.kind,
             title: item.name,
             avatar: item.userData?.avatar || item.avatar,
             lastMessage: item.lastMsg,
@@ -1065,7 +1057,7 @@ const ChatPage = () => {
     setActiveIdx(idx);
     const nextContact = baseContacts[idx];
     activeContactIdRef.current = nextContact.id;
-    const isTeamContact = isGroupConversationId(nextContact?.convId);
+    const isTeamContact = nextContact.kind === "group";
     const optimisticConvId = nextContact?.convId || "";
     setSelectedConversationId(optimisticConvId);
     activeConvIdRef.current = optimisticConvId;
@@ -1123,10 +1115,11 @@ const ChatPage = () => {
       baseContacts.find((c) => c.convId === activeConversationId) ||
       null
     const selectedConvId = targetContact?.convId || activeConversationId || selectedConversationId || ""
-    const chatType: "private" | "group" = selectedGroupIdRef.current > 0 ? "group" : "private"
+    const chatType: "private" | "group" = targetContact?.kind === "group" ? "group" : "private"
     const isGroup = chatType === "group"
-    const targetReceiverId = selectedPeerUserIdRef.current || targetContact?.id || activeContactIdRef.current || 0
+    const targetReceiverId = isGroup ? 0 : (selectedPeerUserIdRef.current || targetContact?.id || activeContactIdRef.current || 0)
     const targetGroupId = isGroup ? (selectedGroupIdRef.current || targetContact?.id || 0) : 0
+    const targetConversationId = targetContact?.convId || activeConversationId || selectedConversationId || ""
     if (chatType === "private" && targetReceiverId <= 0) {
       return
     }
@@ -1142,6 +1135,7 @@ const ChatPage = () => {
       chatType,
       recipientId: targetReceiverId,
       groupId: targetGroupId,
+      conversationId: targetConversationId,
       messageType,
       content,
       fileName,
@@ -1152,8 +1146,6 @@ const ChatPage = () => {
       const optimisticConvId = selectedConvId || activeConversationId;
       const clientMsgId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       payload.client_msg_id = clientMsgId;
-      payload.clientMsgId = clientMsgId;
-      payload.client_message_id = clientMsgId;
 
       const optimisticMessage = makeLocalMessage(-Date.now(), type === "emoji" ? "emoji" : type === "image" ? "image" : type === "file" ? "file" : "text", content, fileName, fileData);
       optimisticMessage.clientMsgId = clientMsgId;
