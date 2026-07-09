@@ -198,6 +198,16 @@ function appendMessage(existing: Message[], next: Message) {
   return [...filtered, next];
 }
 
+function messageFingerprint(message: Pick<Message, "sender" | "type" | "content" | "fileName" | "fileData">) {
+  return [
+    message.sender,
+    message.type,
+    message.content,
+    message.fileName || "",
+    message.fileData || "",
+  ].join("|");
+}
+
 function messageKey(message: Message) {
   // 优先用后端消息 id 去重，避免同一条消息因时间字段或缓存层差异被重复渲染
   if (message.id && message.id > 0) {
@@ -357,6 +367,7 @@ const ChatPage = () => {
   const msgCacheRef = useRef<Map<number, Message[]>>(new Map());
   const convoMessagesRef = useRef<Map<string, Message[]>>(new Map());
   const pendingMessagesRef = useRef<Map<string, Message[]>>(new Map());
+  const pendingMessageFingerprintsRef = useRef<Map<string, Set<string>>>(new Map());
   const convIdCacheRef = useRef<Map<number, string>>(new Map());
   const loadAllRef = useRef<() => void>(() => {});
   const onlineUsersRef = useRef<Set<number>>(new Set());
@@ -419,7 +430,22 @@ const ChatPage = () => {
       if((d.event==="message.new" || d.type==="message") && d.content) {
         const normalized = normalizeServerMessage(d, meRef.current, meId);
         const isMe = normalized.sender === "me";
-        if(isMe) return;
+        if(isMe) {
+          const convId = targetConvId || activeConvIdRef.current || "";
+          const pending = pendingMessageFingerprintsRef.current.get(convId);
+          const fp = messageFingerprint({
+            sender: "me",
+            type: normalized.type,
+            content: normalized.content,
+            fileName: normalized.fileName,
+            fileData: normalized.fileData,
+          });
+          if (pending?.has(fp)) {
+            pending.delete(fp);
+            if (pending.size === 0) pendingMessageFingerprintsRef.current.delete(convId);
+          }
+          return;
+        }
         const msgTime = d.time || timeFmt(new Date().toISOString())
         const newMsg: Message = normalized;
 
@@ -951,17 +977,18 @@ const ChatPage = () => {
     });
     try {
       setSendError("");
-      const optimisticMessage = makeLocalMessage(-Date.now(), type === "emoji" ? "emoji" : type === "image" ? "image" : type === "file" ? "file" : "text", content, fileName, fileData);
-      optimisticMessage.sortTs = Date.now();
       const optimisticConvId = selectedConvId || activeConversationId;
       if (optimisticConvId) {
-        const existing = convoMessagesRef.current.get(optimisticConvId) || [];
-        const nextMessages = appendMessage(existing, optimisticMessage);
-        convoMessagesRef.current.set(optimisticConvId, nextMessages);
-        setMessages((prev) => appendMessage(prev, optimisticMessage));
-        requestAnimationFrame(() => {
-          messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior: "auto" });
+        const fp = messageFingerprint({
+          sender: "me",
+          type: type === "emoji" ? "emoji" : type === "image" ? "image" : type === "file" ? "file" : "text",
+          content,
+          fileName,
+          fileData,
         });
+        const current = pendingMessageFingerprintsRef.current.get(optimisticConvId) || new Set<string>();
+        current.add(fp);
+        pendingMessageFingerprintsRef.current.set(optimisticConvId, current);
       }
       const res = await sendChatMessage(payload);
       const body = res.data?.data || {};
@@ -996,6 +1023,18 @@ const ChatPage = () => {
       serverMessage.sortTs = toMessageTimestamp(effectiveTime) || Date.now();
       if (serverConvId || activeConversationId) {
         const currentConvId = serverConvId || activeConversationId;
+        const fp = messageFingerprint({
+          sender: "me",
+          type: serverMessage.type,
+          content: serverMessage.content,
+          fileName: serverMessage.fileName,
+          fileData: serverMessage.fileData,
+        });
+        const pending = pendingMessageFingerprintsRef.current.get(currentConvId);
+        if (pending?.has(fp)) {
+          pending.delete(fp);
+          if (pending.size === 0) pendingMessageFingerprintsRef.current.delete(currentConvId);
+        }
         const existing = convoMessagesRef.current.get(currentConvId) || [];
         const nextMessages = appendMessage(existing, serverMessage);
         convoMessagesRef.current.set(currentConvId, nextMessages);
