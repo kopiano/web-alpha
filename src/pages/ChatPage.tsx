@@ -764,6 +764,31 @@ const ChatPage = () => {
         if (contactUser.avatar) contact.userData = contactUser;
         return contact;
       });
+    const groupFromConversations = rawConversations
+      .filter((conv) => conv.type === "group")
+      .map((conv) => {
+        const members = Array.isArray(conv.users) ? conv.users : [];
+        const groupId = Number(String(conv.conversation_id || "").replace(/^g_/, ""));
+        const contact: Contact = {
+          id: Number.isFinite(groupId) && groupId > 0 ? groupId : 0,
+          kind: "group",
+          name: conv.title || "Group",
+          avatar: "TG",
+          lastMsg: conv.last_message || "",
+          time: timeFmt(conv.last_message_at || ""),
+          lastTimeRaw: conv.last_message_at || "",
+          unread: conv.unread_count || 0,
+          online: false,
+          convId: conv.conversation_id,
+          members: members.map((m) => ({ id: m.user_id, username: m.username || "", avatar: m.avatar })),
+          userData: members[0] ? {
+            id: members[0].user_id,
+            username: members[0].username || "",
+            avatar: members[0].avatar,
+          } : undefined,
+        };
+        return contact;
+      });
     const personalFallback = rawUsers
       .filter((u) => u?.user_id && u.user_id !== me?.id && !convMap.has(u.user_id))
       .map((u) => {
@@ -781,7 +806,7 @@ const ChatPage = () => {
     const teamContacts = rawTeam?.id ? [{
       id: rawTeam.id,
       kind: "group",
-      name: rawTeam.name || "One Room",
+      name: rawTeam.name || "Group",
       avatar: "TG",
       lastMsg: "",
       time: "",
@@ -799,7 +824,7 @@ const ChatPage = () => {
     if (rawTeam?.id) {
       knownConversationIds.add(`g_${rawTeam.id}`);
     }
-    const cs = [...teamContacts, ...personalFromConversations, ...personalFallback];
+    const cs = [...teamContacts, ...groupFromConversations, ...personalFromConversations, ...personalFallback];
     const savedSelection = selectedConversationIdRef.current;
     const defaultTeam = cs.find((c) => c.kind === "group");
     const selectedByConvId = savedSelection
@@ -832,8 +857,6 @@ const ChatPage = () => {
     });
 
     const preloadTargets = [
-      selectedTeam?.convId,
-      selectedContact?.convId,
       ...cs
         .filter((item) => item.convId)
         .filter((item) => item.convId && knownConversationIds.has(item.convId))
