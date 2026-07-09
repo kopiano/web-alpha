@@ -212,6 +212,26 @@ function replaceMessageByClientId(existing: Message[], next: Message) {
   return appendMessage(filtered, next);
 }
 
+function replaceMessageByFingerprint(existing: Message[], next: Message) {
+  const nextFingerprint = messageFingerprint({
+    sender: next.sender,
+    type: next.type,
+    content: next.content,
+    fileName: next.fileName,
+    fileData: next.fileData,
+    clientMsgId: next.clientMsgId,
+  });
+  const filtered = existing.filter((item) => messageFingerprint({
+    sender: item.sender,
+    type: item.type,
+    content: item.content,
+    fileName: item.fileName,
+    fileData: item.fileData,
+    clientMsgId: item.clientMsgId,
+  }) !== nextFingerprint);
+  return appendMessage(filtered, next);
+}
+
 function messageFingerprint(message: Pick<Message, "sender" | "type" | "content" | "fileName" | "fileData" | "clientMsgId">) {
   return [
     message.sender,
@@ -383,6 +403,7 @@ const ChatPage = () => {
   const convIdCacheRef = useRef<Map<number, string>>(new Map());
   const loadAllRef = useRef<() => void>(() => {});
   const onlineUsersRef = useRef<Set<number>>(new Set());
+  const didInitializeSelectionRef = useRef(false);
   const queryClient = useQueryClient();
 
   const me = user;
@@ -468,7 +489,7 @@ const ChatPage = () => {
             const current = convoMessagesRef.current.get(convId) || [];
             const replaced = normalized.clientMsgId
               ? replaceMessageByClientId(current, nextMessage)
-              : appendMessage(current, nextMessage);
+              : replaceMessageByFingerprint(current, nextMessage);
             convoMessagesRef.current.set(convId, replaced);
             setMessages(replaced);
             scrollToBottom();
@@ -637,8 +658,7 @@ const ChatPage = () => {
   const teamContacts = useMemo(() => baseContacts.filter((c) => isGroupConversationId(c.convId)), [baseContacts]);
   const personalContacts = useMemo(() => baseContacts.filter((c) => !isGroupConversationId(c.convId)), [baseContacts]);
   const defaultTeamContact = useMemo(() => teamContacts[0] || null, [teamContacts]);
-  const hasStoredChatSelection = Boolean(getStoredChatSelection());
-  const effectiveSelectedConversationId = selectedConversationId || (!hasStoredChatSelection ? defaultTeamContact?.convId || "" : "");
+  const effectiveSelectedConversationId = selectedConversationId || "";
   const activeContact = useMemo(() => {
     if (effectiveSelectedConversationId) {
       const byConvId = baseContacts.find((c) => c.convId === effectiveSelectedConversationId);
@@ -724,18 +744,17 @@ const ChatPage = () => {
       knownConversationIds.add(`g_${rawTeam.id}`);
     }
     const cs = [...teamContacts, ...personalFromConversations, ...personalFallback];
-    const savedSelection = selectedConversationId || getStoredChatSelection();
+    const savedSelection = selectedConversationId;
     const defaultTeam = cs.find((c) => isGroupConversationId(c.convId));
     const selectedByConvId = savedSelection
       ? cs.find((c) => c.convId === savedSelection)
       : undefined;
-    const hasSavedSelection = Boolean(savedSelection);
     const selectedContact = selectedByConvId && !isGroupConversationId(selectedByConvId.convId)
       ? selectedByConvId
       : undefined;
     const selectedTeam = selectedByConvId && isGroupConversationId(selectedByConvId.convId)
       ? selectedByConvId
-      : (!hasSavedSelection ? defaultTeam : undefined);
+      : (!didInitializeSelectionRef.current && !savedSelection ? defaultTeam : undefined);
 
     if (cs.length) {
       hydrateFromServer(
@@ -774,13 +793,8 @@ const ChatPage = () => {
     ].filter((value, index, arr): value is string => Boolean(value) && arr.indexOf(value) === index);
     preloadTargets.forEach((convId) => preloadConversationMessages(convId));
 
-    if (hasSavedSelection && !selectedByConvId) {
-      try {
-        localStorage.removeItem(getChatSelectionStorageKey());
-      } catch {
-        // ignore storage failures
-      }
-      setSelectedConversationId("");
+    if (!didInitializeSelectionRef.current) {
+      didInitializeSelectionRef.current = true;
     }
 
     if (selectedTeam) {
@@ -793,7 +807,6 @@ const ChatPage = () => {
       const cached = convoMessagesRef.current.get(selectedTeam.convId || "") || []
       setMessages(cached)
       setLoadingMessages(cached.length === 0)
-      localStorage.setItem(getChatSelectionStorageKey(), selectedTeam.convId || "");
     } else if (selectedContact) {
       const selectedConvId = selectedContact.convId || ""
       setActiveIdx(cs.findIndex((c) => c.id === selectedContact.id))
@@ -818,14 +831,15 @@ const ChatPage = () => {
         setMessages([])
         setLoadingMessages(false)
       }
-      localStorage.setItem(getChatSelectionStorageKey(), selectedContact.convId || String(selectedContact.id));
     } else {
-      setActiveIdx(-1)
-      activeContactIdRef.current = 0
-      selectedPeerUserIdRef.current = 0
-      selectedGroupIdRef.current = 0
-      activeConvIdRef.current = ""
-      setSelectedConversationId("")
+      if (!savedSelection && !didInitializeSelectionRef.current && defaultTeam?.convId) {
+        setActiveIdx(cs.findIndex((c) => c.convId === defaultTeam.convId))
+        activeContactIdRef.current = defaultTeam.id
+        selectedGroupIdRef.current = defaultTeam.id
+        selectedPeerUserIdRef.current = 0
+        activeConvIdRef.current = defaultTeam.convId || ""
+        setSelectedConversationId(defaultTeam.convId || "")
+      }
     }
   }, [me?.id, mergeContacts, preloadConversationMessages, conversationsQuery.data, selectedConversationId]);
   // 同步 loadAllRef，避免 WebSocket 闭包中的 TDZ 问题
@@ -928,7 +942,20 @@ const ChatPage = () => {
     activeConvIdRef.current = "";
     selectedPeerUserIdRef.current = 0;
     selectedGroupIdRef.current = 0;
+    didInitializeSelectionRef.current = false;
   }, [user?.id]);
+
+  useEffect(() => {
+    try {
+      if (selectedConversationId) {
+        localStorage.setItem(getChatSelectionStorageKey(), selectedConversationId);
+      } else {
+        localStorage.removeItem(getChatSelectionStorageKey());
+      }
+    } catch {
+      // ignore storage failures
+    }
+  }, [selectedConversationId]);
 
   useEffect(() => {
     if (!me) return;
@@ -980,7 +1007,6 @@ const ChatPage = () => {
       selectedPeerUserIdRef.current = nextContact.id
       selectedGroupIdRef.current = 0
     }
-    localStorage.setItem(getChatSelectionStorageKey(), nextContact.convId || String(nextContact.id));
     const cachedOptimisticMessages = convoMessagesRef.current.get(optimisticConvId) || [];
     setSelectedConversationId(optimisticConvId);
     activeConvIdRef.current = optimisticConvId;
