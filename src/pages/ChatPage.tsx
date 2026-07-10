@@ -530,6 +530,7 @@ const ChatPage = () => {
   onlineUsersRef.current = onlineUsers;
   selectedConversationIdRef.current = selectedConversationId;
   const conversationsQuery = useChatConversations(false);
+  const conversationsQueryDataRef = useRef<any[]>([]);
   const storeConversationOrder = useChatStore((s) => s.conversationOrder);
   const storeConversations = useChatStore((s) => s.conversations);
   const typingByConversation = useChatStore((s) => s.typingByConversation);
@@ -826,7 +827,11 @@ const ChatPage = () => {
     return [...map.values()].sort((a, b) => String(b.lastTimeRaw || "").localeCompare(String(a.lastTimeRaw || "")));
   }, []);
 
-  const baseContacts = contacts.length ? contacts : storeContacts;
+  const baseContacts = useMemo(() => {
+    if (contacts.length > 0) return contacts;
+    if (hasLoadedContactsRef.current) return storeContacts;
+    return [];
+  }, [contacts, storeContacts]);
   const teamContacts = useMemo(() => baseContacts.filter((c) => c.chatType === "group"), [baseContacts]);
   const personalContacts = useMemo(() => baseContacts.filter((c) => c.chatType !== "group"), [baseContacts]);
   const defaultTeamContact = useMemo(() => teamContacts[0] || null, [teamContacts]);
@@ -842,6 +847,9 @@ const ChatPage = () => {
     return Boolean(contact.convId && contact.convId === activeConversationId);
   }, [activeConversationId]);
   const activeMessagesQuery = useChatMessages(activeMessagesConversationId || undefined, !!activeMessagesConversationId, isGuest);
+  useEffect(() => {
+    conversationsQueryDataRef.current = conversationsQuery.data || [];
+  }, [conversationsQuery.data]);
   const resolveActiveChatTarget = useCallback(() => {
     const candidates = [
       baseContacts.find((c) => c.convId === activeConvIdRef.current),
@@ -899,7 +907,7 @@ const ChatPage = () => {
         return;
       }
     }
-    const queryItems = conversationsQuery.data || [];
+    const queryItems = conversationsQueryDataRef.current || [];
     const res = await getConversations();
     const body: any = res.data?.data || { conversations: queryItems };
     const rawConversations: ConversationRow[] = body.conversations ?? [];
@@ -989,7 +997,7 @@ const ChatPage = () => {
       knownConversationIds.add(`g_${rawTeam.id}`);
     }
     const cs = dedupeContacts([...teamContacts, ...groupFromConversations, ...personalFromConversations, ...personalFallback]);
-    const savedSelection = selectedConversationId || selectedConversationIdRef.current;
+    const savedSelection = selectedConversationIdRef.current || selectedConversationId;
     const defaultTeam = cs.find((c) => c.chatType === "group" && (c.lastTimeRaw || c.lastMsg)) || cs.find((c) => c.chatType === "group");
     const selectedByConvId = savedSelection
       ? cs.find((c) => c.convId === savedSelection)
@@ -1042,6 +1050,7 @@ const ChatPage = () => {
         setSelectedConversationId(selectedByConvId.convId || "");
         const cached = convoMessagesRef.current.get(selectedByConvId.convId || "") || [];
         setMessages(cached);
+        setMessagesConversationId(selectedByConvId.convId || "");
         setLoadingMessages(cached.length === 0);
       } else if (!savedSelection && defaultTeam?.convId) {
         activeContactIdRef.current = defaultTeam.id;
@@ -1052,10 +1061,11 @@ const ChatPage = () => {
         setSelectedConversationId(defaultTeam.convId || "");
         const cached = convoMessagesRef.current.get(defaultTeam.convId || "") || [];
         setMessages(cached);
+        setMessagesConversationId(defaultTeam.convId || "");
         setLoadingMessages(cached.length === 0);
       }
     }
-  }, [isGuest, me?.id, mergeContacts, preloadConversationMessages, conversationsQuery.data]);
+  }, [isGuest, me?.id, mergeContacts, preloadConversationMessages]);
   // 同步 loadAllRef，避免 WebSocket 闭包中的 TDZ 问题
   useEffect(() => { loadAllRef.current = loadAll; }, [loadAll]);
 
@@ -1245,9 +1255,6 @@ const ChatPage = () => {
     activeContactIdRef.current = nextContact.id;
     const isTeamContact = nextContact.chatType === "group";
     selectedChatTypeRef.current = nextContact.chatType;
-    const optimisticConvId = nextContact?.convId || "";
-    setSelectedConversationId(optimisticConvId);
-    activeConvIdRef.current = optimisticConvId;
     if (isTeamContact) {
       selectedGroupIdRef.current = nextContact.id
       selectedPeerUserIdRef.current = 0
@@ -1255,19 +1262,8 @@ const ChatPage = () => {
       selectedPeerUserIdRef.current = nextContact.id
       selectedGroupIdRef.current = 0
     }
-    const cachedOptimisticMessages = convoMessagesRef.current.get(optimisticConvId) || [];
-    setSelectedConversationId(optimisticConvId);
-    activeConvIdRef.current = optimisticConvId;
-    if (cachedOptimisticMessages.length > 0) {
-      setMessages(cachedOptimisticMessages);
-      setMessagesConversationId(optimisticConvId);
-      setLoadingMessages(false);
-    } else {
-      setMessages([]);
-      setMessagesConversationId(optimisticConvId);
-      setLoadingMessages(true);
-    }
-    let convId = optimisticConvId;
+
+    let convId = nextContact?.convId || "";
     if (!isTeamContact) {
       try {
         convId = convId || (await ensurePrivateConversation(nextContact.id));
@@ -1276,18 +1272,14 @@ const ChatPage = () => {
         convId = convId || makePrivateConversationId(me?.id || 0, nextContact.id);
       }
     }
+
     setSelectedConversationId(convId);
     activeConvIdRef.current = convId;
     const cached = convoMessagesRef.current.get(convId || "") || [];
-    if (cached.length > 0) {
-      setMessages(cached);
-      setMessagesConversationId(convId);
-      setLoadingMessages(false);
-    } else {
-      setMessages([]);
-      setMessagesConversationId(convId);
-      setLoadingMessages(true);
-    }
+    setMessages(cached);
+    setMessagesConversationId(convId);
+    setLoadingMessages(cached.length === 0);
+
     // 标记已读：调用后端 API + 更新本地未读计数
     if (convId) {
       markConversationRead(convId).catch(() => {})
@@ -1514,10 +1506,11 @@ const ChatPage = () => {
   };
 
   useLayoutEffect(() => {
+    if (!activeConversationId) return;
     requestAnimationFrame(() => {
       messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior: "auto" });
     });
-  }, [activeConversationId, messages]);
+  }, [activeConversationId]);
 
   const grad = (i: number) => AVATAR_GRADS[i%7];
   const userGrad = (name: string) => {

@@ -214,7 +214,7 @@ POST /chat/messages(最容易) 或 WebSocket(推荐)
     3. MySQL（消息持久化）、更新Redis（在线状态、未读数、最近联系人等）、WebSocket推送给在线用户
     4. React收到消息，setMessages(...)，页面实时显示消息，请根据这个要求完善前端页面用户发送私聊消息和群聊消息的前端逻辑和
     5. 用户发送消息 -> 立即显示ui(乐观更新) -> WebSocket推送 -> redis先写、React收到消息、后台异步mysql、 -> setMessages(...) -> 实时显示消息
-
+使用websocket最好
 ### 选中联系人显示历史消息记录
 选中联系人获取消息记录
 GET /chat/conversations/:id/messages
