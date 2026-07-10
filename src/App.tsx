@@ -9,6 +9,8 @@ import { AuthProvider } from "@/components/dashboard/AuthProvider";
 import { NotificationProvider } from "@/components/dashboard/NotificationProvider";
 import { VisitorTracker } from "@/components/dashboard/VisitorTracker";
 import { OnlineStatusProvider } from "@/components/dashboard/OnlineStatusProvider";
+import { Provider } from "react-redux";
+import { store } from "@/store";
 
 const Index = lazy(() => import("./pages/Index.tsx"));
 const ChatPage = lazy(() => import("./pages/ChatPage.tsx"));
@@ -59,7 +61,8 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <Provider store={store}>
+      <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -88,7 +91,8 @@ const App = () => {
           </NotificationProvider>
         </BrowserRouter>
       </TooltipProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </Provider>
   );
 };
 

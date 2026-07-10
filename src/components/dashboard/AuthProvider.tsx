@@ -1,19 +1,13 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { AuthModal } from "./AuthModal";
-import { getMe, logout as logoutApi } from "@/api/auth";
+import { logout as logoutApi } from "@/api/auth";
 import { useNotifications } from "./NotificationProvider";
 import { toast } from "sonner";
+import { useAppDispatch, useAppSelector } from "@/store";
+import { bumpUserRefreshVersion, clearUser, mergeUser, refreshUser as refreshUserThunk, type User } from "@/store/authSlice";
 
 // undefined = still loading, null = logged out, User = logged in
 type UserState = User | null | undefined;
-
-interface User {
-  id: number;
-  username: string;
-  email: string;
-  avatar: string | null;
-}
 
 interface AuthContextType {
   user: UserState;
@@ -40,19 +34,18 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [authOpen, setAuthOpen] = useState(false);
   const [initialMode, setInitialMode] = useState<"login" | "signup">("login");
-  const [user, setUser] = useState<UserState>(undefined);
-  const [userRefreshVersion, setUserRefreshVersion] = useState(0);
   const prevUserRef = useRef<UserState>(undefined);
   const { push: pushNotification } = useNotifications();
-  const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
+  const authUser = useAppSelector((state) => state.auth.user);
+  const authStatus = useAppSelector((state) => state.auth.status);
+  const userRefreshVersion = useAppSelector((state) => state.auth.userRefreshVersion);
+  const user: UserState = authStatus === "loading" ? undefined : authUser;
 
   const refreshUser = useCallback(async (notifyLogin = false) => {
-    const token = localStorage.getItem("token");
-    if (!token) { setUser(null); return; }
-    try {
-      const res = await getMe();
-      const newUser = res.data.data as User;
-      setUser(newUser);
+    const result = await dispatch(refreshUserThunk());
+    if (refreshUserThunk.fulfilled.match(result)) {
+      const newUser = result.payload;
       if (notifyLogin && newUser && !prevUserRef.current) {
         pushNotification({
           kind: "auth_login",
@@ -62,33 +55,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
       }
       prevUserRef.current = newUser;
-    } catch (error: any) {
-      const status = error?.response?.status;
-      if (status === 401 || status === 403) {
-        localStorage.removeItem("token");
-        setUser(null);
-        prevUserRef.current = null;
-        return;
-      }
-      // 网络抖动或后端短暂不可用时，保留 token，避免把用户误踢下线
-      setUser((current) => current ?? undefined);
+    } else if (refreshUserThunk.rejected.match(result) && !result.payload?.transient) {
+      prevUserRef.current = null;
     }
-  }, [pushNotification, queryClient]);
+  }, [dispatch, pushNotification]);
 
-  const mergeUser = useCallback((patch: Partial<User>) => {
-    setUser((current) => {
-      if (!current) return current;
-      return { ...current, ...patch };
-    });
-  }, []);
+  const mergeUserValue = useCallback((patch: Partial<User>) => {
+    dispatch(mergeUser(patch));
+  }, [dispatch]);
 
-  const bumpUserRefreshVersion = useCallback(() => {
-    setUserRefreshVersion((v) => v + 1);
-  }, []);
+  const bumpUserRefresh = useCallback(() => {
+    dispatch(bumpUserRefreshVersion());
+  }, [dispatch]);
 
   useEffect(() => {
-    refreshUser(false);
+    void refreshUser(false);
   }, [refreshUser]);
+
+  const logout = useCallback(async () => {
+    const username = user?.username;
+    try {
+      await logoutApi();
+    } catch {
+      // Still clear local state even if the API call fails
+    }
+    localStorage.removeItem("token");
+    dispatch(clearUser());
+    prevUserRef.current = null;
+    if (username) {
+      pushNotification({
+        kind: "auth_logout",
+        actor: username,
+        title: "logged out",
+        text: `${username} logged out`,
+        dedupeKey: `auth_logout:${username.toLowerCase()}`,
+      });
+    }
+    toast.success("Signed out");
+  }, [dispatch, pushNotification, user?.username]);
 
   return (
     <AuthContext.Provider
@@ -96,30 +100,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         userRefreshVersion,
         openAuth: (mode) => { setInitialMode(mode ?? "login"); setAuthOpen(true); },
-        logout: async () => {
-          const username = user?.username;
-          try {
-            await logoutApi();
-          } catch {
-            // Still clear local state even if the API call fails
-          }
-          localStorage.removeItem("token");
-          setUser(null);
-          prevUserRef.current = null;
-          if (username) {
-            pushNotification({
-              kind: "auth_logout",
-              actor: username,
-              title: "logged out",
-              text: `${username} logged out`,
-              dedupeKey: `auth_logout:${username.toLowerCase()}`,
-            });
-          }
-          toast.success("Signed out");
-        },
+        logout,
         refreshUser,
-        mergeUser,
-        bumpUserRefreshVersion,
+        mergeUser: mergeUserValue,
+        bumpUserRefreshVersion: bumpUserRefresh,
       }}
     >
       {children}
@@ -127,7 +111,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         <AuthModal
           onClose={() => setAuthOpen(false)}
           initialMode={initialMode}
-          onAuthSuccess={(notifyLogin) => refreshUser(Boolean(notifyLogin))}
+          onAuthSuccess={(notifyLogin) => void refreshUser(Boolean(notifyLogin))}
         />
       )}
     </AuthContext.Provider>
