@@ -52,8 +52,6 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
       const formData = new FormData();
       const nextUsername = username.trim();
       const nextEmail = email.trim();
-      const patch: { username?: string; email?: string; avatar?: string } = {};
-      const rollbackPatch: { username?: string; email?: string; avatar?: string } = { username: user.username, email: user.email };
 
       if (nextUsername && nextUsername !== user.username) formData.append("username", nextUsername);
       if (nextEmail && nextEmail !== user.email) formData.append("email", nextEmail);
@@ -66,23 +64,14 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
         return;
       }
 
-      if (nextUsername && nextUsername !== user.username) patch.username = nextUsername;
-      if (nextEmail && nextEmail !== user.email) patch.email = nextEmail;
-      if (avatarPreview) patch.avatar = avatarPreview;
-      if (user.avatar) rollbackPatch.avatar = user.avatar;
+      await updateSettings(formData);
 
-      await Promise.resolve(onSaved(patch));
+      await Promise.resolve(onSaved({
+        ...(nextUsername && nextUsername !== user.username ? { username: nextUsername } : {}),
+        ...(nextEmail && nextEmail !== user.email ? { email: nextEmail } : {}),
+      }));
       onClose();
-
-      void updateSettings(formData)
-        .then(() => {
-          toast.success("Settings saved");
-        })
-        .catch((err: any) => {
-          console.error("[SettingsModal] save failed:", err);
-          void Promise.resolve(onSaved(rollbackPatch));
-          toast.error(err?.response?.data?.message || err?.message || "Failed to save settings");
-        });
+      toast.success("Settings saved");
 
       pushNotification({
         kind: "settings_update",

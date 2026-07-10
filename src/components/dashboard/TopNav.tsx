@@ -336,13 +336,11 @@ export const TopNav = () => {
           user={{ id: user.id, username: user.username, email: user.email, avatar: user.avatar }}
           onClose={() => setSettingsOpen(false)}
           onSaved={async (patch) => {
-            if (patch.username || patch.email || patch.avatar) {
+            if (patch.username || patch.email) {
               mergeUser(patch);
             }
             bumpUserRefreshVersion();
-            if (!patch.avatar) {
-              await refreshUser(false);
-            }
+            await refreshUser(false);
           }}
         />
       )}
