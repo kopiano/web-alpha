@@ -35,6 +35,7 @@ export const useOnlineStatus = () => useContext(OnlineContext)
 export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth()
   const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set())
+  const [connectionState, setConnectionState] = useState<"connecting" | "open" | "closed">("closed")
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>()
   const handlersRef = useRef<Set<(msg: WsMessage) => void>>(new Set())
@@ -47,14 +48,14 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
 
   const sendMessage = useCallback((payload: Record<string, any>) => {
     const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) return false
+    if (!ws || ws.readyState !== WebSocket.OPEN || connectionState !== "open") return false
     try {
       ws.send(JSON.stringify(payload))
       return true
     } catch {
       return false
     }
-  }, [])
+  }, [connectionState])
 
   const connect = useCallback(() => {
     if (!user) return
@@ -72,7 +73,12 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
       avatar: user.avatar || "",
     })
     const ws = new WebSocket(`${wsBase}/api/v1/chat/ws?${params.toString()}`)
+    setConnectionState("connecting")
     wsRef.current = ws
+
+    ws.onopen = () => {
+      if (connectionId === connectionIdRef.current) setConnectionState("open")
+    }
 
     ws.onmessage = (e) => {
       try {
@@ -101,6 +107,8 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
     }
     ws.onclose = (e) => {
       if (connectionId !== connectionIdRef.current) return
+      setConnectionState("closed")
+      setOnlineUsers(new Set())
       if (e.code !== 1000 && user) {
         reconnectTimer.current = setTimeout(connect, 3000)
       }
@@ -110,6 +118,7 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     clearTimeout(reconnectTimer.current)
+    setConnectionState("closed")
     setOnlineUsers(new Set())
     connectionIdRef.current += 1
     if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {

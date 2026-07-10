@@ -511,6 +511,7 @@ const ChatPage = () => {
   const pendingMessagesRef = useRef<Map<string, Message[]>>(new Map());
   const pendingMessageFingerprintsRef = useRef<Map<string, Set<string>>>(new Map());
   const pendingMessageTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const switchSequenceRef = useRef(0);
   const convIdCacheRef = useRef<Map<number, string>>(new Map());
   const loadAllRef = useRef<() => void>(() => {});
   const onlineUsersRef = useRef<Set<number>>(new Set());
@@ -615,6 +616,13 @@ const ChatPage = () => {
         const pending = pendingMessageFingerprintsRef.current.get(convId);
         pending?.delete(d.client_msg_id);
         if (pending && pending.size === 0) pendingMessageFingerprintsRef.current.delete(convId);
+        if (convId) {
+          upsertConversationSummary(convId, {
+            lastMsg: nextMessage.content,
+            lastTimeRaw: nextMessage.rawTime || new Date().toISOString(),
+            lastMessageType: messageTypeToNumber(nextMessage.type),
+          });
+        }
         scrollToBottom();
         return;
       }
@@ -638,72 +646,40 @@ const ChatPage = () => {
           }
           return;
         }
-        const msgTime = d.time || timeFmt(new Date().toISOString())
+        const msgTime = d.created_at || d.time || new Date().toISOString();
         const newMsg: Message = normalized;
+        const conversationId = String(d.conversation_id || targetConvId || "");
+        if (!conversationId) return;
 
-        if (isGroupMsg && !isCurrentConversation) {
-          const conversationId = String(d.conversation_id || targetConvId || "");
-          const currentUnread = getChatStoreSnapshot().conversations[conversationId]?.unreadCount || 0;
-          upsertConversationSummary(conversationId, {
-            chatType: "group",
-            name: d.group_name || d.group_title || "Group",
-            lastMsg: d.content,
-            lastTimeRaw: d.time || new Date().toISOString(),
-            unread: currentUnread + 1,
-            lastMessageType: messageTypeToNumber(d.msg_type),
-          });
-          pushMessage(conversationId, newMsg);
-          return;
+        if (!isMe && !isCurrentConversation) {
+          incrementUnread(conversationId);
+        } else if (!isMe) {
+          setUnread(conversationId, 0);
         }
-        if(activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
-          incrementUnread(String(d.conversation_id));
-          upsertConversationSummary(String(d.conversation_id), {
-            id: d.sender_id,
-            name: d.username || d.sender_username || "",
-            avatar: d.sender_avatar || "",
-            lastMsg: d.content,
-            lastTimeRaw: new Date().toISOString(),
-            unread: getChatStoreSnapshot().conversations[String(d.conversation_id)]?.unreadCount ?? 1,
-            lastMessageType: messageTypeToNumber(d.msg_type),
-          })
-          const cached = msgCacheRef.current.get(d.sender_id) || []
-          const cachedMsg = { ...newMsg, time: msgTime, rawTime: d.time || new Date().toISOString() }
-          msgCacheRef.current.set(d.sender_id, mergeMessages(cached, [cachedMsg]))
-          pushMessage(String(d.conversation_id), newMsg);
-          if (isCurrentConversation) scrollToBottom();
-          return
-        }
-      if(!isGroupMsg) {
-        upsertConversationSummary(String(d.conversation_id || activeConvIdRef.current), {
-          id: d.sender_id,
-          name: d.username || d.sender_username || "",
-          avatar: d.sender_avatar || "",
-            lastMsg: d.content,
-            lastTimeRaw: new Date().toISOString(),
-            unread: 0,
-            lastMessageType: messageTypeToNumber(d.msg_type),
-          })
-          if (!storeContacts.length) {
-            setContacts(prev => prev.map(c =>
-              c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime } : c
-            ))
-          }
-        }
-        pushMessage(String(d.conversation_id || activeConvIdRef.current), newMsg);
-        const cached = msgCacheRef.current.get(d.sender_id) || []
-        msgCacheRef.current.set(d.sender_id, mergeMessages(cached, [{ ...newMsg, rawTime: d.time || new Date().toISOString() }]))
-        upsertConversationSummary(String(d.conversation_id || activeConvIdRef.current), {
-          id: d.sender_id,
-          name: d.username || d.sender_username || "",
-          avatar: d.sender_avatar || "",
+
+        upsertConversationSummary(conversationId, {
+          chatType,
           lastMsg: d.content,
-          lastTimeRaw: d.time || new Date().toISOString(),
-          unread: 0,
-          lastMessageType: messageTypeToNumber(d.msg_type),
-        })
-        setIsTyping(true); setTimeout(()=>setIsTyping(false),1500);
-        if (isCurrentConversation) scrollToBottom();
-        return
+          lastTimeRaw: msgTime,
+          lastMessageType: messageTypeToNumber(d.msg_type || d.type),
+          ...(d.username || d.sender_username ? { name: d.username || d.sender_username } : {}),
+          ...(d.sender_avatar ? { avatar: d.sender_avatar } : {}),
+          unread: getChatStoreSnapshot().conversations[conversationId]?.unreadCount ?? 0,
+        });
+
+        const cached = msgCacheRef.current.get(Number(d.sender_id) || 0) || [];
+        msgCacheRef.current.set(Number(d.sender_id) || 0, mergeMessages(cached, [{
+          ...newMsg,
+          time: timeFmt(msgTime),
+          rawTime: msgTime,
+        }]));
+        pushMessage(conversationId, newMsg);
+        if (isCurrentConversation) {
+          setIsTyping(true);
+          setTimeout(() => setIsTyping(false), 1500);
+          scrollToBottom();
+        }
+        return;
       }
       if(d.event==="message.edit") {
         setMessages(p=>p.map(m=>m.id===d.id?{...m,content:d.content||m.content}:m))
@@ -1288,6 +1264,7 @@ const ChatPage = () => {
   }, [me?.id]);
 
   const switchContact = useCallback(async (contact: Contact) => {
+    const switchSequence = ++switchSequenceRef.current;
     const idx = baseContacts.findIndex(c => c.convId === contact.convId && c.id === contact.id);
     if(idx<0) return;
     const nextContact = baseContacts[idx];
@@ -1311,6 +1288,7 @@ const ChatPage = () => {
         convId = convId || makePrivateConversationId(me?.id || 0, nextContact.id);
       }
     }
+    if (switchSequence !== switchSequenceRef.current) return;
 
     setSelectedConversationId(convId);
     activeConvIdRef.current = convId;
@@ -1323,14 +1301,17 @@ const ChatPage = () => {
     if (convId) {
       const readConversationId = String(convId);
       setUnread(readConversationId, 0);
+      setContacts((prev) => prev.map((item) => (
+        item.convId === readConversationId ? { ...item, unread: 0 } : item
+      )));
       convIdCacheRef.current.set(nextContact.id, readConversationId);
       queryClient.invalidateQueries({ queryKey: ["chat", "messages", readConversationId] });
       preloadConversationMessages(readConversationId);
 
       void markConversationRead(readConversationId)
         .then(() => {
-          // PUT 成功后刷新会话摘要，避免旧的 unread_count 覆盖本地清零结果。
-          return conversationsQuery.refetch();
+          if (switchSequence !== switchSequenceRef.current) return;
+          setUnread(readConversationId, 0);
         })
         .catch((error) => {
           // 保留本地已读状态；下次刷新会再次从服务端同步真实状态。
@@ -1338,7 +1319,7 @@ const ChatPage = () => {
         });
     }
     if (window.innerWidth < 768) setShowMobileContacts(false);
-  }, [baseContacts, conversationsQuery, ensurePrivateConversation, preloadConversationMessages, queryClient, me?.id]);
+  }, [baseContacts, ensurePrivateConversation, preloadConversationMessages, queryClient, me?.id]);
 
   /* ─── Send ─── */
   const sendMsg = useCallback(async (type: string, content: string, fileName?: string, fileData?: string) => {
