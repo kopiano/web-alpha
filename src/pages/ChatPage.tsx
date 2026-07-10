@@ -502,6 +502,7 @@ const ChatPage = () => {
   const activeConvIdRef = useRef("");
   const selectedPeerUserIdRef = useRef(0);
   const selectedGroupIdRef = useRef(0);
+  const selectedChatTypeRef = useRef<"private" | "group">("private");
   const typingStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localTypingSentRef = useRef<Record<string, boolean>>({});
@@ -841,6 +842,24 @@ const ChatPage = () => {
     return Boolean(contact.convId && contact.convId === activeConversationId);
   }, [activeConversationId]);
   const activeMessagesQuery = useChatMessages(activeMessagesConversationId || undefined, !!activeMessagesConversationId, isGuest);
+  const resolveActiveChatTarget = useCallback(() => {
+    const candidates = [
+      baseContacts.find((c) => c.convId === activeConvIdRef.current),
+      baseContacts.find((c) => c.id === activeContactIdRef.current),
+      activeContact,
+      baseContacts.find((c) => c.convId === selectedConversationId),
+    ].filter(Boolean) as Contact[];
+    const contact = candidates[0] || null;
+    const chatType: "private" | "group" = selectedChatTypeRef.current || contact?.chatType || "private";
+    const conversationId = String(contact?.convId || activeConvIdRef.current || selectedConversationId || "");
+    const receiverId = chatType === "private"
+      ? (selectedPeerUserIdRef.current || contact?.id || activeContactIdRef.current || 0)
+      : 0;
+    const groupId = chatType === "group"
+      ? (selectedGroupIdRef.current || contact?.groupId || contact?.id || 0)
+      : 0;
+    return { contact, chatType, conversationId, receiverId, groupId };
+  }, [activeContact, baseContacts, selectedConversationId]);
   /* ─── Load data ─── */
   const loadAll = useCallback(async () => {
     if (isGuest) {
@@ -863,6 +882,7 @@ const ChatPage = () => {
             activeContactIdRef.current = defaultTeam.id;
             selectedGroupIdRef.current = defaultTeam.id;
             selectedPeerUserIdRef.current = 0;
+            selectedChatTypeRef.current = "group";
             activeConvIdRef.current = defaultTeam.convId;
             setSelectedConversationId(defaultTeam.convId);
             const cached = convoMessagesRef.current.get(defaultTeam.convId) || [];
@@ -1018,6 +1038,7 @@ const ChatPage = () => {
           selectedPeerUserIdRef.current = selectedByConvId.id;
           selectedGroupIdRef.current = 0;
         }
+        selectedChatTypeRef.current = selectedByConvId.chatType;
         setSelectedConversationId(selectedByConvId.convId || "");
         const cached = convoMessagesRef.current.get(selectedByConvId.convId || "") || [];
         setMessages(cached);
@@ -1026,6 +1047,7 @@ const ChatPage = () => {
         activeContactIdRef.current = defaultTeam.id;
         selectedGroupIdRef.current = defaultTeam.id;
         selectedPeerUserIdRef.current = 0;
+        selectedChatTypeRef.current = "group";
         activeConvIdRef.current = defaultTeam.convId || "";
         setSelectedConversationId(defaultTeam.convId || "");
         const cached = convoMessagesRef.current.get(defaultTeam.convId || "") || [];
@@ -1161,6 +1183,7 @@ const ChatPage = () => {
     activeConvIdRef.current = "";
     selectedPeerUserIdRef.current = 0;
     selectedGroupIdRef.current = 0;
+    selectedChatTypeRef.current = "private";
     didInitializeSelectionRef.current = false;
     selectedConversationIdRef.current = storedSelection;
     hasLoadedContactsRef.current = false;
@@ -1221,6 +1244,7 @@ const ChatPage = () => {
     const nextContact = baseContacts[idx];
     activeContactIdRef.current = nextContact.id;
     const isTeamContact = nextContact.chatType === "group";
+    selectedChatTypeRef.current = nextContact.chatType;
     const optimisticConvId = nextContact?.convId || "";
     setSelectedConversationId(optimisticConvId);
     activeConvIdRef.current = optimisticConvId;
@@ -1277,28 +1301,18 @@ const ChatPage = () => {
 
   /* ─── Send ─── */
   const sendMsg = useCallback(async (type: string, content: string, fileName?: string, fileData?: string) => {
-    const targetContact =
-      baseContacts.find((c) => c.id === activeContactIdRef.current) ||
-      activeContact ||
-      baseContacts.find((c) => c.convId === activeConversationId) ||
-      null
-    const selectedConvId = targetContact?.convId || activeConversationId || selectedConversationId || ""
-    const chatType: "private" | "group" = targetContact?.chatType === "group" ? "group" : "private"
-    const isGroup = chatType === "group"
-    const targetReceiverId = isGroup ? 0 : (selectedPeerUserIdRef.current || targetContact?.id || activeContactIdRef.current || 0)
-    const targetGroupId = isGroup ? (selectedGroupIdRef.current || targetContact?.id || 0) : 0
-    const targetConversationId = targetContact?.convId || activeConversationId || selectedConversationId || ""
-    if (chatType === "private" && targetReceiverId <= 0) {
+    const { chatType, conversationId, receiverId, groupId } = resolveActiveChatTarget();
+    if (chatType === "private" && receiverId <= 0) {
       return
     }
-    if (chatType === "group" && targetGroupId <= 0) {
+    if (chatType === "group" && groupId <= 0) {
       return
     }
     let messageType = 1;
     if (type==="emoji") messageType = 2;
     else if (type==="image") messageType = 3;
     else if (type==="file") messageType = 4;
-    const optimisticConvId = selectedConvId || activeConversationId || targetConversationId;
+    const optimisticConvId = conversationId;
     const clientMsgId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const optimisticMessage = makeLocalMessage(
       -Date.now(),
@@ -1331,11 +1345,9 @@ const ChatPage = () => {
       const ok = sendMessage({
         type: "message",
         chat_type: chatType,
-        conversation_id: targetConversationId,
-        to_user_id: isGroup ? 0 : targetReceiverId,
-        recipient_id: isGroup ? 0 : targetReceiverId,
-        receiver_id: isGroup ? 0 : targetReceiverId,
-        group_id: targetGroupId,
+        conversation_id: conversationId,
+        receiver_id: chatType === "group" ? 0 : receiverId,
+        group_id: groupId,
         message_type: messageType,
         content,
         file_name: fileName || "",
@@ -1364,21 +1376,18 @@ const ChatPage = () => {
         convoMessagesRef.current.set(optimisticConvId, rolledBack);
         setMessages((prev) => removeMessageByFingerprint(prev, optimisticMessage));
       }
-      if (selectedConvId || activeConversationId) {
-        const currentConvId = selectedConvId || activeConversationId;
+      if (conversationId) {
+        const currentConvId = conversationId;
         const cached = convoMessagesRef.current.get(currentConvId) || [];
         convoMessagesRef.current.set(currentConvId, cached);
       }
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
     }
-  }, [baseContacts, activeConversationId, activeContact, queryClient, selectedConversationId, sendMessage]);
+  }, [queryClient, resolveActiveChatTarget, sendMessage]);
 
   const emitTyping = useCallback((typing: boolean) => {
-    const convId = activeConvIdRef.current || selectedConversationId || "";
+    const { chatType, conversationId: convId, receiverId, groupId } = resolveActiveChatTarget();
     if (!convId) return;
-    const chatType: "private" | "group" = selectedGroupIdRef.current > 0 ? "group" : "private";
-    const receiverId = selectedPeerUserIdRef.current || activeContactIdRef.current || 0;
-    const groupId = chatType === "group" ? (selectedGroupIdRef.current || activeContactIdRef.current || 0) : 0;
     if (typing) {
       if (localTypingSentRef.current[convId]) return;
       localTypingSentRef.current[convId] = true;
@@ -1387,7 +1396,6 @@ const ChatPage = () => {
         chat_type: chatType,
         conversation_id: convId,
         receiver_id: receiverId,
-        recipient_id: receiverId,
         group_id: groupId,
       });
       return;
@@ -1399,10 +1407,9 @@ const ChatPage = () => {
       chat_type: chatType,
       conversation_id: convId,
       receiver_id: receiverId,
-      recipient_id: receiverId,
       group_id: groupId,
     });
-  }, [selectedConversationId, sendMessage]);
+  }, [resolveActiveChatTarget, sendMessage]);
 
   useEffect(() => {
     if (typingStartTimerRef.current) clearTimeout(typingStartTimerRef.current);
@@ -1450,19 +1457,9 @@ const ChatPage = () => {
   const sendImg = async () => {
     const file = imageFileRef.current;
     if (!file || !previewImg || isUploadingImage) return;
-    const targetContact =
-      baseContacts.find((c) => c.id === activeContactIdRef.current) ||
-      activeContact ||
-      baseContacts.find((c) => c.convId === activeConversationId) ||
-      null;
-    const selectedConvId = targetContact?.convId || activeConversationId || selectedConversationId || "";
-    const chatType: "private" | "group" = targetContact?.chatType === "group" ? "group" : "private";
-    const isGroup = chatType === "group";
-    const targetReceiverId = isGroup ? 0 : (selectedPeerUserIdRef.current || targetContact?.id || activeContactIdRef.current || 0);
-    const targetGroupId = isGroup ? (selectedGroupIdRef.current || targetContact?.id || 0) : 0;
-    const targetConversationId = targetContact?.convId || activeConversationId || selectedConversationId || "";
-    if (chatType === "private" && targetReceiverId <= 0) return;
-    if (chatType === "group" && targetGroupId <= 0) return;
+    const { chatType, conversationId, receiverId, groupId } = resolveActiveChatTarget();
+    if (chatType === "private" && receiverId <= 0) return;
+    if (chatType === "group" && groupId <= 0) return;
 
     setIsUploadingImage(true);
     setSendError("");
@@ -1472,13 +1469,12 @@ const ChatPage = () => {
       const webpFile = new File([webpBlob], webpFileName, { type: "image/webp" });
       const formData = new FormData();
       formData.append("chat_type", chatType);
-      formData.append("conversation_id", selectedConvId || targetConversationId);
+      formData.append("conversation_id", conversationId);
       formData.append("message_type", "3");
       formData.append("content", "[图片]");
       formData.append("file_name", webpFileName);
-      formData.append("receiver_id", String(isGroup ? 0 : targetReceiverId));
-      formData.append("recipient_id", String(isGroup ? 0 : targetReceiverId));
-      formData.append("group_id", String(targetGroupId));
+      formData.append("receiver_id", String(chatType === "group" ? 0 : receiverId));
+      formData.append("group_id", String(groupId));
       formData.append("file", webpFile);
 
       const res = await sendChatMessageForm(formData);
@@ -1486,7 +1482,7 @@ const ChatPage = () => {
       const sentMessage = normalizeServerMessage(payload, meName, meId);
       if (sentMessage) {
         sentMessage.deliveryStatus = "confirmed";
-        const optimisticConvId = targetConversationId || selectedConvId;
+        const optimisticConvId = conversationId;
         if (optimisticConvId) {
           const existing = convoMessagesRef.current.get(optimisticConvId) || [];
           const nextMessages = appendMessage(existing, sentMessage);
