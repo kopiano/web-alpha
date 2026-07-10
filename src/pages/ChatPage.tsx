@@ -9,7 +9,7 @@ import { EMOJI_LIST } from "@/config/chat";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatConversations } from "@/hooks/chat/useChatConversations";
 import { useChatStore } from "@/store/chatStore";
-import { patchConversation, setUnread, setTyping, hydrateFromServer, clearChatStore } from "@/store/chatStore";
+import { patchConversation, setUnread, incrementUnread, setTyping, hydrateFromServer, clearChatStore, upsertConversation, getChatStoreSnapshot } from "@/store/chatStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import teamAvatar from "@/assets/teamGroup.webp";
@@ -623,31 +623,49 @@ const ChatPage = () => {
         const normalized = normalizeServerMessage(d, meRef.current, meId);
         const isMe = normalized.sender === "me";
         if(isMe) {
+          const ownConversationId = String(d.conversation_id || activeConvIdRef.current || "");
+          if (ownConversationId) {
+            const currentUnread = getChatStoreSnapshot().conversations[ownConversationId]?.unreadCount || 0;
+            upsertConversationSummary(ownConversationId, {
+              chatType,
+              name: d.username || d.sender_username || "",
+              avatar: d.sender_avatar || "",
+              lastMsg: d.content,
+              lastTimeRaw: d.created_at || d.time || new Date().toISOString(),
+              unread: currentUnread,
+              lastMessageType: messageTypeToNumber(d.msg_type),
+            });
+          }
           return;
         }
         const msgTime = d.time || timeFmt(new Date().toISOString())
         const newMsg: Message = normalized;
 
         if (isGroupMsg && !isCurrentConversation) {
-          pushMessage(targetConvId, newMsg);
+          const conversationId = String(d.conversation_id || targetConvId || "");
+          const currentUnread = getChatStoreSnapshot().conversations[conversationId]?.unreadCount || 0;
+          upsertConversationSummary(conversationId, {
+            chatType: "group",
+            name: d.group_name || d.group_title || "Group",
+            lastMsg: d.content,
+            lastTimeRaw: d.time || new Date().toISOString(),
+            unread: currentUnread + 1,
+            lastMessageType: messageTypeToNumber(d.msg_type),
+          });
+          pushMessage(conversationId, newMsg);
           return;
         }
         if(activeConvIdRef.current && d.conversation_id && d.conversation_id !== activeConvIdRef.current) {
-          const nextUnread = ((storeContacts.find(c => c.convId === d.conversation_id)?.unread ?? contacts.find(c => c.id === d.sender_id)?.unread ?? 0) + 1)
+          incrementUnread(String(d.conversation_id));
           upsertConversationSummary(String(d.conversation_id), {
             id: d.sender_id,
             name: d.username || d.sender_username || "",
             avatar: d.sender_avatar || "",
             lastMsg: d.content,
             lastTimeRaw: new Date().toISOString(),
-            unread: nextUnread,
+            unread: getChatStoreSnapshot().conversations[String(d.conversation_id)]?.unreadCount ?? 1,
             lastMessageType: messageTypeToNumber(d.msg_type),
           })
-          if (!storeContacts.length) {
-            setContacts(prev => prev.map(c =>
-              c.id === d.sender_id ? { ...c, lastMsg: d.content, time: msgTime, unread: nextUnread } : c
-            ))
-          }
           const cached = msgCacheRef.current.get(d.sender_id) || []
           const cachedMsg = { ...newMsg, time: msgTime, rawTime: d.time || new Date().toISOString() }
           msgCacheRef.current.set(d.sender_id, mergeMessages(cached, [cachedMsg]))
@@ -700,16 +718,13 @@ const ChatPage = () => {
         if (readChatType === "group") {
           setTyping(String(d.conversation_id), false);
         }
-        if (!storeContacts.length) {
-          setContacts(prev => prev.map(c => c.convId === d.conversation_id ? { ...c, unread: 0 } : c))
-        }
         setUnread(String(d.conversation_id), 0)
         upsertConversationSummary(String(d.conversation_id), {
           id: 0,
           name: "",
           avatar: "",
           lastMsg: "",
-          lastTimeRaw: new Date().toISOString(),
+          lastTimeRaw: "",
           unread: 0,
         })
         return
@@ -753,14 +768,38 @@ const ChatPage = () => {
 
   const upsertConversationSummary = useCallback((conversationId: string, patch: Partial<Contact> & { lastMessageType?: number }) => {
     if (!conversationId) return;
-    const next: Record<string, any> = {};
-    if (patch.name !== undefined) next.title = patch.name;
-    if (patch.avatar !== undefined) next.avatar = patch.avatar;
-    if (patch.lastMsg !== undefined) next.lastMessage = patch.lastMsg;
-    if (patch.lastMessageType !== undefined) next.lastMessageType = patch.lastMessageType;
-    if (patch.lastTimeRaw !== undefined) next.lastMessageAt = patch.lastTimeRaw;
-    if (patch.unread !== undefined) next.unreadCount = patch.unread;
-    patchConversation(conversationId, next as any);
+    const next: Parameters<typeof upsertConversation>[0] = {
+      conversationId,
+      type: patch.chatType || "private",
+      title: patch.name || "",
+      avatar: patch.avatar,
+      lastMessage: patch.lastMsg || "",
+      lastMessageType: patch.lastMessageType || 1,
+      lastMessageAt: patch.lastTimeRaw || "",
+      unreadCount: patch.unread || 0,
+      members: patch.members?.map((member) => ({ user_id: member.id, username: member.username, avatar: member.avatar })) || [],
+    };
+    const current = getChatStoreSnapshot().conversations[conversationId];
+    if (current) {
+      const partial: Partial<typeof current> = {};
+      if (patch.chatType !== undefined) partial.type = patch.chatType;
+      if (patch.name !== undefined) partial.title = patch.name;
+      if (patch.avatar !== undefined) partial.avatar = patch.avatar;
+      if (patch.lastMsg !== undefined) partial.lastMessage = patch.lastMsg;
+      if (patch.lastMessageType !== undefined) partial.lastMessageType = patch.lastMessageType;
+      if (patch.lastTimeRaw !== undefined) partial.lastMessageAt = patch.lastTimeRaw;
+      if (patch.unread !== undefined) partial.unreadCount = patch.unread;
+      if (patch.members !== undefined) {
+        partial.members = patch.members.map((member) => ({
+          user_id: member.id,
+          username: member.username,
+          avatar: member.avatar,
+        }));
+      }
+      patchConversation(conversationId, partial);
+      return;
+    }
+    upsertConversation(next);
   }, []);
 
   const preloadConversationMessages = useCallback((conversationId?: string) => {
@@ -1280,16 +1319,26 @@ const ChatPage = () => {
     setMessagesConversationId(convId);
     setLoadingMessages(cached.length === 0);
 
-    // 标记已读：调用后端 API + 更新本地未读计数
+    // 先立即更新本地徽标，再以服务端已读接口作为最终确认。
     if (convId) {
-      markConversationRead(convId).catch(() => {})
-      convIdCacheRef.current.set(nextContact.id, convId)
-      setUnread(convId, 0)
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", convId] });
-      preloadConversationMessages(convId);
+      const readConversationId = String(convId);
+      setUnread(readConversationId, 0);
+      convIdCacheRef.current.set(nextContact.id, readConversationId);
+      queryClient.invalidateQueries({ queryKey: ["chat", "messages", readConversationId] });
+      preloadConversationMessages(readConversationId);
+
+      void markConversationRead(readConversationId)
+        .then(() => {
+          // PUT 成功后刷新会话摘要，避免旧的 unread_count 覆盖本地清零结果。
+          return conversationsQuery.refetch();
+        })
+        .catch((error) => {
+          // 保留本地已读状态；下次刷新会再次从服务端同步真实状态。
+          console.warn("Mark conversation read failed:", error);
+        });
     }
     if (window.innerWidth < 768) setShowMobileContacts(false);
-  }, [baseContacts, ensurePrivateConversation, preloadConversationMessages, queryClient, me?.id]);
+  }, [baseContacts, conversationsQuery, ensurePrivateConversation, preloadConversationMessages, queryClient, me?.id]);
 
   /* ─── Send ─── */
   const sendMsg = useCallback(async (type: string, content: string, fileName?: string, fileData?: string) => {

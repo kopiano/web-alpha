@@ -18,6 +18,7 @@ type ChatStoreState = {
   conversations: Record<string, ChatConversationSummary>;
   unreadByConversation: Record<string, number>;
   typingByConversation: Record<string, boolean>;
+  readAtByConversation: Record<string, number>;
 };
 
 type Listener = () => void;
@@ -30,6 +31,7 @@ const state: ChatStoreState = {
   conversations: {},
   unreadByConversation: {},
   typingByConversation: {},
+  readAtByConversation: {},
 };
 
 const listeners = new Set<Listener>();
@@ -90,17 +92,53 @@ export function setActiveConversationId(id: string) {
 }
 
 export function hydrateFromServer(items: ChatConversationSummary[]) {
+  const now = Date.now();
   const map: Record<string, ChatConversationSummary> = { ...state.conversations };
   for (const item of items) {
-    map[item.conversationId] = mergeConversationItem(map[item.conversationId], item);
+    const readAt = state.readAtByConversation[item.conversationId] || 0;
+    const current = map[item.conversationId];
+    const next = mergeConversationItem(current, item);
+    map[item.conversationId] = readAt && now - readAt < 5000 && current
+      ? { ...next, unreadCount: current.unreadCount }
+      : next;
   }
   state.conversations = map;
   state.conversationOrder = sortConversationIds(map);
   state.unreadByConversation = {
     ...state.unreadByConversation,
-    ...Object.fromEntries(items.map((item) => [item.conversationId, item.unreadCount])),
+    ...Object.fromEntries(items.map((item) => {
+      const readAt = state.readAtByConversation[item.conversationId] || 0;
+      const preserveLocalRead = readAt && now - readAt < 5000 && state.conversations[item.conversationId];
+      return [item.conversationId, preserveLocalRead ? state.conversations[item.conversationId].unreadCount : item.unreadCount];
+    })),
   };
   safeWriteCache(Object.values(map));
+  emit();
+}
+
+export function upsertConversation(item: ChatConversationSummary) {
+  const current = state.conversations[item.conversationId];
+  const merged = current
+    ? {
+        ...current,
+        ...item,
+        title: item.title || current.title,
+        avatar: item.avatar || current.avatar,
+        lastMessage: item.lastMessage || current.lastMessage,
+        lastMessageAt: item.lastMessageAt || current.lastMessageAt,
+        members: item.members?.length ? item.members : current.members,
+      }
+    : item;
+  state.conversations = {
+    ...state.conversations,
+    [item.conversationId]: merged,
+  };
+  state.conversationOrder = sortConversationIds(state.conversations);
+  state.unreadByConversation = {
+    ...state.unreadByConversation,
+    [item.conversationId]: state.conversations[item.conversationId].unreadCount,
+  };
+  safeWriteCache(Object.values(state.conversations));
   emit();
 }
 
@@ -115,10 +153,28 @@ export function patchConversation(id: string, patch: Partial<ChatConversationSum
   if (patch.unreadCount !== undefined) {
     state.unreadByConversation = { ...state.unreadByConversation, [id]: patch.unreadCount };
   }
+  safeWriteCache(Object.values(state.conversations));
+  emit();
+}
+
+export function incrementUnread(id: string, amount = 1) {
+  if (!id || amount <= 0) return;
+  const current = state.conversations[id]?.unreadCount ?? state.unreadByConversation[id] ?? 0;
+  const next = current + amount;
+  state.unreadByConversation = { ...state.unreadByConversation, [id]: next };
+  if (state.conversations[id]) {
+    state.conversations = {
+      ...state.conversations,
+      [id]: { ...state.conversations[id], unreadCount: next },
+    };
+    state.conversationOrder = sortConversationIds(state.conversations);
+    safeWriteCache(Object.values(state.conversations));
+  }
   emit();
 }
 
 export function setUnread(id: string, unreadCount: number) {
+  state.readAtByConversation = { ...state.readAtByConversation, [id]: Date.now() };
   state.unreadByConversation = { ...state.unreadByConversation, [id]: unreadCount };
   if (state.conversations[id]) {
     state.conversations = {
@@ -128,6 +184,7 @@ export function setUnread(id: string, unreadCount: number) {
   }
   emit();
 }
+
 
 export function setTyping(id: string, typing: boolean) {
   state.typingByConversation = { ...state.typingByConversation, [id]: typing };
@@ -140,6 +197,7 @@ export function clearChatStore() {
   state.conversations = {};
   state.unreadByConversation = {};
   state.typingByConversation = {};
+  state.readAtByConversation = {};
   try {
     localStorage.removeItem(CACHE_KEY);
   } catch {

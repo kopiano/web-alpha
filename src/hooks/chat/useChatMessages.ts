@@ -15,15 +15,14 @@ export interface ChatMessage {
 }
 
 async function fetchMessages(conversationId: string, beforeId?: number, guestMode = false) {
-  const isGroupGuest = guestMode && Boolean(conversationId);
-  if (guestMode && !isGroupGuest) return [];
+  const isGroupConversation = conversationId.startsWith("g_");
   const requestParams = {
     params: {
       limit: 30,
       ...(beforeId ? { before_id: beforeId } : {}),
     },
   };
-  const requestFn = isGroupGuest ? fetchGroupMessages : fetchConversationMessages;
+  const requestFn = isGroupConversation || guestMode ? fetchGroupMessages : fetchConversationMessages;
   const res = await requestFn(conversationId, requestParams);
   const data = res.data?.data;
   if (Array.isArray(data)) return data;

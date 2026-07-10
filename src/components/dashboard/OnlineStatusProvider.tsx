@@ -38,6 +38,7 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>()
   const handlersRef = useRef<Set<(msg: WsMessage) => void>>(new Set())
+  const connectionIdRef = useRef(0)
 
   const subscribe = useCallback((handler: (msg: WsMessage) => void) => {
     handlersRef.current.add(handler)
@@ -55,8 +56,9 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [])
 
-  const connect = () => {
+  const connect = useCallback(() => {
     if (!user) return
+    const connectionId = ++connectionIdRef.current
     const protocol = location.protocol === "https:" ? "wss:" : "ws:"
     const token = localStorage.getItem("token")
     if (!token) return
@@ -75,16 +77,21 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
     ws.onmessage = (e) => {
       try {
         const d: WsMessage = JSON.parse(e.data)
-        if ((d.event === "presence.snapshot" || d.type === "presence") && d.users) {
-          setOnlineUsers(new Set(d.users.map((u: any) => u.user_id)))
+        if ((d.event === "presence.snapshot" || d.type === "presence") && Array.isArray(d.users)) {
+          const ids = d.users
+            .map((u: any) => Number(u?.user_id ?? u?.id))
+            .filter((id: number) => Number.isFinite(id) && id > 0 && id !== user.id)
+          setOnlineUsers(new Set(ids))
         }
         if (d.event === "user.online" && d.user_id) {
-          setOnlineUsers(prev => new Set([...prev, d.user_id as number]))
+          const id = Number(d.user_id)
+          if (id > 0 && id !== user.id) setOnlineUsers(prev => new Set([...prev, id]))
         }
         if (d.event === "user.offline" && d.user_id) {
+          const id = Number(d.user_id)
           setOnlineUsers(prev => {
             const next = new Set(prev)
-            next.delete(d.user_id as number)
+            next.delete(id)
             return next
           })
         }
@@ -93,22 +100,30 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
       } catch { /* ignore */ }
     }
     ws.onclose = (e) => {
-      if (e.code !== 1000) {
+      if (connectionId !== connectionIdRef.current) return
+      if (e.code !== 1000 && user) {
         reconnectTimer.current = setTimeout(connect, 3000)
       }
     }
-    ws.onerror = () => { if (ws.readyState === WebSocket.OPEN) ws.close() }
-  }
+    ws.onerror = () => { if (connectionId === connectionIdRef.current && ws.readyState === WebSocket.OPEN) ws.close() }
+  }, [user])
 
   useEffect(() => {
+    clearTimeout(reconnectTimer.current)
+    setOnlineUsers(new Set())
+    connectionIdRef.current += 1
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      wsRef.current.close(1000)
+    }
     connect()
     return () => {
       clearTimeout(reconnectTimer.current)
-      if (wsRef.current && wsRef.current.readyState !== WebSocket.CONNECTING) {
+      connectionIdRef.current += 1
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
         wsRef.current.close(1000)
       }
     }
-  }, [user?.id])
+  }, [connect, user?.id])
 
   return (
     <OnlineContext.Provider value={{ onlineUsers, subscribe, sendMessage }}>
