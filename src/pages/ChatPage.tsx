@@ -1823,7 +1823,11 @@ const ChatPage = () => {
               <div className="flex items-center justify-center h-full">
                 <ChatLoadingDots ringClassName="border-t-cyan-400" />
               </div>
-            ) : activeConversationId && messages.length===0?<div className="flex items-center justify-center h-full"><p className="text-[13px] text-white/20">Send a message to start</p></div>
+            ) : loadingMessages ? (
+              <div className="flex items-center justify-center h-full">
+                <ChatLoadingDots ringClassName="border-t-cyan-400" />
+              </div>
+            ) : activeConversationId && messages.length===0 ? null
             :messages.map((m,i)=>{
               const isMe=m.sender==="me";
               const prevSame=i>0&&messages[i-1]?.sender===m.sender;
