@@ -40,6 +40,7 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>()
   const handlersRef = useRef<Set<(msg: WsMessage) => void>>(new Set())
   const connectionIdRef = useRef(0)
+  const pendingPayloadsRef = useRef<Record<string, unknown>[]>([])
 
   const subscribe = useCallback((handler: (msg: WsMessage) => void) => {
     handlersRef.current.add(handler)
@@ -48,14 +49,24 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
 
   const sendMessage = useCallback((payload: Record<string, any>) => {
     const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN || connectionState !== "open") return false
+    if (!ws) return false
     try {
-      ws.send(JSON.stringify(payload))
-      return true
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload))
+        return true
+      }
+      // Keep user actions made during the handshake. The socket can be
+      // reconnecting for a few seconds, and dropping the payload makes the
+      // optimistic message look slow or failed.
+      if (ws.readyState === WebSocket.CONNECTING && pendingPayloadsRef.current.length < 50) {
+        pendingPayloadsRef.current.push(payload)
+        return true
+      }
+      return false
     } catch {
       return false
     }
-  }, [connectionState])
+  }, [])
 
   const connect = useCallback(() => {
     if (!user) return
@@ -77,7 +88,16 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
     wsRef.current = ws
 
     ws.onopen = () => {
-      if (connectionId === connectionIdRef.current) setConnectionState("open")
+      if (connectionId !== connectionIdRef.current) return
+      setConnectionState("open")
+      const pending = pendingPayloadsRef.current.splice(0)
+      pending.forEach((payload) => {
+        try {
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload))
+        } catch {
+          // The normal message timeout/error path handles failed sends.
+        }
+      })
     }
 
     ws.onmessage = (e) => {
@@ -120,6 +140,7 @@ export const OnlineStatusProvider = ({ children }: { children: ReactNode }) => {
     clearTimeout(reconnectTimer.current)
     setConnectionState("closed")
     setOnlineUsers(new Set())
+    pendingPayloadsRef.current = []
     connectionIdRef.current += 1
     if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
       wsRef.current.close(1000)
