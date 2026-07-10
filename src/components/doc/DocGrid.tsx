@@ -97,7 +97,7 @@ export const DocGrid = ({ activeCat, ARTICLES, filteredArticles, featured, setSe
               </div>
               <h3 className="text-[15px] font-semibold tracking-tight text-white/88 group-hover:text-white text-center leading-[1.35] line-clamp-3">{a.title}</h3>
               <div className="mt-2 flex items-center justify-start">
-                <div className="flex items-center -space-x-2.5">
+                <div className="flex items-center -space-x-1.5">
                   {contributorIds(a).slice(0, 15).map((id: number, idx: number) => {
                     const user = id > 0 ? usersById.get(id) : null;
                     const image = contributorAvatar(user);
@@ -106,6 +106,7 @@ export const DocGrid = ({ activeCat, ARTICLES, filteredArticles, featured, setSe
                       <div
                         key={`${a.id ?? a.title}-${id}-${idx}`}
                         className={`w-[26px] h-[26px] rounded-full overflow-hidden shrink-0 border-[1.5px] border-[#0c0c14] grid place-items-center text-[8px] font-bold text-white/90 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] ${idx === 0 ? "bg-gradient-to-br from-violet-400/20 to-cyan-300/20" : "bg-white/[0.06]"}`}
+                        style={{ zIndex: 15 - idx }}
                         title={user?.username || (id === 0 ? "Guest" : `User ${id}`)}
                       >
                         {image ? (
@@ -117,7 +118,7 @@ export const DocGrid = ({ activeCat, ARTICLES, filteredArticles, featured, setSe
                     );
                   })}
                   {contributorIds(a).length > 15 && (
-                    <div className="w-[26px] h-[26px] rounded-full border-[1.5px] border-[#0c0c14] grid place-items-center text-[8px] font-bold text-white/55 bg-white/8 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
+                    <div className="w-[26px] h-[26px] rounded-full border-[1.5px] border-[#0c0c14] grid place-items-center text-[8px] font-bold text-white/55 bg-white/8 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]" style={{ zIndex: 0 }}>
                       +{contributorIds(a).length - 15}
                     </div>
                   )}
