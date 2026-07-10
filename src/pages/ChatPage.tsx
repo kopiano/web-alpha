@@ -852,10 +852,22 @@ const ChatPage = () => {
   }, []);
 
   const baseContacts = useMemo(() => {
-    if (contacts.length > 0) return contacts;
-    if (hasLoadedContactsRef.current) return storeContacts;
-    return [];
-  }, [contacts, storeContacts]);
+    const source = contacts.length > 0
+      ? contacts
+      : hasLoadedContactsRef.current ? storeContacts : [];
+
+    // `contacts` contains conversation data and can outlive a presence event.
+    // Derive this volatile field from the current snapshot so online/offline
+    // events cannot leave the list showing a stale value.
+    return source.map((contact) => {
+      if (contact.chatType === "group") return contact;
+      const userId = Number(contact.userData?.id || contact.id);
+      return {
+        ...contact,
+        online: Number.isFinite(userId) && onlineUsers.has(userId),
+      };
+    });
+  }, [contacts, storeContacts, onlineUsers]);
   const teamContacts = useMemo(() => baseContacts.filter((c) => c.chatType === "group"), [baseContacts]);
   const personalContacts = useMemo(() => baseContacts.filter((c) => c.chatType !== "group"), [baseContacts]);
   const defaultTeamContact = useMemo(() => teamContacts[0] || null, [teamContacts]);
