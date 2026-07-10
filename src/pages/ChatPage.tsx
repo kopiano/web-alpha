@@ -651,12 +651,21 @@ const ChatPage = () => {
         const conversationId = String(d.conversation_id || targetConvId || "");
         if (!conversationId) return;
 
-        if (!isMe && !isCurrentConversation) {
-          incrementUnread(conversationId);
+        const currentConversation = getChatStoreSnapshot().conversations[conversationId];
+        const isActiveMessage = conversationId === activeConvIdRef.current;
+        if (!isMe && !isActiveMessage) {
+          if (currentConversation) {
+            incrementUnread(conversationId);
+          }
         } else if (!isMe) {
           setUnread(conversationId, 0);
         }
 
+        const unreadPatch = isActiveMessage || isMe
+          ? 0
+          : currentConversation
+            ? undefined
+            : 1;
         upsertConversationSummary(conversationId, {
           chatType,
           lastMsg: d.content,
@@ -664,7 +673,7 @@ const ChatPage = () => {
           lastMessageType: messageTypeToNumber(d.msg_type || d.type),
           ...(d.username || d.sender_username ? { name: d.username || d.sender_username } : {}),
           ...(d.sender_avatar ? { avatar: d.sender_avatar } : {}),
-          unread: getChatStoreSnapshot().conversations[conversationId]?.unreadCount ?? 0,
+          ...(unreadPatch !== undefined ? { unread: unreadPatch } : {}),
         });
 
         const cached = msgCacheRef.current.get(Number(d.sender_id) || 0) || [];
@@ -706,17 +715,17 @@ const ChatPage = () => {
         return
       }
       if(d.event==="conversation.update" && d.conversation_id) {
-        const updateChatType = extractChatType(d, activeContact?.chatType === "group" ? "group" : "private");
-        upsertConversationSummary(String(d.conversation_id), {
-          id: d.user_id || 0,
-          name: d.username || "",
-          avatar: d.avatar || "",
-          lastMsg: d.last_message ?? d.content ?? "",
-          lastTimeRaw: d.time || new Date().toISOString(),
-          unread: d.unread_count ?? 0,
-          lastMessageType: d.last_message_type ?? 1,
-        })
-        if (updateChatType === "group" && String(d.conversation_id || "") === activeConvIdRef.current) {
+        const conversationId = String(d.conversation_id);
+        const updatePatch: Partial<Contact> & { lastMessageType?: number } = {};
+        if (d.chat_type || d.type) updatePatch.chatType = extractChatType(d);
+        if (d.username) updatePatch.name = d.username;
+        if (d.avatar) updatePatch.avatar = d.avatar;
+        if (d.last_message !== undefined || d.content !== undefined) updatePatch.lastMsg = d.last_message ?? d.content;
+        if (d.last_message_at || d.time) updatePatch.lastTimeRaw = d.last_message_at || d.time;
+        if (d.unread_count !== undefined) updatePatch.unread = Number(d.unread_count) || 0;
+        if (d.last_message_type !== undefined) updatePatch.lastMessageType = d.last_message_type;
+        upsertConversationSummary(conversationId, updatePatch);
+        if (updatePatch.chatType === "group" && conversationId === activeConvIdRef.current) {
           setIsTyping(false);
         }
         return
