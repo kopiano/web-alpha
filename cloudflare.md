@@ -2,7 +2,7 @@
 **部署思路**
 ```sh
 react(vite): cloudflare pages
-go(gin).   : cloudflare tunnel 
+go(gin).   : cloudflare tunnel
 ```
 **react(vite)**
 ```sh
@@ -25,7 +25,7 @@ go(gin).   : cloudflare tunnel
 2. 点击正上方 "Custom domains", 点击"set up a custom domains"按钮
 3. 输入最终的访问网址：如"alpha.coulsonzero.shop"
 4. 搜索"DNS", 点击"Add record"
-5. 设置 
+5. 设置
 Type: CNAME
 Name: alpha
 IPv4 address: web-alpha-cloudflare.pages.dev
@@ -40,7 +40,7 @@ IPv4 address: web-alpha-cloudflare.pages.dev
 ### docker
 改动了后端代码，但数据库不显示：如果只想重建后端（不重启MySQL/Redis），也无需关闭之前的后端容器程序
 ```sh
-docker compose up -d --build backend 
+docker compose up -d --build backend
 ```
 查看log
 ```shell
@@ -51,12 +51,12 @@ docker compose logs --tail=50 backend
 ```shell
 $ cloudflared tunnel create api-test
 # Created tunnel alpha-api with id b53f33e1-5f51-4597-9cc1-51b6538a4455
-$ ls -la ~/.cloudflared   
+$ ls -la ~/.cloudflared
 #-r--------    1 coulsonzero  staff   175 Jul  4 23:02 b53f33e1-5f51-4597-9cc1-51b6538a4455.json
 $ vim ~/.cloudflared/config.yml
 #tunnel: api-test
 #credentials-file: /Users/coulsonzero/.cloudflared/57eac48d-5987-4fbf-835f-32171c972429.json
-#protocol: http2  
+#protocol: http2
 #
 #ingress:
 #  - hostname: api.coulsonzero.shop
@@ -78,9 +78,9 @@ VITE_API_URL=https://api.coulsonzero.shop/api/v1
 * 查看tunnel
 ```shell
 cloudflared tunnel list
-#ID                                   NAME          CREATED              CONNECTIONS 
-#b53f33e1-5f51-4597-9cc1-51b6538a4455 alpha-api     2026-07-04T15:02:43Z             
-#57eac48d-5987-4fbf-835f-32171c972429 alpha-backend 2026-07-04T08:41:40Z             
+#ID                                   NAME          CREATED              CONNECTIONS
+#b53f33e1-5f51-4597-9cc1-51b6538a4455 alpha-api     2026-07-04T15:02:43Z
+#57eac48d-5987-4fbf-835f-32171c972429 alpha-backend 2026-07-04T08:41:40Z
 #6d87878a-4baf-48d7-9cf1-2d360faeae06 gin-api       2026-07-04T15:02:15Z
 cloudflared tunnel delete alpha-backend
 cloudflared tunnel --loglevel debug run api-test
@@ -94,4 +94,9 @@ cloudflared tunnel --protocol http2 run api-test
 cloudflared tunnel --protocol http2 --loglevel debug run api-test
 # ipv4
 cloudflared tunnel --protocol http2 --edge-ip-version 4 run api-test
+```
+
+* WRN Your `version` 2026.6.1 is outdated. We recommend upgrading it to 2026.7.1
+```sh
+brew upgrade cloudflared
 ```

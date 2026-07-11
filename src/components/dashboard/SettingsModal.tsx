@@ -26,8 +26,8 @@ export const SettingsModal = ({ user, onClose, onSaved }: SettingsModalProps) =>
   useEffect(() => {
     setUsername(user.username);
     setEmail(user.email);
-    setPassword("");
-    setAvatarFile(null);
+    setPassword(user.password || "");
+    setAvatarFile(user.avatar ? null : undefined);
     setAvatarPreview(user.avatar ? resolveAvatar(user.avatar) : null);
   }, [user.id, user.username, user.email, user.avatar]);
 
