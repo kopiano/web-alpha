@@ -1,0 +1,1 @@
+import{f as e}from"./index-KYrVe0iA.js";function t(){return e.get(`/user`)}export{t};
