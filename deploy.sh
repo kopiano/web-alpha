@@ -10,10 +10,10 @@ cd dist
 # cp index.html 404.html
 
 # 如果是发布到自定义域名
-echo 'ai.coulsonzero.shop' > CNAME
+echo 'alpha.kopiano.cc' > CNAME
 
 git init
-git add -A
+git add .
 git commit -m 'deploy alpha'
 
 git push -f https://github.com/kopiano/web-alpha.git HEAD:gh-pages
